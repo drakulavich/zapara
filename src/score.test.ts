@@ -11,38 +11,57 @@ const m = (over: Partial<Metrics>): Metrics => ({ ...base, ...over });
 describe("score", () => {
   test.each<[string, Partial<Metrics>, number]>([
     ["idle single session", {}, 0],
-    ["3 sessions = half of parallel weight", { sessions: 3 }, 15],
-    ["5 sessions caps parallel", { sessions: 5 }, 30],
-    ["9 sessions still capped", { sessions: 9 }, 30],
-    ["20 prompts = half pace", { prompts: 20 }, 10],
-    ["40 prompts caps pace", { prompts: 40 }, 20],
-    ["10 decisions = half", { decisions: 10 }, 10],
-    ["20 decisions caps", { decisions: 20 }, 20],
-    ["60 min streak = half", { streakMin: 60 }, 8],
-    ["120 min streak caps", { streakMin: 120 }, 15],
-    ["late night alone", { lateNight: true }, 15],
-    ["everything at cap", { sessions: 5, prompts: 40, decisions: 20, streakMin: 120, lateNight: true }, 100],
-    ["2 min streak rounds parts to 0.3 but index to 0", { streakMin: 2 }, 0],
-    // Same base as the spec's own example (sessions=5, prompts=40, decisions=20 => 70 exactly);
-    // streakMin=118 rounds to 85 under both single- and double-pass rounding, so it can't tell
-    // them apart. streakMin=44 does: 30 + 20 + 20 + 15*44/120 = 75.5 exactly (integer weights keep
-    // this exact in floating point), which rounds up to 76 — the true mathematical answer.
-    ["mathematically exact half-point sum rounds up", { sessions: 5, prompts: 40, decisions: 20, streakMin: 44 }, 76],
-    ["half-point sum rounds up, not down", { sessions: 3, prompts: 20, decisions: 10, streakMin: 60, lateNight: true }, 58],
+    ["3 sessions = half of parallel weight", { sessions: 3 }, 13],                    // 25*(2/4) = 12.5 → 13
+    ["5 sessions caps parallel", { sessions: 5 }, 25],                                // 25*(4/4) = 25
+    ["9 sessions still capped", { sessions: 9 }, 25],                                 // clamp(8/4) = 1 → 25
+    ["10 prompts = half pace", { prompts: 10 }, 8],                                   // 15*(10/20) = 7.5 → 8
+    ["20 prompts caps pace", { prompts: 20 }, 15],                                    // 15*(20/20) = 15
+    ["40 prompts still capped", { prompts: 40 }, 15],                                 // clamp(40/20) = 1 → 15
+    ["5 decisions = a third of supervision", { decisions: 5 }, 10],                   // 30*(3*5/45) = 10
+    ["15 decisions cap supervision alone", { decisions: 15 }, 30],                    // 30*(45/45) = 30
+    ["30 decisions still capped", { decisions: 30 }, 30],                             // clamp(90/45) = 1 → 30
+    ["45 reports cap supervision alone", { reports: 45 }, 30],                        // 30*(45/45) = 30
+    ["9 reports = a fifth of supervision", { reports: 9 }, 6],                        // 30*(9/45) = 6
+    ["45 context switches cap supervision alone", { contextSwitches: 45 }, 30],       // 30*(45/45) = 30
+    ["decisions, reports and switches share one norm", { decisions: 5, reports: 15, contextSwitches: 15 }, 30], // (15+15+15)/45 = 1 → 30
+    ["40 000 output tokens = half reading", { outputTokens: 40_000 }, 5],             // 10*(40000/80000) = 5
+    ["80 000 output tokens cap reading", { outputTokens: 80_000 }, 10],               // 10*(80000/80000) = 10
+    ["200 000 output tokens still capped", { outputTokens: 200_000 }, 10],            // clamp(200000/80000) = 1 → 10
+    ["60 min streak = half", { streakMin: 60 }, 5],                                   // 10*(60/120) = 5
+    ["120 min streak caps", { streakMin: 120 }, 10],                                  // 10*(120/120) = 10
+    ["late night alone", { lateNight: true }, 10],                                    // 10*1 = 10
+    // 25 + 15 + 30 + 10 + 10 + 10 = 100
+    ["everything at cap", { sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 120, lateNight: true }, 100],
+    // The same without the late-night flag: 25 + 15 + 30 + 10 + 10 = 90, the daytime maximum.
+    ["everything at cap but the hour", { sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 120 }, 90],
+    // Integer weights keep this exact in floating point: 12.5 + 5 = 17.5, and
+    // Math.round takes a mathematical half upwards, so the index is 18, not 17.
+    ["an exact half-point sum rounds up", { sessions: 3, streakMin: 60 }, 18],
   ])("%s", (_name, over, expected) => {
     expect(score(m(over))?.index).toBe(expected);
   });
 
-  test("2 min streak still rounds its own displayed part to 0.3", () => {
-    expect(score(m({ streakMin: 2 }))?.parts.streak).toBe(0.3);
+  test("the six weighted parts are reported and add up to the index", () => {
+    // parallel 25*(2/4) = 12.5, pace 15*(10/20) = 7.5,
+    // supervision 30*(3*3 + 6 + 12)/45 = 30*(27/45) = 18, reading 10*(40000/80000) = 5,
+    // streak 10*(60/120) = 5, late 10 → 58 exactly.
+    const s = score(m({ sessions: 3, prompts: 10, decisions: 3, reports: 6, contextSwitches: 12, outputTokens: 40_000, streakMin: 60, lateNight: true }));
+    expect(s).not.toBeNull();
+    expect(s!.parts).toEqual({ parallel: 12.5, pace: 7.5, supervision: 18, reading: 5, streak: 5, late: 10 });
+    expect(Math.round(Object.values(s!.parts).reduce((a, b) => a + b, 0))).toBe(s!.index);
+    expect(s!.index).toBe(58);
   });
 
-  test("parts and index agree for a half-point input", () => {
-    const s = score(m({ sessions: 3, prompts: 20, decisions: 10, streakMin: 60, lateNight: true }));
-    expect(s).not.toBeNull();
-    const sum = Object.values(s!.parts).reduce((a, b) => a + b, 0);
-    expect(Math.round(sum)).toBe(s!.index);
-    expect(s!.parts).toEqual({ parallel: 15, pace: 10, decisions: 10, streak: 7.5, late: 15 });
+  test("a supervision part that is a whole number displays as one", () => {
+    // 30*(9/45) must reach the display as 6, never as 5.9 or 6.000000000000001:
+    // the one-decimal rounding of the parts is what guarantees that.
+    expect(score(m({ reports: 9 }))?.parts.supervision).toBe(6);
+  });
+
+  test("2 min streak rounds its own displayed part to 0.2 but the index to 0", () => {
+    // 10*(2/120) = 0.1666… → part 0.2, index round(0.1666…) = 0
+    expect(score(m({ streakMin: 2 }))?.parts.streak).toBe(0.2);
+    expect(score(m({ streakMin: 2 }))?.index).toBe(0);
   });
 
   test("no sessions means no score", () => {
@@ -53,6 +72,12 @@ describe("score", () => {
     "level of %i is %s", (index, level) => expect(levelOf(index)).toBe(level));
 
   test("level is attached to the score", () => {
-    expect(score(m({ sessions: 5, prompts: 40 }))?.level).toBe("Warming"); // 50
+    expect(score(m({ sessions: 5, prompts: 20 }))?.level).toBe("Warming"); // 25 + 15 = 40
+  });
+
+  test("the daytime maximum of 90 is already Fried", () => {
+    // Without the late-night flag the index tops out at 90, which is inside the
+    // 85-100 Fried band: a full daytime hour is not merely Heating.
+    expect(score(m({ sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 120 }))?.level).toBe("Fried");
   });
 });

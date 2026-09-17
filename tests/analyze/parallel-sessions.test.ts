@@ -20,7 +20,7 @@ describe("parallel sessions", () => {
     expect(b.sessions).toBe(3);
     // prompt order: s1 01, s2 02, s3 03, s1 31, s2 32, s3 33 → 5 switches
     expect(b.contextSwitches).toBe(5);
-    expect(b.score!.parts.parallel).toBe(15);
+    expect(b.score!.parts.parallel).toBe(12.5); // 25 * (3 - 1) / 4
   });
 
   test("five sessions cap the parallel part; an assistant reply alone keeps a session alive", () => {
@@ -28,7 +28,7 @@ describe("parallel sessions", () => {
     files.push(transcript([assistant(at("06"), sid(5))], "p/5.jsonl"));
     const b = analyze(files, W)[0]!.buckets[13]!;
     expect(b.sessions).toBe(5);
-    expect(b.score!.parts.parallel).toBe(30);
+    expect(b.score!.parts.parallel).toBe(25); // 25 * clamp((5 - 1) / 4)
   });
 
   test("sessions are counted per hour, not per day", () => {

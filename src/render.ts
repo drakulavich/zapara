@@ -51,7 +51,8 @@ const COLS: [string, number, (b: HourBucket) => string][] = [
 const EXPLAIN: [string, number, (b: HourBucket) => string][] = [
   ["par", 5, (b) => String(b.score?.parts.parallel ?? "")],
   ["pace", 6, (b) => String(b.score?.parts.pace ?? "")],
-  ["dec", 6, (b) => String(b.score?.parts.decisions ?? "")],
+  ["sup", 6, (b) => String(b.score?.parts.supervision ?? "")],
+  ["read", 6, (b) => String(b.score?.parts.reading ?? "")],
   ["strk", 6, (b) => String(b.score?.parts.streak ?? "")],
   ["late", 6, (b) => String(b.score?.parts.late ?? "")],
 ];

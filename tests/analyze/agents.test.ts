@@ -108,43 +108,54 @@ describe("day totals sum reports and outputTokens across the day's buckets", () 
   });
 });
 
-describe("reports and output tokens are measured but do not enter the index", () => {
+describe("reports and output tokens enter the index through supervision and reading", () => {
   // Same session, same single timestamp for every event, so sessions, prompts,
-  // decisions, activeMin and streakMin are identical between the two buckets;
-  // the only difference is 20 extra report events. If reports (or the activity
-  // they add) ever leaked into the score, the indexes and parts would diverge.
+  // decisions, context switches, activeMin and streakMin are identical between
+  // the two buckets; the only difference is 9 inbound agent reports.
+  // Both: parallel 0 (1 session), pace 15*(1/20) = 0.75 -> 0.8, reading 0, streak 0, late 0.
+  // lonely: supervision 0 -> index round(0.75) = 1.
+  // busy: supervision 30*(0 + 9 + 0)/45 = 6.0 -> index round(0.75 + 6) = 7.
   const lonely = analyze([transcript([prompt(at("13:00"), S)])], W)[0]!.buckets[13]!;
   const busy = analyze(
-    [transcript([prompt(at("13:00"), S), ...Array.from({ length: 20 }, () => teammate(at("13:00"), S))])],
+    [transcript([prompt(at("13:00"), S), ...Array.from({ length: 9 }, () => teammate(at("13:00"), S))])],
     W,
   )[0]!.buckets[13]!;
 
-  test("reports differ but the index and its parts do not", () => {
+  test("9 reports add exactly 30*9/45 = 6.0 supervision points and nothing else", () => {
     expect(lonely.reports).toBe(0);
-    expect(busy.reports).toBe(20);
-    expect(busy.score?.index).toBe(lonely.score?.index);
-    expect(busy.score?.parts).toEqual(lonely.score?.parts);
+    expect(busy.reports).toBe(9);
+    expect(busy.score!.parts.supervision - lonely.score!.parts.supervision).toBe(6);
+    for (const part of ["parallel", "pace", "reading", "streak", "late"] as const) {
+      expect(busy.score!.parts[part]).toBe(lonely.score!.parts[part]);
+    }
+    expect(lonely.score!.index).toBe(1);
+    expect(busy.score!.index).toBe(7);
   });
 
   // Same session, one prompt and one assistant reply at the same single timestamp
-  // in both buckets, so sessions, prompts, decisions, activeMin and streakMin are
-  // identical; the only difference is whether that reply carries a text block
-  // (5000 output tokens) or is tool_use-only (0 tokens). The reports-only pair
-  // above never varies outputTokens away from 0, so a wrong `+ outputTokens` term
-  // in score() would pass it silently; this pair is the one that would catch it.
+  // in both buckets, so every other metric is identical; the only difference is
+  // whether that reply carries a text block (40 000 output tokens) or is
+  // tool_use-only (0 tokens). The reports pair above never varies outputTokens
+  // away from 0, so this is the pair that pins the reading component.
+  // withTokens: reading 10*(40000/80000) = 5.0 -> index round(0.75 + 5) = 6.
+  // withoutTokens: reading 0 -> index round(0.75) = 1.
   const withTokens = analyze(
-    [transcript([prompt(at("15:00"), S), assistantText(at("15:00"), S, 5000, "req_tok_a")])],
+    [transcript([prompt(at("15:00"), S), assistantText(at("15:00"), S, 40_000, "req_tok_a")])],
     W,
   )[0]!.buckets[15]!;
   const withoutTokens = analyze(
-    [transcript([prompt(at("15:00"), S), assistantToolUseOnly(at("15:00"), S, 5000, "req_tok_b")])],
+    [transcript([prompt(at("15:00"), S), assistantToolUseOnly(at("15:00"), S, 40_000, "req_tok_b")])],
     W,
   )[0]!.buckets[15]!;
 
-  test("output tokens differ but the index and its parts do not", () => {
-    expect(withTokens.outputTokens).toBe(5000);
+  test("40 000 output tokens add exactly 10*40000/80000 = 5.0 reading points and nothing else", () => {
+    expect(withTokens.outputTokens).toBe(40_000);
     expect(withoutTokens.outputTokens).toBe(0);
-    expect(withTokens.score?.index).toBe(withoutTokens.score?.index);
-    expect(withTokens.score?.parts).toEqual(withoutTokens.score?.parts);
+    expect(withTokens.score!.parts.reading - withoutTokens.score!.parts.reading).toBe(5);
+    for (const part of ["parallel", "pace", "supervision", "streak", "late"] as const) {
+      expect(withTokens.score!.parts[part]).toBe(withoutTokens.score!.parts[part]);
+    }
+    expect(withoutTokens.score!.index).toBe(1);
+    expect(withTokens.score!.index).toBe(6);
   });
 });

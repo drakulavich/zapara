@@ -37,8 +37,9 @@ describe("hour and day edges", () => {
     expect(d.buckets[5]!.lateNight).toBe(true);
     expect(d.buckets[6]!.lateNight).toBe(false);
     expect(d.buckets[23]!.lateNight).toBe(true);
-    // late 15 + pace 20*(1/40)=0.5 → 15.5 → rounds up to 16 (Math.round rounds .5 up)
-    expect(d.buckets[5]!.score!.index).toBe(16);
-    expect(d.buckets[6]!.score!.index).toBe(1);    // pace 20*(1/40)=0.5 → rounds up to 1
+    // one lone prompt in each hour: pace 15*(1/20) = 0.75, everything else 0.
+    // 05:00 is late: 10 + 0.75 = 10.75 → 11. 06:00 is not: 0.75 → 1.
+    expect(d.buckets[5]!.score!.index).toBe(11);
+    expect(d.buckets[6]!.score!.index).toBe(1);
   });
 });

@@ -1,9 +1,10 @@
 import type { Level, Metrics, Parts, Score } from "./types.ts";
 
 // Calibration lives here and nowhere else. A change is one diff plus a CHANGELOG line.
-// points of 100; equivalent to 0.30/0.20/0.20/0.15/0.15 in the spec, kept as integers so 0.5 sums stay exact
-export const WEIGHTS = { parallel: 30, pace: 20, decisions: 20, streak: 15, late: 15 } as const;
-export const NORMS = { parallelSpan: 4, pacePerHour: 40, decisionsPerHour: 20, streakMin: 120 } as const;
+// Points of 100, kept as integers so 0.5 sums stay exact in floating point.
+// Norms are the p90 of two weeks of real data on two machines (see CHANGELOG).
+export const WEIGHTS = { parallel: 25, pace: 15, supervision: 30, reading: 10, streak: 10, late: 10 } as const;
+export const NORMS = { parallelSpan: 4, pacePerHour: 20, supervisionPerHour: 45, decisionWeight: 3, readingTokens: 80_000, streakMin: 120 } as const;
 export const LEVELS: readonly { max: number; level: Level }[] = [
   { max: 29, level: "Calm" },
   { max: 59, level: "Warming" },
@@ -22,14 +23,20 @@ export function score(m: Metrics): Score | null {
   if (m.sessions === 0) return null;
   const parallel = clamp01((m.sessions - 1) / NORMS.parallelSpan);
   const pace = clamp01(m.prompts / NORMS.pacePerHour);
-  const decisions = clamp01(m.decisions / NORMS.decisionsPerHour);
+  // Supervision is one load: an explicit decision costs `decisionWeight` times what
+  // reacting to one agent report or one session hop costs, and the three share a norm.
+  const supervision = clamp01(
+    (NORMS.decisionWeight * m.decisions + m.reports + m.contextSwitches) / NORMS.supervisionPerHour,
+  );
+  const reading = clamp01(m.outputTokens / NORMS.readingTokens);
   const streak = clamp01(m.streakMin / NORMS.streakMin);
   const late = m.lateNight ? 1 : 0;
 
   const raw = {
     parallel: WEIGHTS.parallel * parallel,
     pace: WEIGHTS.pace * pace,
-    decisions: WEIGHTS.decisions * decisions,
+    supervision: WEIGHTS.supervision * supervision,
+    reading: WEIGHTS.reading * reading,
     streak: WEIGHTS.streak * streak,
     late: WEIGHTS.late * late,
   };
@@ -37,12 +44,15 @@ export function score(m: Metrics): Score | null {
   const parts: Parts = {
     parallel: Math.round(raw.parallel * 10) / 10,
     pace: Math.round(raw.pace * 10) / 10,
-    decisions: Math.round(raw.decisions * 10) / 10,
+    supervision: Math.round(raw.supervision * 10) / 10,
+    reading: Math.round(raw.reading * 10) / 10,
     streak: Math.round(raw.streak * 10) / 10,
     late: Math.round(raw.late * 10) / 10,
   };
   // index is rounded once, from the unrounded raw points, so per-component
   // rounding (parts, above) can never tip it across a boundary raw didn't.
-  const index = Math.round(raw.parallel + raw.pace + raw.decisions + raw.streak + raw.late);
+  const index = Math.round(
+    raw.parallel + raw.pace + raw.supervision + raw.reading + raw.streak + raw.late,
+  );
   return { index, level: levelOf(index), parts };
 }
