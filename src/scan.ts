@@ -11,7 +11,9 @@ export async function scan(projects: string, cutoffMs: number): Promise<string[]
     if (!s.isDirectory()) throw new Error("not a directory");
     entries = await readdir(projects, { recursive: true });
   } catch {
-    throw new Error(`projects directory not found: ${projects}`);
+    // No path in the message: it may be a value the user typed, or the
+    // homedir-derived default, and the CLI must never print a filesystem path.
+    throw new Error("projects directory not found (pass --projects <dir>)");
   }
   const out: string[] = [];
   for (const rel of entries) {

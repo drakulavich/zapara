@@ -60,7 +60,11 @@ describe("cli", () => {
   });
 
   test("bad date, bad --days, unknown flag and unknown command exit 2 with one line", async () => {
-    for (const args of [["day", "2026-13-40"], ["day", "2026-02-30"], ["day", "14.09.2026"], ["week", "--days", "0"], ["week", "--days", "91"], ["week", "--bogus"], ["month"]]) {
+    for (const args of [
+      ["day", "2026-13-40"], ["day", "2026-02-30"], ["day", "14.09.2026"],
+      ["week", "--days", "0"], ["week", "--days", "91"], ["week", "--bogus"], ["month"],
+      ["--projects", "--json"], ["week", "--to", "--days", "3"], ["week", "--days"],
+    ]) {
       const r = await run(...args);
       expect(r.code).toBe(2);
       expect(r.out).toBe("");
@@ -69,12 +73,15 @@ describe("cli", () => {
     }
   });
 
-  test("missing projects directory exits 1 with one line and no stack trace", async () => {
-    const p = Bun.spawn(["bun", CLI, "--projects", join(root, "nope"), "week", "--json"], { stdout: "pipe", stderr: "pipe" });
+  test("missing projects directory exits 1 with one line, no path and no stack trace", async () => {
+    const missing = join(root, "nope");
+    const p = Bun.spawn(["bun", CLI, "--projects", missing, "week", "--json"], { stdout: "pipe", stderr: "pipe" });
     const [err, code] = await Promise.all([new Response(p.stderr).text(), p.exited]);
     expect(code).toBe(1);
     expect(err.trim().split("\n")).toHaveLength(1);
     expect(err).not.toContain("    at ");
+    expect(err).not.toContain(missing); // the CLI never prints a filesystem path, even one the user passed
+    expect(err.trim()).toBe("zapara: projects directory not found (pass --projects <dir>)");
   });
 
   test("--help exits 0 and --version prints the version", async () => {
