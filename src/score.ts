@@ -20,13 +20,28 @@ export function levelOf(index: number): Level {
 
 export function score(m: Metrics): Score | null {
   if (m.sessions === 0) return null;
+  const parallel = clamp01((m.sessions - 1) / NORMS.parallelSpan);
+  const pace = clamp01(m.prompts / NORMS.pacePerHour);
+  const decisions = clamp01(m.decisions / NORMS.decisionsPerHour);
+  const streak = clamp01(m.streakMin / NORMS.streakMin);
+  const late = m.lateNight ? 1 : 0;
+
+  // parts are per-component weighted points, rounded to one decimal for display.
   const parts: Parts = {
-    parallel: points(WEIGHTS.parallel, clamp01((m.sessions - 1) / NORMS.parallelSpan)),
-    pace: points(WEIGHTS.pace, clamp01(m.prompts / NORMS.pacePerHour)),
-    decisions: points(WEIGHTS.decisions, clamp01(m.decisions / NORMS.decisionsPerHour)),
-    streak: points(WEIGHTS.streak, clamp01(m.streakMin / NORMS.streakMin)),
-    late: points(WEIGHTS.late, m.lateNight ? 1 : 0),
+    parallel: points(WEIGHTS.parallel, parallel),
+    pace: points(WEIGHTS.pace, pace),
+    decisions: points(WEIGHTS.decisions, decisions),
+    streak: points(WEIGHTS.streak, streak),
+    late: points(WEIGHTS.late, late),
   };
-  const index = Math.round(parts.parallel + parts.pace + parts.decisions + parts.streak + parts.late);
+  // index is rounded once, from the unrounded weighted sum, so per-component
+  // rounding (parts, above) can never tip it across a boundary parts didn't.
+  const weightedSum =
+    WEIGHTS.parallel * parallel +
+    WEIGHTS.pace * pace +
+    WEIGHTS.decisions * decisions +
+    WEIGHTS.streak * streak +
+    WEIGHTS.late * late;
+  const index = Math.round(100 * weightedSum);
   return { index, level: levelOf(index), parts };
 }
