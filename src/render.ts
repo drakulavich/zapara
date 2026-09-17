@@ -21,11 +21,15 @@ export function renderWeek(days: Day[], color: boolean): string {
   const legend = "  · none  ░ calm 0-29  ▒ warming 30-59  ▓ heating 60-84  █ fried 85-100";
   const active = days.reduce((s, d) => s + d.activeMin, 0);
   const prompts = days.reduce((s, d) => s + d.totals.prompts, 0);
+  const reports = days.reduce((s, d) => s + d.totals.reports, 0);
   const decisions = days.reduce((s, d) => s + d.totals.decisions, 0);
   const maxSessions = Math.max(0, ...days.map((d) => d.totals.maxSessions));
-  const totals = `week: active ${hm(active)}, prompts ${prompts}, decisions ${decisions}, max sessions ${maxSessions}`;
+  const totals = `week: active ${hm(active)}, prompts ${prompts}, reports ${reports}, decisions ${decisions}, max sessions ${maxSessions}`;
   return [header, ...rows, "", legend, totals].join("\n");
 }
+
+// Values at or above 1000 are shown as one decimal of a thousand (e.g. "41.2k"); smaller values print as-is.
+const fmtTokens = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
 // Widths reproduce the header the test pins: hour is left-aligned, level is left-aligned inside a 9-wide cell with two leading spaces, everything else right-aligned.
 const COLS: [string, number, (b: HourBucket) => string][] = [
@@ -34,6 +38,7 @@ const COLS: [string, number, (b: HourBucket) => string][] = [
   ["level", 9, (b) => b.score?.level ?? ""],
   ["sess", 6, (b) => String(b.sessions)],
   ["prompts", 9, (b) => String(b.prompts)],
+  ["rep", 5, (b) => String(b.reports)],
   ["intr", 6, (b) => String(b.interrupts)],
   ["rej", 5, (b) => String(b.rejects)],
   ["quest", 7, (b) => String(b.questions)],
@@ -41,6 +46,7 @@ const COLS: [string, number, (b: HourBucket) => string][] = [
   ["mode", 6, (b) => String(b.modeSwitches)],
   ["ctx-sw", 8, (b) => String(b.contextSwitches)],
   ["streak", 8, (b) => `${b.streakMin}m`],
+  ["out-tok", 9, (b) => fmtTokens(b.outputTokens)],
 ];
 const EXPLAIN: [string, number, (b: HourBucket) => string][] = [
   ["par", 5, (b) => String(b.score?.parts.parallel ?? "")],

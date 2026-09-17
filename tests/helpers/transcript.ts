@@ -6,6 +6,8 @@ import type { Transcript } from "../../src/types.ts";
 
 let counter = 0;
 const uuid = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`;
+let reqCounter = 0;
+const nextRequestId = () => `req_placeholder_${++reqCounter}`;
 
 const base = (ts: string, sid: string, extra: Record<string, unknown>) =>
   JSON.stringify({
@@ -23,7 +25,18 @@ export const meta = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", isMeta: true, message: { role: "user", content: [{ type: "text", text: "<system-reminder>placeholder</system-reminder>" }] } });
 
 export const assistant = (ts: string, sid: string) =>
-  base(ts, sid, { type: "assistant", requestId: "req_placeholder", message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", content: [{ type: "text", text: "placeholder reply" }] } });
+  base(ts, sid, { type: "assistant", requestId: nextRequestId(), message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", usage: { input_tokens: 2, output_tokens: 100 }, content: [{ type: "text", text: "placeholder reply" }] } });
+
+// An assistant record carrying a text block and usage, for output-token tests. Real
+// Claude Code repeats the same requestId and usage across every content-block record
+// of one API response, so callers pass the same requestId to build that shape.
+export const assistantText = (ts: string, sid: string, tokens: number, requestId: string) =>
+  base(ts, sid, { type: "assistant", requestId, message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", usage: { input_tokens: 2, output_tokens: tokens }, content: [{ type: "text", text: "placeholder reply" }] } });
+
+// An assistant record whose only content block is a tool call: not text the human
+// reads, so it must never contribute output tokens even though usage is present.
+export const assistantToolUseOnly = (ts: string, sid: string, tokens: number, requestId: string) =>
+  base(ts, sid, { type: "assistant", requestId, message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", usage: { input_tokens: 2, output_tokens: tokens }, content: [{ type: "tool_use", id: "toolu_placeholder", name: "SomeTool", input: {} }] } });
 
 export const interrupt = (ts: string, sid: string, forTool = false) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "text", text: forTool ? "[Request interrupted by user for tool use]" : "[Request interrupted by user]" }] } });
@@ -41,6 +54,22 @@ export const question = (ts: string, sid: string) => toolUse(ts, sid, "AskUserQu
 export const plan = (ts: string, sid: string) => toolUse(ts, sid, "ExitPlanMode");
 
 export const mode = (sid: string, m: string) => JSON.stringify({ type: "permission-mode", permissionMode: m, sessionId: sid });
+
+// Inbound agent messages: subagent reports, other-session messages and task
+// notifications. `bare` / `bracket` select the alternate real-world form seen
+// where the content starts directly with the tag rather than the lead-in sentence.
+export const teammate = (ts: string, sid: string, bare = false) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: bare
+    ? `<teammate-message teammate_id="agent">placeholder report</teammate-message>`
+    : `Another Claude session sent a message:\n<teammate-message teammate_id="agent">placeholder report</teammate-message>` } });
+
+export const crossSession = (ts: string, sid: string, bracket = false) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: bracket
+    ? `[Cross-session message from agent]: placeholder report`
+    : `<cross-session-message from="agent">placeholder report</cross-session-message>` } });
+
+export const taskNotification = (ts: string, sid: string) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: `<task-notification>placeholder report</task-notification>` } });
 
 export const sidechain = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", isSidechain: true, agentId: "aa395d63485bb2c77", message: { role: "user", content: "placeholder subagent prompt" } });

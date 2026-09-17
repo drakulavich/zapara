@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 - `analyze()`: hourly buckets with sessions, prompts, decisions, context switches, active minutes, streak and late-night flag, scored 0–100, from real-format transcripts.
 - CLI: `zapara week` and `zapara day` with `--json`, `--to`, `--days`, `--projects`; scans `~/.claude/projects`, skipping subagent transcripts and files older than the window.
 - Week heatmap and day table with `--explain`; colors in a TTY, JSON in a pipe.
+- Inbound messages from subagents, other sessions and background tasks are counted as `reports`, separate from human `prompts`; assistant output tokens are summed once per request as `outputTokens`. Both are measured and shown in the day table, week totals and JSON, but not yet scored.
 
 ### Changed
 - Score weights are integer points of 100 (30/20/20/15/15) so half-point sums round exactly; the index is the rounded sum of the unrounded weighted parts.

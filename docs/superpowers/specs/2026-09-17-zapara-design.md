@@ -59,7 +59,9 @@ ignored for every kind (defensive; the scan already skips subagent files).
 
 | kind | rule |
 |---|---|
-| `prompt` | `type == "user"`, `isMeta` not true, and the message content is a string, or an array whose first block is `{type:"text"}` whose text is not an interrupt marker. |
+| `prompt` | `type == "user"`, `isMeta` not true, and the message content is a string, or an array whose first block is `{type:"text"}`, whose text is neither an interrupt marker nor an agent-message marker. A prompt is something the human typed. |
+| `report` | `type == "user"`, `isMeta` not true, content string or first text block starting with an agent-message marker: `Another Claude session sent a message:`, `<teammate-message`, `<cross-session-message`, `<task-notification>` or `[Cross-session`. These are messages from subagents, other sessions and background tasks that the human has to read and react to. Not a prompt. |
+| `output` | `type == "assistant"` with a string `requestId`, a numeric `message.usage.output_tokens`, and at least one `{type:"text"}` content block. One event per distinct `requestId` per file (the first record seen), carrying `tokens`. Claude Code writes one record per content block of a response and repeats the same `usage` on each, so the count is per request, not per record; requests that hold only tool calls are not text the human reads. |
 | `interrupt` | `type == "user"`, content array with a text block whose text starts with `[Request interrupted by user`. Covers both `[Request interrupted by user]` and `[Request interrupted by user for tool use]`. Not counted as a prompt. |
 | `reject` | `type == "user"`, content array containing a `tool_result` block whose content (string, or first text block) starts with `The user doesn't want to proceed with this tool use`. |
 | `question` | `type == "assistant"`, content array containing a `tool_use` block with `name == "AskUserQuestion"`. One event per block. |
@@ -67,9 +69,9 @@ ignored for every kind (defensive; the scan already skips subagent files).
 | `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file. If none has been seen yet, the record is dropped. The first such record in a file sets the session's baseline mode and is not a switch (every session writes its starting mode). Each later record whose `permissionMode` differs from the previous record's is one switch; repeats of the same mode count nothing (Claude Code rewrites the same mode repeatedly). |
 | `activity` | Every `type == "user"` or `type == "assistant"` record with a timestamp, including `isMeta` ones. Used for session liveness, streaks and active minutes. |
 
-`prompt`, `interrupt` and `reject` records are also `activity`. The parser
-emits both events for them; the deriver never double counts because it reads
-kinds separately.
+`prompt`, `report`, `interrupt`, `reject` and `output` records are also `activity`. The
+parser emits both events for them; the deriver never double counts because it
+reads kinds separately.
 
 The record shapes above were verified against Claude Code 2.1.274 transcripts on
 2026-09-17. Field names are not a published API and may drift; the CLAUDE.md of the
@@ -99,7 +101,9 @@ Per bucket:
 | metric | definition |
 |---|---|
 | `sessions` | distinct `sessionId` with at least one `activity` event in the bucket |
-| `prompts` | count of `prompt` |
+| `prompts` | count of `prompt` (messages the human typed) |
+| `reports` | count of `report` (inbound agent, session and task messages) |
+| `outputTokens` | sum of `tokens` over `output` events |
 | `interrupts`, `rejects`, `questions`, `plans`, `modeSwitches` | counts of the matching kinds |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches` |
 | `contextSwitches` | over all `prompt` events in the bucket sorted by `ts`, the number of consecutive pairs whose `sessionId` differs |
@@ -108,7 +112,13 @@ Per bucket:
 | `lateNight` | bucket hour in {23, 0, 1, 2, 3, 4, 5} |
 
 Per day: `peak` (max index over buckets with activity), `mean` (mean index over
-buckets with activity, rounded), `activeMin` (sum), and the sums of every count.
+buckets with activity, rounded), `activeMin` (sum), and the sums of every count
+including `reports` and `outputTokens`.
+
+`reports`, `outputTokens` and `contextSwitches` are measured and shown but do not
+enter the index yet. They exist so a week of real data can say what a
+supervision-load component should weigh; the index changes in a separate,
+calibration-only change to `src/score.ts`.
 
 ## Index
 
@@ -164,13 +174,13 @@ Mon 14/09    ·  ·  ·  ·  ·  ·  ·  ·  ░  ▒  ▒  ▓  ▓  █  █  
 Cell glyphs by level: `·` no activity, `░` Calm, `▒` Warming, `▓` Heating, `█`
 Fried. In a TTY the glyphs are colored green / yellow / magenta / red; in a pipe or
 with `--no-color` / `NO_COLOR` they are plain. Below the grid: a legend line and the
-week totals (active time, prompts, decisions, max sessions).
+week totals (active time, prompts, reports, decisions, max sessions).
 
 `day` prints one row per bucket that has activity:
 
 ```
-hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak
-13:00     87  Fried       5       24     6    2      3     1     2       4    95m
+hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok
+13:00     87  Fried       5       24   12     6    2      3     1     2       4     95m    41.2k
 ```
 
 `--explain` adds five columns with each weighted contribution (`par 30 pace 12 dec
@@ -277,6 +287,12 @@ Scenarios, one directory or builder script each:
   `AskUserQuestion`, `ExitPlanMode`, repeated `permission-mode` records
   collapsing to one switch, a `permission-mode` record before any timestamp
   dropped.
+- `agents`: inbound agent messages of every marker form count as `reports` and
+  activity, never as prompts; a human prompt in the same hour still counts as one
+  prompt; `output` tokens are summed once per `requestId` although the fixture
+  repeats the usage on three records of one request; a request holding only a
+  `tool_use` block contributes no tokens; day totals carry `reports` and
+  `outputTokens`.
 - `noise`: `isMeta` messages, a `subagents/` tree with prompts that must not
   count, `isSidechain` records in a main file, malformed JSON lines, lines
   without `type` or `timestamp`, an empty file, an unreadable file.

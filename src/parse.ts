@@ -5,6 +5,16 @@ const INTERRUPT_PREFIX = "[Request interrupted by user";
 const REJECT_PREFIX = "The user doesn't want to proceed with this tool use";
 const QUESTION_TOOL = "AskUserQuestion";
 const PLAN_TOOL = "ExitPlanMode";
+// Inbound messages from subagents, other sessions and background tasks: the human
+// has to read and react to these, but did not type them, so they are `report`
+// events, never `prompt`. An interrupt marker is checked first and always wins.
+const AGENT_MARKERS = [
+  "Another Claude session sent a message:",
+  "<teammate-message",
+  "<cross-session-message",
+  "<task-notification>",
+  "[Cross-session",
+];
 
 type Rec = Record<string, unknown>;
 const isObj = (v: unknown): v is Rec => typeof v === "object" && v !== null;
@@ -20,6 +30,10 @@ export function parseTranscript(text: string): Event[] {
   const events: Event[] = [];
   let lastTs: number | null = null;
   let lastMode: string | null = null;
+  // Dedupes `output` events by requestId within this one file: Claude Code
+  // writes one record per content block of a response, repeating the same
+  // requestId and usage, so only the first qualifying record counts.
+  const seenRequestIds = new Set<string>();
 
   for (const line of text.split("\n")) {
     if (line.trim() === "") continue;
@@ -62,13 +76,28 @@ export function parseTranscript(text: string): Event[] {
       const head = firstText(content);
       if (head === null) continue;
       if (head.startsWith(INTERRUPT_PREFIX)) events.push({ ts, sessionId, kind: "interrupt" });
-      else if (rec.isMeta !== true) events.push({ ts, sessionId, kind: "prompt" });
+      else if (rec.isMeta !== true) {
+        if (AGENT_MARKERS.some((marker) => head.startsWith(marker))) events.push({ ts, sessionId, kind: "report" });
+        else events.push({ ts, sessionId, kind: "prompt" });
+      }
     } else {
       const blocks = Array.isArray(content) ? content : [];
       for (const b of blocks) {
         if (!isObj(b) || b.type !== "tool_use") continue;
         if (b.name === QUESTION_TOOL) events.push({ ts, sessionId, kind: "question" });
         else if (b.name === PLAN_TOOL) events.push({ ts, sessionId, kind: "plan_review" });
+      }
+      // `output`: one event per distinct requestId per file, the first record seen
+      // that has a string requestId, numeric usage.output_tokens and at least one
+      // text block. A response holding only tool_use blocks is not text the human
+      // reads, so it never triggers this, even on its first (and only) record.
+      const requestId = str(rec.requestId);
+      const usage = isObj(rec.message) ? rec.message.usage : undefined;
+      const outputTokens = isObj(usage) ? usage.output_tokens : undefined;
+      const hasText = blocks.some((b) => isObj(b) && b.type === "text");
+      if (requestId !== null && typeof outputTokens === "number" && hasText && !seenRequestIds.has(requestId)) {
+        seenRequestIds.add(requestId);
+        events.push({ ts, sessionId, kind: "output", tokens: outputTokens });
       }
     }
   }

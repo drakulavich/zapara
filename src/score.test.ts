@@ -3,7 +3,7 @@ import { score, levelOf } from "./score.ts";
 import type { Level, Metrics } from "./types.ts";
 
 const base: Metrics = {
-  sessions: 1, prompts: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0,
+  sessions: 1, prompts: 0, reports: 0, outputTokens: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0,
   decisions: 0, contextSwitches: 0, activeMin: 5, streakMin: 0, lateNight: false,
 };
 const m = (over: Partial<Metrics>): Metrics => ({ ...base, ...over });
