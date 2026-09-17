@@ -84,6 +84,24 @@ describe("day table", () => {
     expect(parts).toEqual([30, 20, 20, 15, 0]);
     expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
   });
+
+  test("--explain columns on a row where pace and decisions differ", () => {
+    // Monday 23:00: the late-night calm tail (calm(14, 7, 23, 24), one lone
+    // session). parallel 0 (1 session), pace 20 · min(1, 6/40) = 3, decisions
+    // 0 (no interrupts/rejects/questions/plans/mode-switches), streak
+    // 15 · min(1, 53/120) = 6.625 rounded to 6.6 (streakMin 53, a fresh streak
+    // since the evening session ended over an hour earlier), late 15 (23:00 is
+    // in the late-night set). This row has pace (3) ≠ decisions (0), so an
+    // accessor swap between those two columns fails here even though it would
+    // pass on 13:00's decisions-saturated-at-20 row.
+    const lines = renderDay(monday, { explain: true, color: false }).split("\n");
+    const row23 = lines.find((l) => l.startsWith("23:00"))!;
+    const nums = row23.trim().split(/\s+/);
+    const index = Number(nums[1]);
+    const parts = nums.slice(-5).map(Number);
+    expect(parts).toEqual([0, 3, 0, 6.6, 15]);
+    expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
+  });
 });
 
 describe("json", () => {
