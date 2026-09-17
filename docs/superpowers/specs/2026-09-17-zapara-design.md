@@ -14,7 +14,8 @@ Privacy contract: the parser compares message text against three fixed control
 markers (interrupt, tool rejection, and the two tool names below) and discards it.
 No message text, prompt length, file path from a tool call, or session title is
 kept in an event, written anywhere, or printed. The output contains only
-timestamps, session ids, counts and the derived numbers.
+timestamps, session ids, counts and the derived numbers. The CLI never prints
+a filesystem path, including one given on the command line.
 
 Non-goals for the MVP: real-time alerts, break nudges, hooks, OpenTelemetry, a
 statusline segment, an HTML dashboard, a config file for weights. The statusline
@@ -184,10 +185,10 @@ defaults to today. `--days` defaults to 7 and accepts an integer from 1 to 90.
 A date must be `YYYY-MM-DD` and a real calendar date. Any other value, an
 unknown command or an unknown flag prints one line plus usage to stderr, exit 2.
 
-Errors: a missing or unreadable projects directory prints one line to stderr,
-exit 1. Anything unexpected prints one line to stderr, never a stack trace,
-exit 1. A window with no data prints the empty grid (or an empty day table)
-and exits 0.
+Errors: a missing or unreadable projects directory prints one line to stderr
+without the path, exit 1. Anything unexpected prints one line to stderr, never
+a stack trace, exit 1. A window with no data prints the empty grid (or an
+empty day table) and exits 0.
 
 ## Architecture
 
@@ -214,7 +215,7 @@ core (pure)
 memory, in the real JSONL format, plus a window (`from`, `to`, `now`) and returns
 the same `Day[]` the CLI prints. Fixture tests feed it directly with in-memory
 transcripts and get the statistics back without touching the disk; the CLI test
-and the scan test cover the shell.
+and the report test cover the shell.
 
 Rules: layers depend only downward (`render` and `derive` import `score` and
 `types`; `analyze` imports `parse` and `derive`; `report` imports `scan` and
@@ -275,6 +276,11 @@ Scenarios, one directory or builder script each:
 - `noise`: `isMeta` messages, a `subagents/` tree with prompts that must not
   count, `isSidechain` records in a main file, malformed JSON lines, lines
   without `type` or `timestamp`, an empty file, an unreadable file.
+- `report`: through `report()`, not `analyze()` — a `subagents/` tree whose
+  prompts don't count, a same-named file at the root that does, a file just
+  before the mtime cutoff excluded and one exactly at it included, a `.txt`
+  file ignored, an unreadable file skipped, and a missing or non-directory
+  root rejected without printing the path.
 - `empty`: a projects tree with no transcripts in the window (empty grid, exit 0),
   and a missing root (exit 1).
 - `cli`: spawns `bun src/index.ts --projects <fixture>` for `week`, `day`,
