@@ -185,6 +185,7 @@ and exits 0.
 
 ```
 src/index.ts    argv → command; TTY/JSON switch; the only try/catch
+src/report.ts   report(options) → Day[]; the seam tests and the CLI use
 src/scan.ts     projects dir + cutoff → sorted file paths (skip subagents/, mtime filter)
 src/parse.ts    JSONL text → Event[]  (pure: string in, events out)
 src/derive.ts   Event[] + window → Day[] with HourBucket metrics (sorts, applies look-back)
@@ -202,29 +203,68 @@ Performance target: a week view over this machine's `~/.claude/projects` (about
 
 ## Testing
 
-`bun test` with co-located `*.test.ts`, run with `TZ=UTC` so bucket boundaries in
-tests are deterministic.
+Tests follow Kent Beck's Test Desiderata: behavioral and structure-insensitive
+(they exercise what the tool reports, not how modules are wired), deterministic,
+fast, readable, and specific enough that a failure names the broken behavior.
+Unit tests are kept to a minimum; the bulk of the suite runs the whole pipeline
+over fixture transcripts and asserts the resulting statistics.
 
-- `parse.test.ts`: one test per event kind on hand-written JSONL lines, plus
-  malformed line, missing timestamp, `isMeta`, `isSidechain`, mode dedupe, and
-  the interrupt-vs-prompt distinction.
-- `scan.test.ts`: recursive discovery in a temp tree, exclusion by a `subagents`
-  path segment (not by file name), mtime exactly at and just before the cutoff,
-  an unreadable file skipped, a missing root rejected, and sorted output
-  regardless of creation order.
-- `derive.test.ts`: bucket assignment at hour edges, sessions, contextSwitches,
-  activeMin slots, streak across sessions and across the 10-minute gap, events
-  fed in shuffled order yielding the same result, and a streak that starts in the
-  look-back before the window (regression fixture for the boundary).
-- `score.test.ts`: each component at 0, mid and cap; level boundaries 29/30,
-  59/60, 84/85; no-activity bucket yields null.
-- `render.test.ts`: the week grid and day table pinned as strings on a fixture.
-- `index.test.ts`: spawns `bun src/index.ts --projects tests/fixtures/projects`
-  for `week --to <date>` and `day <date> --json` and checks output and exit codes.
-- `tests/fixtures/projects/` holds a small synthetic projects tree, including a
-  `subagents/` file that must be ignored.
+Public seam for tests: `src/report.ts` exports `report({ projects, to, days, now })`,
+which runs scan → parse → derive → score and returns `Day[]`, the same structure
+`--json` prints. The CLI is a thin layer over it. Tests call `report()` or spawn
+the CLI; they never import `parse`, `derive` or `scan` directly. Refactoring the
+internals must not touch a test.
 
-Each test must fail under a one-line mutation of the code it pins.
+Fixtures are real-format transcripts:
+
+- `tests/fixtures/<scenario>/` is a projects tree in the exact on-disk layout
+  (`<slug>/<session>.jsonl`, `<slug>/<session>/subagents/agent-*.jsonl`). Lines
+  use the real field names and shapes of Claude Code 2.1.274 records: `type`,
+  `timestamp`, `sessionId`, `isMeta`, `isSidechain`, `message.content` blocks,
+  `permission-mode` records, and so on. They are redacted copies of real lines or
+  built by the helper below; message text is a placeholder.
+- `tests/helpers/transcript.ts` builds such lines and files from a compact
+  script (`prompt(ts, sid)`, `interrupt(ts, sid)`, `reject`, `question`,
+  `plan`, `mode(sid, "plan")`, `assistant(ts, sid)`) and writes a scenario
+  tree into a temp directory, setting file mtimes explicitly. Edge cases that
+  need exact timestamps use the builder; representative scenarios live on disk.
+- Each scenario has an `expected.json` (or inline expectations) with the
+  `Day[]` statistics it must produce for a fixed `--to` and `now`.
+
+Scenarios, one directory or builder script each:
+
+- `busy-week`: 7 days with varied load, the reference picture; pins peaks,
+  active minutes, per-day totals and the rendered week grid.
+- `hour-edges`: events at `:59:59.999` and `:00:00.000`, and across midnight.
+- `parallel-sessions`: 1, 3 and 5 sessions in one hour; context switches
+  between them; a single session yields zero switches.
+- `streak`: activity across sessions with a 9-minute gap (continues) and an
+  11-minute gap (breaks); a streak that starts in the 3-hour look-back before
+  the window (regression for the boundary); a file with mtime before the
+  cutoff that must be ignored.
+- `decisions`: interrupts of both marker forms, tool rejections,
+  `AskUserQuestion`, `ExitPlanMode`, repeated `permission-mode` records
+  collapsing to one switch, a `permission-mode` record before any timestamp
+  dropped.
+- `noise`: `isMeta` messages, a `subagents/` tree with prompts that must not
+  count, `isSidechain` records in a main file, malformed JSON lines, lines
+  without `type` or `timestamp`, an empty file, an unreadable file.
+- `empty`: a projects tree with no transcripts in the window (empty grid, exit 0),
+  and a missing root (exit 1).
+- `cli`: spawns `bun src/index.ts --projects <fixture>` for `week`, `day`,
+  `--explain`, `--json`, a bad date and an unknown flag; pins stdout, stderr
+  and exit codes. Stdout in a pipe is JSON.
+
+Order independence: one test shuffles the fixture files' creation order and
+names and asserts identical output.
+
+The only unit test is `score.test.ts`: a table of metric rows → index, covering
+each component at 0, mid and cap, the level boundaries 29/30, 59/60, 84/85, and a
+no-activity bucket yielding `null`. The formula is the one place where a direct
+table is more readable than a fixture.
+
+`bun test` runs with `TZ=UTC`. Each test must fail under a one-line mutation of
+the behavior it pins.
 
 ## Repository
 
