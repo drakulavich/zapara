@@ -125,4 +125,26 @@ describe("reports and output tokens are measured but do not enter the index", ()
     expect(busy.score?.index).toBe(lonely.score?.index);
     expect(busy.score?.parts).toEqual(lonely.score?.parts);
   });
+
+  // Same session, one prompt and one assistant reply at the same single timestamp
+  // in both buckets, so sessions, prompts, decisions, activeMin and streakMin are
+  // identical; the only difference is whether that reply carries a text block
+  // (5000 output tokens) or is tool_use-only (0 tokens). The reports-only pair
+  // above never varies outputTokens away from 0, so a wrong `+ outputTokens` term
+  // in score() would pass it silently; this pair is the one that would catch it.
+  const withTokens = analyze(
+    [transcript([prompt(at("15:00"), S), assistantText(at("15:00"), S, 5000, "req_tok_a")])],
+    W,
+  )[0]!.buckets[15]!;
+  const withoutTokens = analyze(
+    [transcript([prompt(at("15:00"), S), assistantToolUseOnly(at("15:00"), S, 5000, "req_tok_b")])],
+    W,
+  )[0]!.buckets[15]!;
+
+  test("output tokens differ but the index and its parts do not", () => {
+    expect(withTokens.outputTokens).toBe(5000);
+    expect(withoutTokens.outputTokens).toBe(0);
+    expect(withTokens.score?.index).toBe(withoutTokens.score?.index);
+    expect(withTokens.score?.parts).toEqual(withoutTokens.score?.parts);
+  });
 });
