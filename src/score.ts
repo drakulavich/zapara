@@ -1,7 +1,8 @@
 import type { Level, Metrics, Parts, Score } from "./types.ts";
 
 // Calibration lives here and nowhere else. A change is one diff plus a CHANGELOG line.
-export const WEIGHTS = { parallel: 0.3, pace: 0.2, decisions: 0.2, streak: 0.15, late: 0.15 } as const;
+// points of 100; equivalent to 0.30/0.20/0.20/0.15/0.15 in the spec, kept as integers so 0.5 sums stay exact
+export const WEIGHTS = { parallel: 30, pace: 20, decisions: 20, streak: 15, late: 15 } as const;
 export const NORMS = { parallelSpan: 4, pacePerHour: 40, decisionsPerHour: 20, streakMin: 120 } as const;
 export const LEVELS: readonly { max: number; level: Level }[] = [
   { max: 29, level: "Calm" },
@@ -11,7 +12,6 @@ export const LEVELS: readonly { max: number; level: Level }[] = [
 ];
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
-const points = (weight: number, component: number): number => Math.round(1000 * weight * component) / 10;
 
 export function levelOf(index: number): Level {
   for (const l of LEVELS) if (index <= l.max) return l.level;
@@ -26,22 +26,23 @@ export function score(m: Metrics): Score | null {
   const streak = clamp01(m.streakMin / NORMS.streakMin);
   const late = m.lateNight ? 1 : 0;
 
-  // parts are per-component weighted points, rounded to one decimal for display.
-  const parts: Parts = {
-    parallel: points(WEIGHTS.parallel, parallel),
-    pace: points(WEIGHTS.pace, pace),
-    decisions: points(WEIGHTS.decisions, decisions),
-    streak: points(WEIGHTS.streak, streak),
-    late: points(WEIGHTS.late, late),
+  const raw = {
+    parallel: WEIGHTS.parallel * parallel,
+    pace: WEIGHTS.pace * pace,
+    decisions: WEIGHTS.decisions * decisions,
+    streak: WEIGHTS.streak * streak,
+    late: WEIGHTS.late * late,
   };
-  // index is rounded once, from the unrounded weighted sum, so per-component
-  // rounding (parts, above) can never tip it across a boundary parts didn't.
-  const weightedSum =
-    WEIGHTS.parallel * parallel +
-    WEIGHTS.pace * pace +
-    WEIGHTS.decisions * decisions +
-    WEIGHTS.streak * streak +
-    WEIGHTS.late * late;
-  const index = Math.round(100 * weightedSum);
+  // parts are the same raw weighted points, rounded to one decimal for display only.
+  const parts: Parts = {
+    parallel: Math.round(raw.parallel * 10) / 10,
+    pace: Math.round(raw.pace * 10) / 10,
+    decisions: Math.round(raw.decisions * 10) / 10,
+    streak: Math.round(raw.streak * 10) / 10,
+    late: Math.round(raw.late * 10) / 10,
+  };
+  // index is rounded once, from the unrounded raw points, so per-component
+  // rounding (parts, above) can never tip it across a boundary raw didn't.
+  const index = Math.round(raw.parallel + raw.pace + raw.decisions + raw.streak + raw.late);
   return { index, level: levelOf(index), parts };
 }

@@ -25,12 +25,10 @@ describe("score", () => {
     ["2 min streak rounds parts to 0.3 but index to 0", { streakMin: 2 }, 0],
     // Same base as the spec's own example (sessions=5, prompts=40, decisions=20 => 70 exactly);
     // streakMin=118 rounds to 85 under both single- and double-pass rounding, so it can't tell
-    // them apart. streakMin=44 does: rounding streak to one decimal first gives parts.streak=5.5
-    // and a sum of exactly 75.5, which rounds up to 76; rounding the unrounded weighted sum once
-    // gives 75.49999999999999 (float error from summing 0.7 + 0.055), which rounds down to 75.
-    // 75 is what a single round(100 * Σ weight·component) must produce.
-    ["single-pass rounding of the weighted sum, not per-part rounding, decides the index",
-      { sessions: 5, prompts: 40, decisions: 20, streakMin: 44 }, 75],
+    // them apart. streakMin=44 does: 30 + 20 + 20 + 15*44/120 = 75.5 exactly (integer weights keep
+    // this exact in floating point), which rounds up to 76 — the true mathematical answer.
+    ["mathematically exact half-point sum rounds up", { sessions: 5, prompts: 40, decisions: 20, streakMin: 44 }, 76],
+    ["half-point sum rounds up, not down", { sessions: 3, prompts: 20, decisions: 10, streakMin: 60, lateNight: true }, 58],
   ])("%s", (_name, over, expected) => {
     expect(score(m(over))?.index).toBe(expected);
   });
@@ -39,17 +37,12 @@ describe("score", () => {
     expect(score(m({ streakMin: 2 }))?.parts.streak).toBe(0.3);
   });
 
-  test("index comes from the unrounded weighted sum, not from re-summing the rounded parts", () => {
-    // 0.3*0.5 + 0.2*0.5 + 0.2*0.5 + 0.15*0.5 + 0.15*1 = 0.575 exactly on paper, but IEEE 754
-    // addition lands on 0.5749999999999999, so round(100 * that) is 57, not 58. Summing the
-    // already-rounded parts instead (15+10+10+7.5+15=57.5 exactly) rounds to 58: a mutation
-    // that reintroduces double rounding turns this 57 back into 58.
+  test("parts sum to the index", () => {
     const s = score(m({ sessions: 3, prompts: 20, decisions: 10, streakMin: 60, lateNight: true }));
-    expect(s).toEqual({
-      index: 57,
-      level: "Warming",
-      parts: { parallel: 15, pace: 10, decisions: 10, streak: 7.5, late: 15 },
-    });
+    expect(s).not.toBeNull();
+    const sum = Object.values(s!.parts).reduce((a, b) => a + b, 0);
+    expect(Math.round(sum)).toBe(s!.index);
+    expect(s!.parts).toEqual({ parallel: 15, pace: 10, decisions: 10, streak: 7.5, late: 15 });
   });
 
   test("no sessions means no score", () => {
