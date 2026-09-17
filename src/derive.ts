@@ -26,7 +26,7 @@ export function windowBounds(w: Window): { startMs: number; endMs: number; cutof
 }
 
 const emptyMetrics = (): Metrics => ({
-  sessions: 0, prompts: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0,
+  sessions: 0, prompts: 0, reports: 0, outputTokens: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0,
   decisions: 0, contextSwitches: 0, activeMin: 0, streakMin: 0, lateNight: false,
 });
 
@@ -68,6 +68,8 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
         if (a.lastPromptSession !== null && a.lastPromptSession !== e.sessionId) a.m.contextSwitches++;
         a.lastPromptSession = e.sessionId;
         break;
+      case "report": a.m.reports++; break;
+      case "output": a.m.outputTokens += e.tokens ?? 0; break;
       case "interrupt": a.m.interrupts++; break;
       case "reject": a.m.rejects++; break;
       case "question": a.m.questions++; break;
@@ -99,11 +101,12 @@ function buildDay(date: string, acc: Map<string, Acc>): Day {
   }
   const scored = buckets.filter((b) => b.score !== null);
   const totals: Totals = buckets.reduce((t, b) => ({
-    prompts: t.prompts + b.prompts, interrupts: t.interrupts + b.interrupts, rejects: t.rejects + b.rejects,
+    prompts: t.prompts + b.prompts, reports: t.reports + b.reports, outputTokens: t.outputTokens + b.outputTokens,
+    interrupts: t.interrupts + b.interrupts, rejects: t.rejects + b.rejects,
     questions: t.questions + b.questions, plans: t.plans + b.plans, modeSwitches: t.modeSwitches + b.modeSwitches,
     decisions: t.decisions + b.decisions, contextSwitches: t.contextSwitches + b.contextSwitches,
     maxSessions: Math.max(t.maxSessions, b.sessions),
-  }), { prompts: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0, decisions: 0, contextSwitches: 0, maxSessions: 0 });
+  }), { prompts: 0, reports: 0, outputTokens: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0, decisions: 0, contextSwitches: 0, maxSessions: 0 });
   return {
     date,
     peak: scored.length ? Math.max(...scored.map((b) => b.score!.index)) : null,
