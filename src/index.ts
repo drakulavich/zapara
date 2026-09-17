@@ -12,7 +12,11 @@ import type { Day } from "./types.ts";
 // (missing or corrupt package.json) fails inside the guarded catch below
 // instead of throwing at module load, before any try/catch is in place.
 function version(): string {
-  return (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+  const parsed: unknown = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  if (typeof parsed === "object" && parsed !== null && typeof (parsed as { version?: unknown }).version === "string") {
+    return (parsed as { version: string }).version;
+  }
+  throw new Error("package.json has no version");
 }
 
 const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
@@ -63,6 +67,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   if (cmd === undefined || cmd === "week") { if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`); a.command = "week"; }
   else if (cmd === "day") { a.command = "day"; a.date = rest[0] ?? a.to; if (rest.length > 1) throw new UsageError(`unexpected argument ${rest[1]}`); }
   else throw new UsageError(`unknown command ${cmd}`);
+  if (a.command === "week" && a.explain) throw new UsageError("--explain applies to day only");
   if (!validDate(a.to)) throw new UsageError(`--to must be YYYY-MM-DD, got ${a.to}`);
   if (a.date !== null && !validDate(a.date)) throw new UsageError(`date must be YYYY-MM-DD, got ${a.date}`);
   return a;
