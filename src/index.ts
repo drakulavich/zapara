@@ -4,16 +4,17 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { localDate } from "./derive.ts";
+import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
 import type { Day } from "./types.ts";
 
 const VERSION = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
 const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
-       zapara day [YYYY-MM-DD]
+       zapara day [YYYY-MM-DD] [--explain]
 flags: --json  --projects <dir>  --no-color  --help  --version`;
 
-type Args = { command: "week" | "day"; to: string; days: number; date: string | null; json: boolean; projects: string; color: boolean };
+type Args = { command: "week" | "day"; to: string; days: number; date: string | null; explain: boolean; json: boolean; projects: string; color: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position (never when a token was consumed as another
@@ -31,7 +32,7 @@ function validDate(s: string): boolean {
 }
 
 export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -43,6 +44,7 @@ export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isT
       case "-h": throw new HelpRequested();
       case "--version": throw new VersionRequested();
       case "--json": a.json = true; break;
+      case "--explain": a.explain = true; break;
       case "--no-color": a.color = false; break;
       case "--projects": a.projects = value(); break;
       case "--to": a.to = value(); break;
@@ -68,7 +70,9 @@ async function main(): Promise<number> {
     ? await report({ projects: a.projects, to: a.date!, days: 1 })
     : await report({ projects: a.projects, to: a.to, days: a.days });
   const data = a.command === "day" ? days[0] : days;
-  console.log(JSON.stringify(data, null, 2)); // text rendering arrives with render.ts
+  if (a.json) console.log(renderJson(data!));
+  else if (a.command === "day") console.log(renderDay(days[0]!, { explain: a.explain, color: a.color }));
+  else console.log(renderWeek(days, a.color));
   return 0;
 }
 

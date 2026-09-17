@@ -53,6 +53,11 @@ describe("cli", () => {
     expect(() => JSON.parse(r.out)).not.toThrow();
   });
 
+  test("day with --explain in a pipe stays JSON unless the text is forced", async () => {
+    const r = await run("day", "2026-09-14", "--explain");
+    expect(() => JSON.parse(r.out)).not.toThrow();
+  });
+
   test("a window with no data prints empty days and exits 0", async () => {
     const r = await run("week", "--to", "2026-08-20", "--days", "1", "--json");
     expect(r.code).toBe(0);
