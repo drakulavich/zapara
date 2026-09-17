@@ -68,9 +68,9 @@ describe("day table", () => {
     expect(lines[0]).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
     const row13 = lines.find((l) => l.startsWith("13:00"))!;
     // 5 sessions x 11 prompt/reply pairs each (m = n, n+5, ..., <=55) = 55 prompts and
-    // 55 assistant replies at 100 output tokens apiece = 5500 -> "5.5k"; busy-week has
+    // 55 assistant replies at 1000 output tokens apiece = 55000 -> "55.0k"; busy-week has
     // no inbound agent messages, so rep is 0 at every bucket, this one included.
-    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+55\s+0\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m\s+5\.5k$/);
+    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+55\s+0\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m\s+55\.0k$/);
     expect(lines.some((l) => l.startsWith("03:00"))).toBe(false);
   });
 

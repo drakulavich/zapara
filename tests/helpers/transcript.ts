@@ -7,7 +7,10 @@ import type { Transcript } from "../../src/types.ts";
 let counter = 0;
 const uuid = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`;
 let reqCounter = 0;
-const nextRequestId = () => `req_placeholder_${++reqCounter}`;
+// Exported so a fixture that builds assistantText() records itself can give each
+// API response its own requestId, the way Claude Code does; the output-token sum
+// dedupes per requestId, so a reused id would silently drop a reply's tokens.
+export const nextRequestId = () => `req_placeholder_${++reqCounter}`;
 
 const base = (ts: string, sid: string, extra: Record<string, unknown>) =>
   JSON.stringify({
