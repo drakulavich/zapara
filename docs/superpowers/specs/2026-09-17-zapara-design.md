@@ -115,32 +115,31 @@ Per day: `peak` (max index over buckets with activity), `mean` (mean index over
 buckets with activity, rounded), `activeMin` (sum), and the sums of every count
 including `reports` and `outputTokens`.
 
-`reports`, `outputTokens` and `contextSwitches` are measured and shown but do not
-enter the index yet. They exist so a week of real data can say what a
-supervision-load component should weigh; the index changes in a separate,
-calibration-only change to `src/score.ts`.
+`reports`, `outputTokens` and `contextSwitches` enter the index through its
+supervision and reading components (see Index).
 
 ## Index
 
-Each bucket with activity gets five normalized components in `[0, 1]`:
+Each bucket with activity gets six normalized components in `[0, 1]`:
 
 ```
-parallel  = clamp((sessions - 1) / 4)      # 1 session → 0, 3 → 0.5, 5+ → 1
-pace      = clamp(prompts / 40)            # 20 prompts/hour → 0.5
-decisions = clamp(decisions / 20)          # 10 decisions/hour → 0.5
-streak    = clamp(streakMin / 120)         # 60 min → 0.5, 2h+ → 1
-late      = lateNight ? 1 : 0
+parallel    = clamp((sessions - 1) / 4)                                   # 1 session → 0, 3 → 0.5, 5+ → 1
+pace        = clamp(prompts / 20)                                         # 10 prompts/hour → 0.5, 20+ → 1
+supervision = clamp((3 * decisions + reports + contextSwitches) / 45)     # 15 decisions alone → 1; 45 reports alone → 1
+reading     = clamp(outputTokens / 80000)                                 # 40k → 0.5, 80k+ → 1
+streak      = clamp(streakMin / 120)                                      # 60 min → 0.5, 2h+ → 1
+late        = lateNight ? 1 : 0
 
-index = round(30*parallel + 20*pace + 20*decisions + 15*streak + 15*late)
+index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 10*late)
 ```
 
-The weights are integer points of 100 (30/20/20/15/15, the same as 0.30/0.20/0.20/
-0.15/0.15). They are kept as integers so that half-point sums such as 57.5 stay
-exact in floating point and round the same way every time; with fractional
-weights, 0.15·0.5 sums drift to 57.4999… and the index can come out one lower
-than the formula says. The five weighted terms are the `parts` a bucket
-reports (rounded to one decimal for display); the index is the rounded sum of
-the unrounded terms.
+The weights are integer points of 100 (25/15/30/10/10/10). They are kept as
+integers so that half-point sums such as 17.5 stay exact in floating point and
+round the same way every time; with fractional weights those sums drift to
+17.4999… and the index can come out one lower than the formula says. The six
+weighted terms are the `parts` a bucket reports (rounded to one decimal for
+display); the index is the rounded sum of the unrounded terms. Without the
+late-night flag the index tops out at 90.
 
 A bucket without activity has no index (rendered as `·`, `null` in JSON).
 
@@ -149,8 +148,18 @@ Levels: 0–29 Calm, 30–59 Warming, 60–84 Heating, 85–100 Fried.
 The parallel-session thresholds follow the research summary this project started
 from: BCG/HBR (productivity drops past three simultaneous AI tools) and Osmani
 ("three focused teammates outperform five scattered ones"). The other norms are
-starting guesses and exist to be calibrated against the week picture. Weights and
-norms live in one exported constant in `src/score.ts` so a change is one diff.
+the p90 of two weeks of real data on two machines (116 and 114 active hours).
+
+Supervision and reading are there because explicit decisions turned out to be
+rare: in auto mode the p90 is 3 decisions per hour, so a component normed on
+decisions alone read near zero on hours that felt heavy. What those hours cost
+is supervision — reacting to inbound agent reports and switching between
+sessions — and reading, the sheer volume of model output to get through. A
+decision still counts for three times what one report or one session hop counts
+for, and the three share one norm of 45. The pace norm is 20 because human
+prompts per hour reached a p90 of 13 on one machine and 20 on the other; 40 was
+unreachable. Weights and norms live in one exported constant in `src/score.ts`
+so a change is one diff.
 
 ## CLI
 
@@ -183,8 +192,8 @@ hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw 
 13:00     87  Fried       5       24   12     6    2      3     1     2       4     95m    41.2k
 ```
 
-`--explain` adds five columns with each weighted contribution (`par 30 pace 12 dec
-20 strk 12 late 0`), so the number can be traced to its inputs.
+`--explain` adds six columns with each weighted contribution (`par 25 pace 12 sup
+20 read 6 strk 10 late 0`), so the number can be traced to its inputs.
 
 `--json` prints the same data as one JSON document: for `week`, an array of days,
 each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 24
