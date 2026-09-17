@@ -11,7 +11,7 @@ import type { Day } from "./types.ts";
 // Read lazily, only when --version is actually handled, so a broken install
 // (missing or corrupt package.json) fails inside the guarded catch below
 // instead of throwing at module load, before any try/catch is in place.
-function readVersion(): string {
+function version(): string {
   return (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
 }
 
@@ -85,7 +85,7 @@ if (import.meta.main) {
   main().then((code) => process.exit(code), (e: unknown) => {
     if (e instanceof HelpRequested) { console.log(USAGE); process.exit(0); }
     if (e instanceof VersionRequested) {
-      try { console.log(readVersion()); process.exit(0); }
+      try { console.log(version()); process.exit(0); }
       catch (err) { console.error(`zapara: ${err instanceof Error ? err.message : String(err)}`); process.exit(1); }
     }
     const msg = e instanceof Error ? e.message : String(e);

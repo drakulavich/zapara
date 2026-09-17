@@ -240,7 +240,7 @@ Unit tests are kept to a minimum; the bulk of the suite runs the whole pipeline
 over fixture transcripts and asserts the resulting statistics.
 
 Public seams for tests: `analyze(transcripts, window)` in the core takes in-memory
-transcripts, and `src/report.ts` exports `report({ projects, to, days, now })`,
+transcripts, and `src/report.ts` exports `report({ projects, to, days })`,
 which runs scan → parse → derive → score and returns `Day[]`, the same structure
 `--json` prints. The CLI is a thin layer over it. Tests call `analyze()`, `report()` or spawn
 the CLI; they never import `parse`, `derive` or `scan` directly. Refactoring the
@@ -260,7 +260,7 @@ Fixtures are real-format transcripts:
   tree into a temp directory, setting file mtimes explicitly. Edge cases that
   need exact timestamps use the builder; representative scenarios live on disk.
 - Each scenario has an `expected.json` (or inline expectations) with the
-  `Day[]` statistics it must produce for a fixed `--to` and `now`.
+  `Day[]` statistics it must produce for a fixed `--to`.
 
 Scenarios, one directory or builder script each:
 
