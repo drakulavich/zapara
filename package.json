@@ -10,6 +10,7 @@
   "engines": { "bun": ">=1.4.0" },
   "scripts": {
     "dev": "bun run src/index.ts",
+    "stats": "bun scripts/signal-stats.ts",
     "test": "TZ=UTC bun test",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck && bun run test"

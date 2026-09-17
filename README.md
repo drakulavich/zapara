@@ -14,4 +14,5 @@ Status: MVP under construction. See `docs/superpowers/specs/` for the design.
 ```sh
 bun install
 bun run src/index.ts --version
+bun run stats --days 14
 ```

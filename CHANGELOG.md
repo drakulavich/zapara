@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows
 - CLI: `zapara week` and `zapara day` with `--json`, `--to`, `--days`, `--projects`; scans `~/.claude/projects`, skipping subagent transcripts and files older than the window.
 - Week heatmap and day table with `--explain`; colors in a TTY, JSON in a pipe.
 - Inbound messages from subagents, other sessions and background tasks are counted as `reports`, separate from human `prompts`; assistant output tokens are summed once per request as `outputTokens`. Both are measured and shown in the day table, week totals and JSON, but not yet scored.
+- `bun run stats`: per-hour signal distributions (n, p50, p75, p90, max, zero) over the active hours of a window, top 8 hours by reports and by human prompts, and a transcript-format drift line (records vs. events recognised by the parser), for comparing the same window across two machines before calibrating `src/score.ts`. Numbers only; never a file path or message text.
 
 ### Changed
 - Score weights are integer points of 100 (30/20/20/15/15) so half-point sums round exactly; the index is the rounded sum of the unrounded weighted parts.
