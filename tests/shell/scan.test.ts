@@ -40,4 +40,20 @@ describe("scan", () => {
   test("a file that is not a directory as root is an error", async () => {
     await expect(scan(join(root, "proj-b/notes.txt"), cutoff)).rejects.toThrow("projects directory not found");
   });
+
+  test("an unreadable file is still listed: scan only stats, reading happens later in report()", async () => {
+    // stat() needs only directory-traversal permission, not read permission on the
+    // file itself, so this holds for both a regular user and root — no root guard needed.
+    const dir = await mkdtemp(join(tmpdir(), "zapara-scan-unreadable-"));
+    const secret = join(dir, "secret.jsonl");
+    try {
+      await writeTree(dir, [{ path: "secret.jsonl", lines: line, mtime: "2026-09-14T13:00:00.000Z" }]);
+      await chmod(secret, 0o000);
+      const paths = await scan(dir, cutoff);
+      expect(paths).toEqual([secret]);
+    } finally {
+      await chmod(secret, 0o644).catch(() => {});
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

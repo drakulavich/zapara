@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assistant, interrupt, prompt, sidechain, writeTree } from "../helpers/transcript.ts";
@@ -60,7 +60,7 @@ describe("cli", () => {
   });
 
   test("bad date, bad --days, unknown flag and unknown command exit 2 with one line", async () => {
-    for (const args of [["day", "2026-13-40"], ["day", "14.09.2026"], ["week", "--days", "0"], ["week", "--days", "91"], ["week", "--bogus"], ["month"]]) {
+    for (const args of [["day", "2026-13-40"], ["day", "2026-02-30"], ["day", "14.09.2026"], ["week", "--days", "0"], ["week", "--days", "91"], ["week", "--bogus"], ["month"]]) {
       const r = await run(...args);
       expect(r.code).toBe(2);
       expect(r.out).toBe("");
@@ -80,5 +80,36 @@ describe("cli", () => {
   test("--help exits 0 and --version prints the version", async () => {
     expect((await run("--help")).code).toBe(0);
     expect((await run("--version")).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  test("--help and --version are only recognized at a flag position, not as a value", async () => {
+    expect((await run("week", "--help")).code).toBe(0);
+    // "--help" here is consumed as --to's value, not treated as the --help flag.
+    const bad = await run("week", "--to", "--help");
+    expect(bad.code).toBe(2);
+    expect(bad.out).toBe("");
+    expect(bad.err).toContain("usage");
+  });
+
+  test("an unreadable transcript file is skipped, not fatal", async () => {
+    if (process.getuid?.() === 0) return; // root bypasses file permissions; chmod 0o000 would have no effect
+    const dir = await mkdtemp(join(tmpdir(), "zapara-cli-unreadable-"));
+    const secret = join(dir, "-Users-me-proj/secret.jsonl");
+    try {
+      await writeTree(dir, [
+        { path: "-Users-me-proj/a.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A)], mtime: "2026-09-14T13:00:00.000Z" },
+        { path: "-Users-me-proj/secret.jsonl", lines: [prompt("2026-09-14T13:05:00.000Z", B), prompt("2026-09-14T13:06:00.000Z", B)], mtime: "2026-09-14T13:05:00.000Z" },
+      ]);
+      await chmod(secret, 0o000);
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "day", "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+      expect(code).toBe(0);
+      expect(err).toBe("");
+      const d = JSON.parse(out);
+      expect(d.totals.prompts).toBe(1); // only the readable file's prompt is counted; the unreadable one is skipped
+    } finally {
+      await chmod(secret, 0o644).catch(() => {});
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

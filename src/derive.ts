@@ -7,7 +7,7 @@ export const SLOT_MS = 5 * 60 * 1000;
 const LATE_HOURS = new Set([23, 0, 1, 2, 3, 4, 5]);
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-const localDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+export const localDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const parseDate = (s: string): Date => {
   const [y, m, d] = s.split("-").map(Number) as [number, number, number];
   return new Date(y, m - 1, d); // local midnight

@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { localDate } from "./derive.ts";
 import { report } from "./report.ts";
 import type { Day } from "./types.ts";
 
@@ -15,9 +16,11 @@ flags: --json  --projects <dir>  --no-color  --help  --version`;
 type Args = { command: "week" | "day"; to: string; days: number; date: string | null; explain: boolean; json: boolean; projects: string; color: boolean };
 
 class UsageError extends Error {}
-
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const today = (now: Date) => `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+// Thrown only at a flag position (never when a token was consumed as another
+// flag's value, e.g. `--to --help`), so `main()` can short-circuit to exit 0
+// without parseArgs having to also validate the rest of a help/version call.
+class HelpRequested extends Error {}
+class VersionRequested extends Error {}
 
 function validDate(s: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -28,12 +31,15 @@ function validDate(s: string): boolean {
 }
 
 export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "week", to: today(now), days: 7, date: null, explain: false, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     const value = (): string => { const v = argv[++i]; if (v === undefined) throw new UsageError(`${arg} needs a value`); return v; };
     switch (arg) {
+      case "--help":
+      case "-h": throw new HelpRequested();
+      case "--version": throw new VersionRequested();
       case "--json": a.json = true; break;
       case "--explain": a.explain = true; break;
       case "--no-color": a.color = false; break;
@@ -56,8 +62,6 @@ export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isT
 
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
-  if (argv.includes("--help") || argv.includes("-h")) { console.log(USAGE); return 0; }
-  if (argv.includes("--version")) { console.log(VERSION); return 0; }
   const a = parseArgs(argv, new Date(), process.env, process.stdout.isTTY === true);
   const days: Day[] = a.command === "day"
     ? await report({ projects: a.projects, to: a.date!, days: 1 })
@@ -67,9 +71,13 @@ async function main(): Promise<number> {
   return 0;
 }
 
-main().then((code) => process.exit(code), (e: unknown) => {
-  const msg = e instanceof Error ? e.message : String(e);
-  if (e instanceof UsageError) { console.error(`zapara: ${msg}\n${USAGE}`); process.exit(2); }
-  console.error(`zapara: ${msg}`);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().then((code) => process.exit(code), (e: unknown) => {
+    if (e instanceof HelpRequested) { console.log(USAGE); process.exit(0); }
+    if (e instanceof VersionRequested) { console.log(VERSION); process.exit(0); }
+    const msg = e instanceof Error ? e.message : String(e);
+    if (e instanceof UsageError) { console.error(`zapara: ${msg}\n${USAGE}`); process.exit(2); }
+    console.error(`zapara: ${msg}`);
+    process.exit(1);
+  });
+}
