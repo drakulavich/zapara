@@ -11,11 +11,17 @@ when a test or CI step comes to catch it.
 - **Bun runs the TypeScript directly.** No build step, no `dist/`, no bundler.
   `bin` points at `src/index.ts` with a `#!/usr/bin/env bun` shebang. The only
   devDependency is `typescript`, for `bun run typecheck`. No runtime dependencies.
+- **Functional core, imperative shell.** `src/index.ts`, `src/report.ts` and
+  `src/scan.ts` are the only files that touch argv, stdout, the file system or
+  the clock. Everything else is pure functions over plain data: `analyze()`
+  takes transcript text already in memory and a window with an explicit `now`,
+  and returns the `Day[]` the CLI prints; `render` returns strings. A core
+  module that imports from `node:` or `Bun`, or calls `Date.now()`, is a bug.
 - **Tests are fixture-driven, in the real transcript format.** A test builds or
-  loads a projects tree of `.jsonl` files shaped exactly like Claude Code writes
-  them (`type`, `timestamp`, `sessionId`, `isMeta`, `isSidechain`,
+  loads transcripts (in memory for `analyze()`, or a projects tree on disk for
+  the CLI) shaped exactly like Claude Code writes them (`type`, `timestamp`, `sessionId`, `isMeta`, `isSidechain`,
   `message.content` blocks, `permission-mode` records, `<session>/subagents/`),
-  runs the whole pipeline through `report()` or the CLI, and asserts the
+  runs the pipeline through `analyze()`, `report()` or the CLI, and asserts the
   statistics that come out. Edge cases and negative cases (malformed lines,
   subagent trees, mtime cutoffs, missing roots) are fixtures too. Tests never
   import `parse`, `derive` or `scan`; refactoring internals must not touch a

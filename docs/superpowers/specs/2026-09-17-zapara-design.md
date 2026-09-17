@@ -183,20 +183,37 @@ and exits 0.
 
 ## Architecture
 
+Functional core, imperative shell. The core is pure functions over plain data:
+no file system, no clock, no environment, no output. The shell is two small
+files that do all the I/O and call the core.
+
 ```
-src/index.ts    argv → command; TTY/JSON switch; the only try/catch
-src/report.ts   report(options) → Day[]; the seam tests and the CLI use
-src/scan.ts     projects dir + cutoff → sorted file paths (skip subagents/, mtime filter)
-src/parse.ts    JSONL text → Event[]  (pure: string in, events out)
-src/derive.ts   Event[] + window → Day[] with HourBucket metrics (sorts, applies look-back)
-src/score.ts    metrics → { index, level, parts }; exports WEIGHTS, NORMS, LEVELS
-src/render.ts   Day[] → strings for week / day / explain
-src/types.ts    Event, HourBucket, Day, Score
+shell (I/O)
+  src/index.ts    argv → options; calls report(); prints; exit codes; the only try/catch
+  src/report.ts   report(options) → Day[]: lists files (scan), reads them, calls analyze()
+  src/scan.ts     projects dir + cutoff → sorted file paths (fs.stat for mtime)
+
+core (pure)
+  src/analyze.ts  analyze(transcripts, window) → Day[]   transcripts = { path, text }[]
+  src/parse.ts    JSONL text → Event[]
+  src/derive.ts   Event[] + window → Day[] with HourBucket metrics (sorts, applies look-back)
+  src/score.ts    metrics → { index, level, parts }; exports WEIGHTS, NORMS, LEVELS
+  src/render.ts   Day[] → string for week / day / explain / json (never writes)
+  src/types.ts    Event, HourBucket, Day, Score, Window
 ```
 
-Layers depend only downward: `render` and `derive` import `score` and `types`;
-`index` imports everything; nothing imports `index`. Named exports only. No
-runtime dependencies; `typescript` is the one devDependency, for `tsc --noEmit`.
+`analyze()` is the core's entry point: it takes transcript contents already in
+memory, in the real JSONL format, plus a window (`from`, `to`, `now`) and returns
+the same `Day[]` the CLI prints. Fixture tests feed it directly with in-memory
+transcripts and get the statistics back without touching the disk; the CLI test
+and the scan test cover the shell.
+
+Rules: layers depend only downward (`render` and `derive` import `score` and
+`types`; `analyze` imports `parse` and `derive`; `report` imports `scan` and
+`analyze`; `index` imports `report` and `render`; nothing imports `index`).
+Core modules import nothing from `node:` or `Bun`. The current time is a
+parameter, never `Date.now()` inside the core. Named exports only. No runtime
+dependencies; `typescript` is the one devDependency, for `tsc --noEmit`.
 
 Performance target: a week view over this machine's `~/.claude/projects` (about
 2 900 files, mostly filtered by mtime) under 2 seconds.
@@ -209,9 +226,10 @@ fast, readable, and specific enough that a failure names the broken behavior.
 Unit tests are kept to a minimum; the bulk of the suite runs the whole pipeline
 over fixture transcripts and asserts the resulting statistics.
 
-Public seam for tests: `src/report.ts` exports `report({ projects, to, days, now })`,
+Public seams for tests: `analyze(transcripts, window)` in the core takes in-memory
+transcripts, and `src/report.ts` exports `report({ projects, to, days, now })`,
 which runs scan → parse → derive → score and returns `Day[]`, the same structure
-`--json` prints. The CLI is a thin layer over it. Tests call `report()` or spawn
+`--json` prints. The CLI is a thin layer over it. Tests call `analyze()`, `report()` or spawn
 the CLI; they never import `parse`, `derive` or `scan` directly. Refactoring the
 internals must not touch a test.
 
