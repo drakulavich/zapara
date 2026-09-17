@@ -1,0 +1,21 @@
+{
+  "name": "zapara",
+  "version": "0.1.0",
+  "description": "Cognitive load index for people driving Claude Code, computed locally from transcripts",
+  "license": "MIT",
+  "author": "Anton Yakutovich",
+  "private": true,
+  "type": "module",
+  "bin": { "zapara": "src/index.ts" },
+  "engines": { "bun": ">=1.4.0" },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "test": "TZ=UTC bun test",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run typecheck && bun run test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^7.0.2"
+  }
+}
