@@ -4,16 +4,26 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { localDate } from "./derive.ts";
+import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
 import type { Day } from "./types.ts";
 
-const VERSION = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+// Read lazily, only when --version is actually handled, so a broken install
+// (missing or corrupt package.json) fails inside the guarded catch below
+// instead of throwing at module load, before any try/catch is in place.
+function version(): string {
+  const parsed: unknown = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  if (typeof parsed === "object" && parsed !== null && typeof (parsed as { version?: unknown }).version === "string") {
+    return (parsed as { version: string }).version;
+  }
+  throw new Error("package.json has no version");
+}
 
 const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
-       zapara day [YYYY-MM-DD]
+       zapara day [YYYY-MM-DD] [--explain]
 flags: --json  --projects <dir>  --no-color  --help  --version`;
 
-type Args = { command: "week" | "day"; to: string; days: number; date: string | null; json: boolean; projects: string; color: boolean };
+type Args = { command: "week" | "day"; to: string; days: number; date: string | null; explain: boolean; json: boolean; projects: string; color: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position (never when a token was consumed as another
@@ -30,8 +40,8 @@ function validDate(s: string): boolean {
   return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
 }
 
-export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
+  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -43,6 +53,7 @@ export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isT
       case "-h": throw new HelpRequested();
       case "--version": throw new VersionRequested();
       case "--json": a.json = true; break;
+      case "--explain": a.explain = true; break;
       case "--no-color": a.color = false; break;
       case "--projects": a.projects = value(); break;
       case "--to": a.to = value(); break;
@@ -56,6 +67,7 @@ export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isT
   if (cmd === undefined || cmd === "week") { if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`); a.command = "week"; }
   else if (cmd === "day") { a.command = "day"; a.date = rest[0] ?? a.to; if (rest.length > 1) throw new UsageError(`unexpected argument ${rest[1]}`); }
   else throw new UsageError(`unknown command ${cmd}`);
+  if (a.command === "week" && a.explain) throw new UsageError("--explain applies to day only");
   if (!validDate(a.to)) throw new UsageError(`--to must be YYYY-MM-DD, got ${a.to}`);
   if (a.date !== null && !validDate(a.date)) throw new UsageError(`date must be YYYY-MM-DD, got ${a.date}`);
   return a;
@@ -68,14 +80,19 @@ async function main(): Promise<number> {
     ? await report({ projects: a.projects, to: a.date!, days: 1 })
     : await report({ projects: a.projects, to: a.to, days: a.days });
   const data = a.command === "day" ? days[0] : days;
-  console.log(JSON.stringify(data, null, 2)); // text rendering arrives with render.ts
+  if (a.json) console.log(renderJson(data!));
+  else if (a.command === "day") console.log(renderDay(days[0]!, { explain: a.explain, color: a.color }));
+  else console.log(renderWeek(days, a.color));
   return 0;
 }
 
 if (import.meta.main) {
   main().then((code) => process.exit(code), (e: unknown) => {
     if (e instanceof HelpRequested) { console.log(USAGE); process.exit(0); }
-    if (e instanceof VersionRequested) { console.log(VERSION); process.exit(0); }
+    if (e instanceof VersionRequested) {
+      try { console.log(version()); process.exit(0); }
+      catch (err) { console.error(`zapara: ${err instanceof Error ? err.message : String(err)}`); process.exit(1); }
+    }
     const msg = e instanceof Error ? e.message : String(e);
     if (e instanceof UsageError) { console.error(`zapara: ${msg}\n${USAGE}`); process.exit(2); }
     console.error(`zapara: ${msg}`);

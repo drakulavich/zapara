@@ -53,17 +53,23 @@ describe("cli", () => {
     expect(() => JSON.parse(r.out)).not.toThrow();
   });
 
+  test("day with --explain in a pipe still prints JSON", async () => {
+    const r = await run("day", "2026-09-14", "--explain");
+    expect(() => JSON.parse(r.out)).not.toThrow();
+  });
+
   test("a window with no data prints empty days and exits 0", async () => {
     const r = await run("week", "--to", "2026-08-20", "--days", "1", "--json");
     expect(r.code).toBe(0);
     expect(JSON.parse(r.out)[0].peak).toBeNull();
   });
 
-  test("bad date, bad --days, unknown flag and unknown command exit 2 with one line", async () => {
+  test("bad date, bad --days, unknown flag, unknown command and --explain on week exit 2 with one line", async () => {
     for (const args of [
       ["day", "2026-13-40"], ["day", "2026-02-30"], ["day", "14.09.2026"],
       ["week", "--days", "0"], ["week", "--days", "91"], ["week", "--bogus"], ["month"],
       ["--projects", "--json"], ["week", "--to", "--days", "3"], ["week", "--days"],
+      ["week", "--explain"],
     ]) {
       const r = await run(...args);
       expect(r.code).toBe(2);

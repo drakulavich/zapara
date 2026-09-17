@@ -1,0 +1,58 @@
+// Deterministic 7-day fixture. Monday is the reference day the README shows.
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
+import { assistant, interrupt, mode, plan, prompt, question, reject, writeTree } from "../helpers/transcript.ts";
+
+const root = join(import.meta.dir, "busy-week", "projects");
+const sid = (n: number) => `${String(n).repeat(8)}-1111-4111-8111-111111111111`;
+const ts = (day: number, h: number, m: number) => new Date(Date.UTC(2026, 8, day, h, m)).toISOString();
+
+type File = { path: string; lines: string[]; mtime: string };
+const files: File[] = [];
+// `kind` keeps a calm() and a storm() call on the same day and session number from
+// colliding on disk: without it, Monday's storm (n=1..5) overwrites the calm
+// morning's project-1 file (also n=1) and its events silently vanish. Event-level
+// analysis is global across files regardless of which file an event lives in, so
+// splitting the path this way does not change the streak or session counting.
+const path = (day: number, n: number, kind: string) => `-Users-me-proj-${n}-${kind}/${day}-${sid(n)}.jsonl`;
+
+// One session working alone: a prompt and a reply every 10 minutes across [from, to) hours.
+function calm(day: number, n: number, from: number, to: number) {
+  const lines = [mode(sid(n), "auto")];
+  for (let h = from; h < to; h++) for (let m = 0; m < 60; m += 10) { lines.push(prompt(ts(day, h, m), sid(n))); lines.push(assistant(ts(day, h, m + 3), sid(n))); }
+  files.push({ path: path(day, n, "calm"), lines, mtime: ts(day, to, 0) });
+}
+// Five sessions at once with interrupts, rejections, questions and a plan review.
+// The loop stops while m + 4 < 60 (the widest offset used below, for the reject/
+// question/plan lines) so no event's timestamp ever crosses into the next hour;
+// calm() only ever adds 3 to an m that stops at 50, so it cannot overflow.
+function storm(day: number, from: number, to: number) {
+  for (let n = 1; n <= 5; n++) {
+    const lines = [mode(sid(n), "auto")];
+    for (let h = from; h < to; h++) for (let m = n; m + 4 < 60; m += 5) {
+      lines.push(prompt(ts(day, h, m), sid(n)));
+      lines.push(assistant(ts(day, h, m + 2), sid(n)));
+      if (m % 15 === n % 15) lines.push(interrupt(ts(day, h, m + 3), sid(n)));
+      if (n === 2 && m === 22) lines.push(reject(ts(day, h, m + 4), sid(n)));
+      if (n === 3 && m === 33) lines.push(question(ts(day, h, m + 4), sid(n)));
+      if (n === 4 && m === 44) { lines.push(plan(ts(day, h, m + 4), sid(n))); lines.push(mode(sid(n), "plan")); lines.push(mode(sid(n), "auto")); }
+    }
+    files.push({ path: path(day, n, "storm"), lines, mtime: ts(day, to, 0) });
+  }
+}
+
+await rm(root, { recursive: true, force: true });
+// Mon 14: calm morning, storm 12-15 with no gap after it (streak at cap → index 85, Fried), calm evening, late-night tail
+calm(14, 1, 9, 12); storm(14, 12, 15); calm(14, 6, 20, 22); calm(14, 7, 23, 24);
+// Tue 15: two sessions 10-18
+calm(15, 1, 10, 18); calm(15, 2, 14, 17);
+// Wed 16: nothing
+// Thu 17: one calm session 11-13
+calm(17, 1, 11, 13);
+// Fri 18: storm 15-16 with no warm-up (streak short → Heating, not Fried)
+storm(18, 15, 16);
+// Sat 19: late night only 0-2
+calm(19, 1, 0, 2);
+// Sun 20: nothing
+await writeTree(root, files);
+console.log(`wrote ${files.length} transcripts under ${root}`);
