@@ -37,7 +37,7 @@ describe("score", () => {
     expect(score(m({ streakMin: 2 }))?.parts.streak).toBe(0.3);
   });
 
-  test("parts sum to the index", () => {
+  test("parts and index agree for a half-point input", () => {
     const s = score(m({ sessions: 3, prompts: 20, decisions: 10, streakMin: 60, lateNight: true }));
     expect(s).not.toBeNull();
     const sum = Object.values(s!.parts).reduce((a, b) => a + b, 0);
