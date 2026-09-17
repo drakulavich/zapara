@@ -71,6 +71,18 @@ describe("output tokens are summed once per requestId per file", () => {
     const day = analyze([t], W)[0]!;
     expect(day.buckets[13]!.outputTokens).toBe(300);
   });
+
+  test("a tool-use-only record does not block a later text record of the same requestId", () => {
+    // The first record of req_mixed has no text block and must not emit; the
+    // dedupe set must therefore stay empty for req_mixed until the second
+    // record (which does have a text block) emits and marks it seen.
+    const t = transcript([
+      assistantToolUseOnly(at("13:00"), S, 300, "req_mixed"),
+      assistantText(at("13:00"), S, 300, "req_mixed"),
+    ]);
+    const day = analyze([t], W)[0]!;
+    expect(day.buckets[13]!.outputTokens).toBe(300);
+  });
 });
 
 describe("day totals sum reports and outputTokens across the day's buckets", () => {
