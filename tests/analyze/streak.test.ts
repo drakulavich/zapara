@@ -17,6 +17,15 @@ describe("streak and active minutes", () => {
     expect(d.buckets[10]!.streakMin).toBe(5);
   });
 
+  test("a gap of exactly 10 minutes continues the streak", () => {
+    const d = analyze([transcript([
+      prompt("2026-09-14T10:00:00.000Z", A),
+      assistant("2026-09-14T10:10:00.000Z", A),   // gap 10, not > GAP_MS, continues
+      prompt("2026-09-14T10:20:00.000Z", A),      // gap 10, continues
+    ])], W)[0]!;
+    expect(d.buckets[10]!.streakMin).toBe(20);
+  });
+
   test("the streak crosses sessions", () => {
     const d = analyze([
       transcript([prompt("2026-09-14T10:00:00.000Z", A), prompt("2026-09-14T10:08:00.000Z", A)], "p/a.jsonl"),

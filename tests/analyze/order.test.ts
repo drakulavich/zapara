@@ -21,10 +21,13 @@ describe("order independence", () => {
   });
 
   test("events out of chronological order inside one file are sorted", () => {
-    const shuffled = transcript([prompt("2026-09-14T13:20:00.000Z", sid(1)), prompt("2026-09-14T13:00:00.000Z", sid(1)), assistant("2026-09-14T13:09:00.000Z", sid(1))]);
+    const shuffled = transcript([prompt("2026-09-14T13:20:00.000Z", sid(1)), prompt("2026-09-14T13:00:00.000Z", sid(1)), assistant("2026-09-14T13:10:00.000Z", sid(1))]);
     const b = analyze([shuffled], W)[0]!.buckets[13]!;
-    // sorted: 13:00, 13:09 (gap 9, continues), 13:20 (gap 11 > GAP_MS, breaks).
-    // The last activity's own streak starts at 13:20, so its length is 0.
-    expect(b.streakMin).toBe(0);
+    // sorted: 13:00, 13:10 (gap 10, not > GAP_MS, continues), 13:20 (gap 10, continues).
+    // The whole run is one streak from 13:00 to 13:20, so its length is 20.
+    // Unsorted (processed in the array's own order 13:20, 13:00, 13:10), the last
+    // processed event would be 13:10 against a streak start left at 13:20 from the
+    // first event, giving a negative streakMin (-10) — proof this depends on sorting.
+    expect(b.streakMin).toBe(20);
   });
 });
