@@ -8,8 +8,13 @@ Date: 2026-09-17. Status: approved design for the MVP.
 and turns them into an hourly Cognitive Load Index (0–100) for the person driving
 the sessions. The MVP has one job: show a week of history as a picture that a human
 can check against their own memory, so the formula can be judged and calibrated.
-Nothing is installed into Claude Code, nothing leaves the machine, and prompt text
-is never read beyond its length.
+Nothing is installed into Claude Code and nothing leaves the machine.
+
+Privacy contract: the parser compares message text against three fixed control
+markers (interrupt, tool rejection, and the two tool names below) and discards it.
+No message text, prompt length, file path from a tool call, or session title is
+kept in an event, written anywhere, or printed. The output contains only
+timestamps, session ids, counts and the derived numbers.
 
 Non-goals for the MVP: real-time alerts, break nudges, hooks, OpenTelemetry, a
 statusline segment, an HTML dashboard, a config file for weights. The statusline
@@ -32,9 +37,14 @@ Scan rules:
 - Take every `*.jsonl` whose path does not contain a `subagents/` directory.
   Subagent files carry the parent's `sessionId`, every record is `isSidechain: true`,
   and their "user" messages are the parent agent's prompts, not the human's.
-- Skip a file whose mtime is earlier than the start of the requested window. A file
-  modified before the window cannot contain events inside it. This keeps a
-  week view from parsing thousands of old files.
+- Skip a file whose mtime is earlier than `windowStart - LOOKBACK` where
+  `LOOKBACK` is 3 hours. A file modified before that cannot contain events the
+  report needs (see the streak look-back below). This keeps a week view from
+  parsing thousands of old files.
+- Return paths sorted lexicographically, so the same tree always yields the same
+  file order.
+- A file that cannot be read (permissions, vanished between listing and reading)
+  is skipped. A missing or unreadable projects root is an error (exit 1).
 - Read line by line. A line that is not valid JSON, or has no `type`, is skipped.
   A bad line never aborts the file or the report.
 
@@ -65,8 +75,22 @@ repo records each drift when it happens.
 
 ## Buckets and metrics
 
-Time is local. The unit is the hour bucket: events with `ts` in `[h, h+1h)`.
-A day is 24 buckets; a week view is 7 days ending on `--to` (default today).
+Time is local. A day is the 24 local hour labels `00`..`23`; an event belongs to
+the bucket named by its local date and hour. On a DST fall-back day two wall-clock
+hours share one label and merge into one bucket; on a spring-forward day one label
+stays empty. A week view is `--days` days ending on `--to` (default today).
+
+Ordering: before deriving anything, all events from all files are sorted by
+`ts`, then `sessionId`, then their position in the parsed input. Every
+"consecutive" below refers to this order. File discovery order never affects a
+result.
+
+Look-back: the deriver receives events from `windowStart - LOOKBACK` (3 hours)
+onward. Events before `windowStart` contribute only to `streakMin`; they are
+never bucketed. Because the streak component of the index saturates at 120
+minutes, the index is exact at the window boundary. The displayed `streakMin`
+of a streak that started more than 3 hours before the window is floored at what
+the look-back sees, which is the one documented approximation.
 
 Per bucket:
 
@@ -78,7 +102,7 @@ Per bucket:
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches` |
 | `contextSwitches` | over all `prompt` events in the bucket sorted by `ts`, the number of consecutive pairs whose `sessionId` differs |
 | `activeMin` | number of distinct 5-minute slots in the bucket holding at least one `activity` event, times 5 |
-| `streakMin` | length in minutes of the activity streak that contains the last `activity` event of the bucket, measured from the streak's first event. A streak breaks on a gap longer than 10 minutes between consecutive `activity` events, across all sessions. 0 when the bucket has no activity. |
+| `streakMin` | length in minutes of the activity streak that contains the last `activity` event of the bucket, measured from the streak's first event (which may lie in the look-back, before the window). A streak breaks on a gap longer than 10 minutes between consecutive `activity` events in the global order, across all sessions. 0 when the bucket has no activity. |
 | `lateNight` | bucket hour in {23, 0, 1, 2, 3, 4, 5} |
 
 Per day: `peak` (max index over buckets with activity), `mean` (mean index over
@@ -147,18 +171,23 @@ each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 2
 entries (`hour`, `index`, `level`, every metric, `parts`); for `day`, one such day.
 JSON is also the default when stdout is not a TTY.
 
-Errors: unknown command or flag prints usage to stderr, exit 2. A missing projects
-directory prints one line to stderr, exit 1. Anything unexpected prints one line
-to stderr, never a stack trace, exit 1. A week with no data prints the empty grid
+Defaults and validation: `day` without a date means today (local). `--to`
+defaults to today. `--days` defaults to 7 and accepts an integer from 1 to 90.
+A date must be `YYYY-MM-DD` and a real calendar date. Any other value, an
+unknown command or an unknown flag prints one line plus usage to stderr, exit 2.
+
+Errors: a missing or unreadable projects directory prints one line to stderr,
+exit 1. Anything unexpected prints one line to stderr, never a stack trace,
+exit 1. A window with no data prints the empty grid (or an empty day table)
 and exits 0.
 
 ## Architecture
 
 ```
 src/index.ts    argv → command; TTY/JSON switch; the only try/catch
-src/scan.ts     projects dir → file paths (skip subagents/, mtime filter)
+src/scan.ts     projects dir + cutoff → sorted file paths (skip subagents/, mtime filter)
 src/parse.ts    JSONL text → Event[]  (pure: string in, events out)
-src/derive.ts   Event[] + date range → Day[] with HourBucket metrics
+src/derive.ts   Event[] + window → Day[] with HourBucket metrics (sorts, applies look-back)
 src/score.ts    metrics → { index, level, parts }; exports WEIGHTS, NORMS, LEVELS
 src/render.ts   Day[] → strings for week / day / explain
 src/types.ts    Event, HourBucket, Day, Score
@@ -179,8 +208,14 @@ tests are deterministic.
 - `parse.test.ts`: one test per event kind on hand-written JSONL lines, plus
   malformed line, missing timestamp, `isMeta`, `isSidechain`, mode dedupe, and
   the interrupt-vs-prompt distinction.
+- `scan.test.ts`: recursive discovery in a temp tree, exclusion by a `subagents`
+  path segment (not by file name), mtime exactly at and just before the cutoff,
+  an unreadable file skipped, a missing root rejected, and sorted output
+  regardless of creation order.
 - `derive.test.ts`: bucket assignment at hour edges, sessions, contextSwitches,
-  activeMin slots, streak across sessions and across the 10-minute gap.
+  activeMin slots, streak across sessions and across the 10-minute gap, events
+  fed in shuffled order yielding the same result, and a streak that starts in the
+  look-back before the window (regression fixture for the boundary).
 - `score.test.ts`: each component at 0, mid and cap; level boundaries 29/30,
   59/60, 84/85; no-activity bucket yields null.
 - `render.test.ts`: the week grid and day table pinned as strings on a fixture.
@@ -203,6 +238,6 @@ Actions CI with `oven-sh/setup-bun` running typecheck and tests.
 ## Later
 
 Signals visible in the data but not scored in the MVP: subagent count per bucket
-(`subagents/` files), prompt length, `worktree-state`, and `agent-name` records.
+(`subagents/` files), prompt length (which would need a change to the privacy contract), `worktree-state`, and `agent-name` records.
 Hooks would add permission decisions and model switches in real time. These wait
 for the week picture to say whether the base formula is even close.
