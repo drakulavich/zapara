@@ -35,6 +35,8 @@ describe("cli", () => {
     const b = days[1].buckets[13];
     expect(b.sessions).toBe(2);
     expect(b.prompts).toBe(2);
+    expect(b.reports).toBe(0); // no inbound agent-message lines in this fixture
+    expect(b.outputTokens).toBe(100); // one assistant() reply at 100 tokens
     expect(b.interrupts).toBe(1);
     expect(b.contextSwitches).toBe(1);
     expect(b.score.index).toBe(10); // parallel 7.5 + pace 1 + decisions 1 + streak 0.6 (5 min) = 10.1
@@ -46,6 +48,8 @@ describe("cli", () => {
     const d = JSON.parse(r.out);
     expect(d.date).toBe("2026-09-14");
     expect(d.totals.prompts).toBe(2);
+    expect(d.totals.reports).toBe(0);
+    expect(d.totals.outputTokens).toBe(100);
   });
 
   test("stdout in a pipe is JSON even without --json", async () => {

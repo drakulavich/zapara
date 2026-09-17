@@ -18,9 +18,10 @@ describe("week grid", () => {
     expect(lines[9]).toBe("  · none  ░ calm 0-29  ▒ warming 30-59  ▓ heating 60-84  █ fried 85-100");
     // Hand-computed from the generator's day-by-day schedule (see busy-week.ts):
     // prompts 201 (Mon) + 66 (Tue) + 12 (Thu) + 55 (Fri) + 12 (Sat) = 346;
+    // reports 0, since busy-week has no inbound agent-message lines;
     // decisions 75 (Mon storm) + 25 (Fri storm) = 100; active sums to 13h00;
     // max sessions is the Mon/Fri storm's 5.
-    expect(lines[10]).toBe("week: active 13h00, prompts 346, decisions 100, max sessions 5");
+    expect(lines[10]).toBe("week: active 13h00, prompts 346, reports 0, decisions 100, max sessions 5");
   });
 
   test("Monday reads calm morning, fried storm, quiet evening, late tail", () => {
@@ -64,9 +65,12 @@ describe("week grid", () => {
 describe("day table", () => {
   test("one row per active hour with the raw signals", () => {
     const lines = renderDay(monday, { explain: false, color: false }).split("\n");
-    expect(lines[0]).toBe("hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak");
+    expect(lines[0]).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
     const row13 = lines.find((l) => l.startsWith("13:00"))!;
-    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+\d+\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m$/);
+    // 5 sessions x 11 prompt/reply pairs each (m = n, n+5, ..., <=55) = 55 prompts and
+    // 55 assistant replies at 100 output tokens apiece = 5500 -> "5.5k"; busy-week has
+    // no inbound agent messages, so rep is 0 at every bucket, this one included.
+    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+55\s+0\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m\s+5\.5k$/);
     expect(lines.some((l) => l.startsWith("03:00"))).toBe(false);
   });
 
