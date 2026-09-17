@@ -62,7 +62,7 @@ ignored for every kind (defensive; the scan already skips subagent files).
 | `reject` | `type == "user"`, content array containing a `tool_result` block whose content (string, or first text block) starts with `The user doesn't want to proceed with this tool use`. |
 | `question` | `type == "assistant"`, content array containing a `tool_use` block with `name == "AskUserQuestion"`. One event per block. |
 | `plan_review` | Same as `question` with `name == "ExitPlanMode"`. |
-| `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file. If none has been seen yet, the record is dropped. Consecutive records with the same `permissionMode` in one file count once (Claude Code rewrites the same mode repeatedly). |
+| `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file. If none has been seen yet, the record is dropped. The first such record in a file sets the session's baseline mode and is not a switch (every session writes its starting mode). Each later record whose `permissionMode` differs from the previous record's is one switch; repeats of the same mode count nothing (Claude Code rewrites the same mode repeatedly). |
 | `activity` | Every `type == "user"` or `type == "assistant"` record with a timestamp, including `isMeta` ones. Used for session liveness, streaks and active minutes. |
 
 `prompt`, `interrupt` and `reject` records are also `activity`. The parser
