@@ -23,10 +23,13 @@ function calm(day: number, n: number, from: number, to: number) {
   files.push({ path: path(day, n, "calm"), lines, mtime: ts(day, to, 0) });
 }
 // Five sessions at once with interrupts, rejections, questions and a plan review.
+// The loop stops while m + 4 < 60 (the widest offset used below, for the reject/
+// question/plan lines) so no event's timestamp ever crosses into the next hour;
+// calm() only ever adds 3 to an m that stops at 50, so it cannot overflow.
 function storm(day: number, from: number, to: number) {
   for (let n = 1; n <= 5; n++) {
     const lines = [mode(sid(n), "auto")];
-    for (let h = from; h < to; h++) for (let m = n; m < 60; m += 5) {
+    for (let h = from; h < to; h++) for (let m = n; m + 4 < 60; m += 5) {
       lines.push(prompt(ts(day, h, m), sid(n)));
       lines.push(assistant(ts(day, h, m + 2), sid(n)));
       if (m % 15 === n % 15) lines.push(interrupt(ts(day, h, m + 3), sid(n)));

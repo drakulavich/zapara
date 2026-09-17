@@ -16,7 +16,11 @@ describe("week grid", () => {
     expect(lines.slice(1, 8).map((l) => l.slice(0, 9))).toEqual(["Mon 14/09", "Tue 15/09", "Wed 16/09", "Thu 17/09", "Fri 18/09", "Sat 19/09", "Sun 20/09"]);
     expect(lines[8]).toBe("");
     expect(lines[9]).toBe("  · none  ░ calm 0-29  ▒ warming 30-59  ▓ heating 60-84  █ fried 85-100");
-    expect(lines[10]).toMatch(/^week: active \d+h\d{2}, prompts \d+, decisions \d+, max sessions \d+$/);
+    // Hand-computed from the generator's day-by-day schedule (see busy-week.ts):
+    // prompts 201 (Mon) + 66 (Tue) + 12 (Thu) + 55 (Fri) + 12 (Sat) = 346;
+    // decisions 75 (Mon storm) + 25 (Fri storm) = 100; active sums to 13h00;
+    // max sessions is the Mon/Fri storm's 5.
+    expect(lines[10]).toBe("week: active 13h00, prompts 346, decisions 100, max sessions 5");
   });
 
   test("Monday reads calm morning, fried storm, quiet evening, late tail", () => {
@@ -27,9 +31,21 @@ describe("week grid", () => {
     expect(cells[12]).toBe("█");
     expect(cells[13]).toBe("█");
     expect(cells[14]).toBe("█");
+    // Storm(14, 12, 15) stops before 15:00 (see the m + 4 < 60 loop bound in
+    // busy-week.ts), so hour 15 has no session at all, not a bleed-over glyph.
+    expect(cells[15]).toBe("·");
     expect(cells[16]).toBe("·");
     expect(cells[23]).toBe("░");
     expect(row.slice(84)).toMatch(/^\s+\d{1,3}\s+\d+h\d{2}$/);
+  });
+
+  test("Friday's warm-up-less storm reads Heating, not Fried, and does not bleed into the next hour", () => {
+    const row = lines[5]!;
+    const cells = Array.from({ length: 24 }, (_, h) => row[12 + h * 3 + 1]);
+    // parallel 30 + pace 20 + decisions 20 + streak 7 (56 of the 120-minute cap,
+    // no calm warm-up before it) + late 0 = 77, Heating (60-84).
+    expect(cells[15]).toBe("▓");
+    expect(cells[16]).toBe("·");
   });
 
   test("an empty day shows a dot in every cell and a dash for peak", () => {
@@ -54,13 +70,18 @@ describe("day table", () => {
     expect(lines.some((l) => l.startsWith("03:00"))).toBe(false);
   });
 
-  test("--explain appends the five weighted parts and they add up to the index", () => {
+  test("--explain appends the five weighted parts, named and in order, and they add up to the index", () => {
     const lines = renderDay(monday, { explain: true, color: false }).split("\n");
     expect(lines[0]!.endsWith("  par  pace   dec  strk  late")).toBe(true);
     const row13 = lines.find((l) => l.startsWith("13:00"))!;
     const nums = row13.trim().split(/\s+/);
     const index = Number(nums[1]);
     const parts = nums.slice(-5).map(Number);
+    // Named by position (par, pace, dec, strk, late), not just their sum: 5
+    // sessions saturate parallel and pace, ~25 decisions/hr saturates dec,
+    // a streak already past the 120-minute cap by 13:00 saturates strk, and
+    // 13:00 isn't a late hour.
+    expect(parts).toEqual([30, 20, 20, 15, 0]);
     expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
   });
 });

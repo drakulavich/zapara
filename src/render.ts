@@ -57,6 +57,8 @@ export function renderDay(day: Day, opts: { explain: boolean; color: boolean }):
   const rows = day.buckets.filter((b) => b.score !== null).map((b) => {
     const cells = cols.map(([, , f]) => f(b));
     const text = line(cells);
+    // Safe only because no other column can contain a level word (Calm/Warming/Heating/Fried);
+    // if one ever could, this would need to target the level column's slice, not a string search.
     return opts.color && b.score ? text.replace(b.score.level, paint(b.score.level, b.score.level, true)) : text;
   });
   return [header, ...rows].join("\n");
