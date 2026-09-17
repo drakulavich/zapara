@@ -8,6 +8,7 @@ import { prompt, writeTree } from "../helpers/transcript.ts";
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-1111-4111-8111-111111111111";
 const C = "cccccccc-1111-4111-8111-111111111111";
+const D = "dddddddd-1111-4111-8111-111111111111";
 
 // window to="2026-09-14" days=1 → local midnight of 2026-09-14 (TZ=UTC) minus
 // the 3h look-back = 2026-09-13T21:00:00.000Z; every fixture below is built
@@ -28,7 +29,10 @@ describe("report", () => {
         { path: "proj-a/normal.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A)], mtime: "2026-09-14T13:00:00.000Z" },
         { path: "proj-a/session/subagents/agent-1.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", B)], mtime: "2026-09-14T13:00:00.000Z" },
         { path: "subagents-not-a-dir.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", C)], mtime: "2026-09-14T13:00:00.000Z" },
-        { path: "proj-b/notes.txt", lines: ["not jsonl"], mtime: "2026-09-14T13:00:00.000Z" },
+        // A real, in-window prompt line, so this only stays excluded because of
+        // the extension filter: if scan() ever stopped filtering by ".jsonl",
+        // this file's prompt would raise the count below and catch it.
+        { path: "proj-b/notes.txt", lines: [prompt("2026-09-14T13:00:00.000Z", D)], mtime: "2026-09-14T13:00:00.000Z" },
       ]);
       const days = await report({ projects: dir, to: "2026-09-14", days: 1 });
       // 2, not 3 or 1: the subagents/ tree and the .txt file are both excluded;
