@@ -8,7 +8,12 @@ import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
 import type { Day } from "./types.ts";
 
-const VERSION = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+// Read lazily, only when --version is actually handled, so a broken install
+// (missing or corrupt package.json) fails inside the guarded catch below
+// instead of throwing at module load, before any try/catch is in place.
+function readVersion(): string {
+  return (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+}
 
 const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
        zapara day [YYYY-MM-DD] [--explain]
@@ -31,7 +36,7 @@ function validDate(s: string): boolean {
   return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
 }
 
-export function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
+function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
   const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -79,7 +84,10 @@ async function main(): Promise<number> {
 if (import.meta.main) {
   main().then((code) => process.exit(code), (e: unknown) => {
     if (e instanceof HelpRequested) { console.log(USAGE); process.exit(0); }
-    if (e instanceof VersionRequested) { console.log(VERSION); process.exit(0); }
+    if (e instanceof VersionRequested) {
+      try { console.log(readVersion()); process.exit(0); }
+      catch (err) { console.error(`zapara: ${err instanceof Error ? err.message : String(err)}`); process.exit(1); }
+    }
     const msg = e instanceof Error ? e.message : String(e);
     if (e instanceof UsageError) { console.error(`zapara: ${msg}\n${USAGE}`); process.exit(2); }
     console.error(`zapara: ${msg}`);

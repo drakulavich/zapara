@@ -15,7 +15,8 @@ markers (interrupt, tool rejection, and the two tool names below) and discards i
 No message text, prompt length, file path from a tool call, or session title is
 kept in an event, written anywhere, or printed. The output contains only
 timestamps, session ids, counts and the derived numbers. The CLI never prints
-a filesystem path, including one given on the command line.
+a filesystem path it derived or read, including the projects root; usage
+errors may echo the offending argv token.
 
 Non-goals for the MVP: real-time alerts, break nudges, hooks, OpenTelemetry, a
 statusline segment, an HTML dashboard, a config file for weights. The statusline
@@ -177,8 +178,9 @@ hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  stre
 
 `--json` prints the same data as one JSON document: for `week`, an array of days,
 each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 24
-entries (`hour`, `index`, `level`, every metric, `parts`); for `day`, one such day.
-JSON is also the default when stdout is not a TTY.
+entries, each with `hour`, every metric, and `score`, which is
+`{ index, level, parts }` or `null` when the bucket has no activity; for `day`,
+one such day. JSON is also the default when stdout is not a TTY.
 
 Defaults and validation: `day` without a date means today (local). `--to`
 defaults to today. `--days` defaults to 7 and accepts an integer from 1 to 90.
@@ -193,7 +195,7 @@ empty day table) and exits 0.
 ## Architecture
 
 Functional core, imperative shell. The core is pure functions over plain data:
-no file system, no clock, no environment, no output. The shell is two small
+no file system, no clock, no environment, no output. The shell is three small
 files that do all the I/O and call the core.
 
 ```
@@ -212,17 +214,19 @@ core (pure)
 ```
 
 `analyze()` is the core's entry point: it takes transcript contents already in
-memory, in the real JSONL format, plus a window (`from`, `to`, `now`) and returns
+memory, in the real JSONL format, plus a window (`{ to, days }`) and returns
 the same `Day[]` the CLI prints. Fixture tests feed it directly with in-memory
 transcripts and get the statistics back without touching the disk; the CLI test
 and the report test cover the shell.
 
-Rules: layers depend only downward (`render` and `derive` import `score` and
-`types`; `analyze` imports `parse` and `derive`; `report` imports `scan` and
-`analyze`; `index` imports `report` and `render`; nothing imports `index`).
-Core modules import nothing from `node:` or `Bun`. The current time is a
-parameter, never `Date.now()` inside the core. Named exports only. No runtime
-dependencies; `typescript` is the one devDependency, for `tsc --noEmit`.
+Rules: the shell may import any core module; core modules never import the
+shell (`render` and `derive` import `score` and `types`; `analyze` imports
+`parse` and `derive`; `report` imports `scan`, `analyze` and `derive`
+(`windowBounds`); `index` imports `report`, `render` and `derive`
+(`localDate`); nothing imports `index`). Core modules import nothing from
+`node:` or `Bun`. The current time is a parameter, never `Date.now()` inside
+the core. Named exports only. No runtime dependencies; `typescript` is the one
+devDependency, for `tsc --noEmit`.
 
 Performance target: a week view over this machine's `~/.claude/projects` (about
 2 900 files, mostly filtered by mtime) under 2 seconds.
@@ -284,8 +288,11 @@ Scenarios, one directory or builder script each:
 - `empty`: a projects tree with no transcripts in the window (empty grid, exit 0),
   and a missing root (exit 1).
 - `cli`: spawns `bun src/index.ts --projects <fixture>` for `week`, `day`,
-  `--explain`, `--json`, a bad date and an unknown flag; pins stdout, stderr
-  and exit codes. Stdout in a pipe is JSON.
+  `--explain`, `--json`, a bad date and an unknown flag; pins the JSON output,
+  exit codes, stderr and the JSON-in-a-pipe default. The rendered text of
+  `week`, `day` and `--explain` is pinned separately, in
+  `tests/render/render.test.ts` through `report()`, because a spawned process
+  never has a TTY.
 
 Order independence: one test shuffles the fixture files' creation order and
 names and asserts identical output.

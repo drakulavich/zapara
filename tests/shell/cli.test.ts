@@ -53,7 +53,7 @@ describe("cli", () => {
     expect(() => JSON.parse(r.out)).not.toThrow();
   });
 
-  test("day with --explain in a pipe stays JSON unless the text is forced", async () => {
+  test("day with --explain in a pipe still prints JSON", async () => {
     const r = await run("day", "2026-09-14", "--explain");
     expect(() => JSON.parse(r.out)).not.toThrow();
   });
