@@ -189,11 +189,12 @@ week totals (active time, prompts, reports, decisions, max sessions).
 
 ```
 hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok
-13:00     87  Fried       5       24   12     6    2      3     1     2       4     95m    41.2k
+13:00     87  Fried       5       24   12     6    2      3     1     2       4     95m    72.0k
 ```
 
-`--explain` adds six columns with each weighted contribution (`par 25 pace 12 sup
-20 read 6 strk 10 late 0`), so the number can be traced to its inputs.
+`--explain` adds six columns with each weighted contribution; for the row above
+they read `par 25 pace 15 sup 30 read 9 strk 7.9 late 0`, so the number can be
+traced to its inputs.
 
 `--json` prints the same data as one JSON document: for `week`, an array of days,
 each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 24

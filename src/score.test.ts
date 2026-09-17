@@ -58,6 +58,17 @@ describe("score", () => {
     expect(score(m({ reports: 9 }))?.parts.supervision).toBe(6);
   });
 
+  test("the index rounds the unrounded sum, not the rounded parts", () => {
+    // pace 15*(1/20) = 0.75 and streak 10*(8/120) = 0.6667 sum to 1.4167, which
+    // rounds to 1. The parts as displayed are 0.8 and 0.7, and those sum to 1.5,
+    // which would round to 2: an index built from the displayed parts reads one
+    // point higher than the formula says.
+    const s = score(m({ prompts: 1, streakMin: 8 }));
+    expect(s!.parts.pace).toBe(0.8);
+    expect(s!.parts.streak).toBe(0.7);
+    expect(s!.index).toBe(1);
+  });
+
   test("2 min streak rounds its own displayed part to 0.2 but the index to 0", () => {
     // 10*(2/120) = 0.1666… → part 0.2, index round(0.1666…) = 0
     expect(score(m({ streakMin: 2 }))?.parts.streak).toBe(0.2);
