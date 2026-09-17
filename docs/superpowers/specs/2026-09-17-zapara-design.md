@@ -119,8 +119,16 @@ decisions = clamp(decisions / 20)          # 10 decisions/hour → 0.5
 streak    = clamp(streakMin / 120)         # 60 min → 0.5, 2h+ → 1
 late      = lateNight ? 1 : 0
 
-index = round(100 * (0.30*parallel + 0.20*pace + 0.20*decisions + 0.15*streak + 0.15*late))
+index = round(30*parallel + 20*pace + 20*decisions + 15*streak + 15*late)
 ```
+
+The weights are integer points of 100 (30/20/20/15/15, the same as 0.30/0.20/0.20/
+0.15/0.15). They are kept as integers so that half-point sums such as 57.5 stay
+exact in floating point and round the same way every time; with fractional
+weights, 0.15·0.5 sums drift to 57.4999… and the index can come out one lower
+than the formula says. The five weighted terms are the `parts` a bucket
+reports (rounded to one decimal for display); the index is the rounded sum of
+the unrounded terms.
 
 A bucket without activity has no index (rendered as `·`, `null` in JSON).
 
