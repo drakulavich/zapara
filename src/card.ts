@@ -2,7 +2,7 @@
 // peak hour, the load spectrum and three highlights, every value already
 // formatted for the page. Pure: Day[] in, CardData out. Nothing here knows a
 // date, a path or a file, so nothing here can leak one.
-import { formatCount, formatTokens } from "./format.ts";
+import { formatCount, formatTokens, plural } from "./format.ts";
 import { NORMS, WEIGHTS } from "./score.ts";
 import type { Day, HourBucket, Level, Score } from "./types.ts";
 
@@ -115,8 +115,8 @@ export function cardData(days: Day[], w: { days: number }): CardData | null {
   const calm = percent(count("Calm"), n);
 
   const sentences: Record<Character, Segment[]> = {
-    conductor: [strong(`${formatCount(maxSessions)} sessions`), plain(" at once, "), strong(`${formatCount(maxSwitches)} context switches`), plain(" in one hour.")],
-    supervisor: [strong(`${formatCount(reports)} agent reports`), plain(" and "), strong(`${formatTokens(tokens)} tokens`), plain(" of output read.")],
+    conductor: [strong(plural(maxSessions, "session")), plain(" at once, "), strong(plural(maxSwitches, "context switch", "context switches")), plain(" in one hour.")],
+    supervisor: [strong(plural(reports, "agent report")), plain(" and "), strong(plural(tokens, "token", "tokens", formatTokens)), plain(" of output read.")],
     marathoner: [plain("Longest streak "), strong(formatStreak(maxStreak)), plain(" without a break, "), strong(`${calm}%`), plain(" of your hours calm.")],
     nightOwl: [strong(`${late}%`), plain(" of your hours "), strong("after midnight"), plain(".")],
   };

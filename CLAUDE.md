@@ -42,8 +42,9 @@ when a test or CI step comes to catch it.
   explicit mtimes.
 - **A new test must fail under a one-line mutation** of the behavior it pins.
   Reviews make the mutation to check.
-- **Never print a stack trace.** The CLI prints one line to stderr and exits 1
-  or 2. A bad transcript line is skipped, never fatal.
+- **Never print a stack trace.** The CLI prints one line to stderr and exits 1,
+  or one line plus the usage block and exits 2. A bad transcript line, an
+  unreadable file or a broken directory is skipped, never fatal.
 - **Privacy contract.** Message text is compared against fixed markers and
   discarded. No text, prompt length, file path or title is kept, written or
   printed. A change to this needs the spec updated first.

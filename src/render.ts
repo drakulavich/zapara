@@ -1,4 +1,4 @@
-import { formatCount } from "./format.ts";
+import { formatCount, plural } from "./format.ts";
 import type { Day, HourBucket, Level } from "./types.ts";
 
 const GLYPH: Record<Level, string> = { Calm: "░", Warming: "▒", Heating: "▓", Fried: "█" };
@@ -33,7 +33,7 @@ export function renderWeek(days: Day[], color: boolean): string {
   const maxSessions = Math.max(0, ...days.map((d) => d.totals.maxSessions));
   // Counts go through formatCount so a very active window (999 999 999 prompts) still
   // fits inside the grid's 100 columns; hm(active) has no compact form, so it stays as is.
-  const totals = dim(`  ${hm(active)} active   ${formatCount(prompts)} prompts   ${formatCount(reports)} reports   ${formatCount(decisions)} decisions   ${formatCount(maxSessions)} sessions at once`, color);
+  const totals = dim(`  ${hm(active)} active   ${plural(prompts, "prompt")}   ${plural(reports, "report")}   ${plural(decisions, "decision")}   ${plural(maxSessions, "session")} at once`, color);
   return [header, ...rows, "", legend, totals].join("\n");
 }
 

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmod, mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assistant, interrupt, prompt, sidechain, writeTree } from "../helpers/transcript.ts";
@@ -115,6 +115,24 @@ describe("cli", () => {
     expect(bad.code).toBe(2);
     expect(bad.out).toBe("");
     expect(bad.err).toContain("usage");
+  });
+
+  test("a symlink loop under the projects root is skipped, and every other transcript still counts", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "zapara-cli-loop-"));
+    try {
+      await writeTree(dir, [
+        { path: "-Users-me-proj/a.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A)], mtime: "2026-09-14T13:00:00.000Z" },
+        { path: "-Users-me-tangled/b.jsonl", lines: [prompt("2026-09-14T13:05:00.000Z", B)], mtime: "2026-09-14T13:05:00.000Z" },
+      ]);
+      await symlink(".", join(dir, "-Users-me-tangled/loop"));
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "day", "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+      expect(err).toBe("");
+      expect(code).toBe(0);
+      expect(JSON.parse(out).totals.prompts).toBe(2); // both files, including the one beside the loop
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test("an unreadable transcript file is skipped, not fatal", async () => {
