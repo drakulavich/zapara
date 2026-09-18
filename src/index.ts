@@ -54,8 +54,13 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     // A missing value or one that looks like another flag is a usage error,
-    // never treated as this flag's value (e.g. `--projects --json`).
-    const value = (): string => { const v = argv[++i]; if (v === undefined || v.startsWith("-")) throw new UsageError(`${arg} needs a value`); return v; };
+    // never treated as this flag's value (e.g. `--projects --json`). Only --days
+    // takes a negative number as a value, so `--days -1` reaches the range check.
+    const value = (negativeNumberIsValue = false): string => {
+      const v = argv[++i];
+      if (v === undefined || (v.startsWith("-") && !(negativeNumberIsValue && /^-\d/.test(v)))) throw new UsageError(`${arg} needs a value`);
+      return v;
+    };
     switch (arg) {
       case "--help":
       case "-h": throw new HelpRequested();
@@ -65,7 +70,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
       case "--no-color": a.color = false; break;
       case "--projects": a.projects = value(); break;
       case "--to": a.to = value(); break;
-      case "--days": { const v = value(); if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 90) throw new UsageError(`--days must be 1..90, got ${v}`); days = Number(v); break; }
+      case "--days": { const v = value(true); if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 90) throw new UsageError(`--days must be 1..90, got ${v}`); days = Number(v); break; }
       case "--out": a.out = value(); outGiven = true; break;
       default:
         if (arg.startsWith("-")) throw new UsageError(`unknown flag ${arg}`);

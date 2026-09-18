@@ -3,12 +3,13 @@
 <p align="center">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun" alt="Bun"></a>
+  <a href="https://www.npmjs.com/package/@drakulavich/zapara"><img src="https://img.shields.io/npm/v/@drakulavich/zapara?logo=npm&color=cb3837" alt="npm"></a>
 </p>
 
 <p align="center"><b>How hard was today?</b> zapara reads the transcripts Claude Code already writes on your machine and scores every hour 0–100 from parallel sessions, prompt pace, agent supervision, model output, streak length and late-night work. Nothing leaves the machine, no message text is kept.</p>
 
 <p align="center">
-  <img src="assets/demo.webp" alt="zapara demo: week heatmap, day table, JSON" width="800">
+  <img src="https://raw.githubusercontent.com/drakulavich/zapara/main/assets/demo.webp" alt="zapara demo: week heatmap, day table, JSON" width="800">
 </p>
 
 Claude Code writes a JSONL transcript for every session under `~/.claude/projects`. zapara reads those files, puts each record in the local hour it happened in, and turns the hour into one number. A week is a heatmap of seven rows by 24 cells; a day is a table with one row per hour and, with `--explain`, the weighted contribution of each component. Nothing is installed into Claude Code, no hook is registered, and no network call is made.
@@ -91,7 +92,7 @@ The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.
 wrote zapara-card.png
 ```
 
-<p align="center"><img src="assets/card.webp" alt="zapara card: The Marathoner, longest streak 7h53m, 68% of hours calm" width="800"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/drakulavich/zapara/main/assets/card.webp" alt="zapara card: The Marathoner, longest streak 7h53m, 68% of hours calm" width="800"></p>
 
 This one comes from the same `busy-week` fixture as the pictures above. The picture is taken by a headless browser that Bun drives: WebKit on macOS, an installed Google Chrome elsewhere, so on Linux or Windows install Chrome, or write `--out card.html` and open the page in any browser.
 
@@ -120,7 +121,7 @@ Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
 `week` and `day` print a text table when stdout is a terminal and JSON otherwise, so `zapara week | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON.
 
-Exit codes are 0 on success, 1 when the projects directory cannot be read, and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read (two different messages, neither with a path), and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
 
 ## Privacy
 
