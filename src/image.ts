@@ -16,6 +16,6 @@ export async function loadAssets(): Promise<CardAssets> {
     throw new Error("assets missing: reinstall zapara");
   }
   const [inter400, inter700, inter800, mono500, characters] = parts;
-  if (parts.length !== 5 || parts.some((p) => p.length === 0)) throw new Error("assets missing: reinstall zapara");
+  if (parts.some((p) => p.length === 0)) throw new Error("assets missing: reinstall zapara");
   return { fonts: { inter400: inter400!, inter700: inter700!, inter800: inter800!, mono500: mono500! }, characters: characters! };
 }
