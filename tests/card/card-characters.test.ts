@@ -6,7 +6,7 @@ import { assistantText, nextRequestId, prompt, teammate, transcript } from "../h
 const sid = (c: string) => `${c.repeat(8)}-1111-4111-8111-111111111111`;
 const at = (h: number, m: number, day = 14, ms = 0) => new Date(Date.UTC(2026, 8, day, h, m, 0, ms)).toISOString();
 const W = { to: "2026-09-14", days: 1 };
-const cardOf = (lines: string[]) => cardData(analyze([transcript(lines)], W), { days: 1 })!;
+const cardOf = (lines: string[]) => cardData(analyze([transcript(lines)], W), { days: W.days })!;
 const keys = (lines: string[]) => cardOf(lines).highlights.map((h) => h.key);
 
 // Five sessions, one prompt each, in one hour: parallel 25 + pace 3.75 of 40 -> 0.72.
@@ -25,7 +25,10 @@ describe("one character per fixture", () => {
   test("Conductor: sessions at once and switches in one hour", () => {
     const c = cardOf(conductor);
     expect(c.character).toBe("conductor");
+    expect(c.name).toBe("The Conductor");
+    expect(c.motto).toBe("You run agents like an orchestra.");
     expect(sentenceText(c.sentence)).toBe("5 sessions at once, 4 context switches in one hour.");
+    expect(c.sentence.filter((s) => s.strong).map((s) => s.text)).toEqual(["5 sessions", "4 context switches"]);
     expect(c.highlights.slice(0, 2)).toEqual([
       { key: "peakSessions", value: "5", caption: "sessions at once" },
       { key: "contextSwitches", value: "4", caption: "switches in one hour" },
@@ -35,7 +38,10 @@ describe("one character per fixture", () => {
   test("Supervisor: reports and tokens read", () => {
     const c = cardOf(supervisor);
     expect(c.character).toBe("supervisor");
+    expect(c.name).toBe("The Supervisor");
+    expect(c.motto).toBe("Nothing ships without your eyes on it.");
     expect(sentenceText(c.sentence)).toBe("45 agent reports and 5k tokens of output read.");
+    expect(c.sentence.filter((s) => s.strong).map((s) => s.text)).toEqual(["45 agent reports", "5k tokens"]);
     expect(c.highlights.slice(0, 2)).toEqual([
       { key: "reportsRead", value: "45", caption: "agent reports read" },
       { key: "tokensRead", value: "5k", caption: "tokens of output read" },
@@ -45,7 +51,10 @@ describe("one character per fixture", () => {
   test("Marathoner: longest streak and calm share", () => {
     const c = cardOf(marathoner);
     expect(c.character).toBe("marathoner");
+    expect(c.name).toBe("The Marathoner");
+    expect(c.motto).toBe("You do not stop while it compiles.");
     expect(sentenceText(c.sentence)).toBe("Longest streak 2h55m without a break, 100% of your hours calm.");
+    expect(c.sentence.filter((s) => s.strong).map((s) => s.text)).toEqual(["2h55m", "100%"]);
     expect(c.highlights.slice(0, 2)).toEqual([
       { key: "longestStreak", value: "2h55m", caption: "longest streak" },
       { key: "interrupts", value: "0", caption: "times you stopped Claude" },
@@ -57,7 +66,10 @@ describe("one character per fixture", () => {
   test("Night Owl: share of hours after midnight", () => {
     const c = cardOf(nightOwl);
     expect(c.character).toBe("nightOwl");
+    expect(c.name).toBe("The Night Owl");
+    expect(c.motto).toBe("The best commits happen after midnight.");
     expect(sentenceText(c.sentence)).toBe("100% of your hours after midnight.");
+    expect(c.sentence.filter((s) => s.strong).map((s) => s.text)).toEqual(["100%", "after midnight"]);
     expect(c.highlights.slice(0, 2)).toEqual([
       { key: "lateShare", value: "100%", caption: "of hours after midnight" },
       { key: "longestStreak", value: "5m", caption: "longest streak" },
