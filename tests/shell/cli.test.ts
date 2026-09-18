@@ -135,6 +135,31 @@ describe("cli", () => {
     }
   });
 
+  test("--days -1 is a bad range, not a missing value", async () => {
+    const r = await run("week", "--days", "-1");
+    expect(r.code).toBe(2);
+    expect(r.err.split("\n")[0]).toBe("zapara: --days must be 1..90, got -1");
+    // A real flag in the value position is still a missing value.
+    expect((await run("week", "--days", "--json")).err.split("\n")[0]).toBe("zapara: --days needs a value");
+  });
+
+  test("a projects directory that cannot be read says so, without a path", async () => {
+    if (process.getuid?.() === 0) return; // root bypasses file permissions
+    const dir = await mkdtemp(join(tmpdir(), "zapara-cli-noread-"));
+    try {
+      await chmod(dir, 0o000);
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "week", "--json"], { stdout: "pipe", stderr: "pipe" });
+      const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+      expect(code).toBe(1);
+      expect(out).toBe("");
+      expect(err.trim()).toBe("zapara: projects directory cannot be read (check its permissions)");
+      expect(err).not.toContain(dir);
+    } finally {
+      await chmod(dir, 0o755).catch(() => {});
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("an unreadable transcript file is skipped, not fatal", async () => {
     if (process.getuid?.() === 0) return; // root bypasses file permissions; chmod 0o000 would have no effect
     const dir = await mkdtemp(join(tmpdir(), "zapara-cli-unreadable-"));

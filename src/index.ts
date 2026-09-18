@@ -54,8 +54,9 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     // A missing value or one that looks like another flag is a usage error,
-    // never treated as this flag's value (e.g. `--projects --json`).
-    const value = (): string => { const v = argv[++i]; if (v === undefined || v.startsWith("-")) throw new UsageError(`${arg} needs a value`); return v; };
+    // never treated as this flag's value (e.g. `--projects --json`). A negative
+    // number is a value, so `--days -1` is answered by the range check.
+    const value = (): string => { const v = argv[++i]; if (v === undefined || (v.startsWith("-") && !/^-\d/.test(v))) throw new UsageError(`${arg} needs a value`); return v; };
     switch (arg) {
       case "--help":
       case "-h": throw new HelpRequested();

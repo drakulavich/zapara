@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- `--days -1` is answered by the range message (`--days must be 1..90, got -1`) instead of `--days needs a value`: a negative number is a value, not a flag.
+- A projects directory that exists but cannot be read says so (`projects directory cannot be read (check its permissions)`, exit 1) instead of `not found`; the message still names no path.
 - The README's screencast and card show on npmjs.com: both images use absolute raw.githubusercontent.com URLs, and the demo files left Git LFS, whose objects the raw endpoint serves as pointer text.
 
 ## [0.1.0] - 2026-09-18

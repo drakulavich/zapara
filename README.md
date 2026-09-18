@@ -3,6 +3,7 @@
 <p align="center">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun" alt="Bun"></a>
+  <a href="https://www.npmjs.com/package/@drakulavich/zapara"><img src="https://img.shields.io/npm/v/@drakulavich/zapara?logo=npm&color=cb3837" alt="npm"></a>
 </p>
 
 <p align="center"><b>How hard was today?</b> zapara reads the transcripts Claude Code already writes on your machine and scores every hour 0–100 from parallel sessions, prompt pace, agent supervision, model output, streak length and late-night work. Nothing leaves the machine, no message text is kept.</p>
@@ -120,7 +121,7 @@ Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
 `week` and `day` print a text table when stdout is a terminal and JSON otherwise, so `zapara week | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON.
 
-Exit codes are 0 on success, 1 when the projects directory cannot be read, and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read (two different messages, neither with a path), and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
 
 ## Privacy
 
