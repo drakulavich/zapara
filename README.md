@@ -16,23 +16,20 @@ Claude Code writes a JSONL transcript for every session under `~/.claude/project
 ## Quick Start
 
 ```bash
-# 1. Install Bun (skip if you have it). zapara needs 1.4 or newer.
+# Install Bun if you do not have it (zapara needs 1.4 or newer)
 curl -fsSL https://bun.sh/install | bash
 
-# 2. Clone, install, and put `zapara` on your PATH
-git clone git@github.com:drakulavich/zapara.git
-cd zapara
-bun install
-bun link
+# Your week, straight from the registry
+bunx @drakulavich/zapara@latest
 
-# 3. Look at your week
-zapara week
+# A day, with the components behind each index
+bunx @drakulavich/zapara@latest day --explain
 
-# 4. Zoom into a day
-zapara day --explain
+# The card
+bunx @drakulavich/zapara@latest card
 ```
 
-There is no build step and no runtime dependency. Bun runs `src/index.ts` directly, and the one devDependency is TypeScript, for the typecheck. `bun link` registers the clone's `bin` entry, so `zapara` runs this checkout; without it, `bun src/index.ts week` does the same thing.
+To keep it around, `bun add -g @drakulavich/zapara` puts `zapara` on your PATH. There is no build step and no runtime dependency: Bun runs `src/index.ts` from the package as it is.
 
 ## What it looks like
 
@@ -184,6 +181,15 @@ No message text, prompt length, file path or session title is kept, written or p
 - The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
 
 ## Development
+
+```bash
+git clone git@github.com:drakulavich/zapara.git
+cd zapara
+bun install
+bun link
+```
+
+`bun link` registers the clone's `bin` entry, so `zapara` runs this checkout; without it, `bun src/index.ts week` does the same thing.
 
 ```bash
 bun run check    # tsc --noEmit, then the test suite under TZ=UTC

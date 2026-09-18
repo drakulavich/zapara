@@ -11,6 +11,12 @@ when a test or CI step comes to catch it.
 - **Bun runs the TypeScript directly.** No build step, no `dist/`, no bundler.
   `bin` points at `src/index.ts` with a `#!/usr/bin/env bun` shebang. The only
   devDependency is `typescript`, for `bun run typecheck`. No runtime dependencies.
+- **Releases go through `npm-publish.yml` only.** On `main`, bump `version`
+  in `package.json` and move the CHANGELOG's Unreleased entries under
+  `## [X.Y.Z]`, then push the tag `vX.Y.Z`. The workflow re-runs the check,
+  publishes with OIDC provenance and creates the GitHub release from that
+  block, and refuses anything that does not line up. Never publish from a
+  laptop.
 - **Functional core, imperative shell.** `src/index.ts`, `src/report.ts`,
   `src/scan.ts` and `src/image.ts` are the only files that touch argv, stdout,
   the file system or the clock; `src/image.ts` is the only one that may use

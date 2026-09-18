@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows
 - Inbound messages from subagents, other sessions and background tasks are counted as `reports`, separate from human `prompts`; assistant output tokens are summed once per request as `outputTokens`. Both are measured and shown in the day table, week totals and JSON.
 - `bun run stats`: per-hour signal distributions (n, p50, p75, p90, max, zero) over the active hours of a window, top 8 hours by reports and by human prompts, and a transcript-format drift line (records vs. events recognised by the parser), for comparing the same window across two machines before calibrating `src/score.ts`. Numbers only; never a file path or message text.
 - `zapara card`: the last 14 days as one 2400×1260 picture (PNG, WebP, or the HTML page itself): one of four characters by dominant load, a sentence, the peak hour, the share of hours at each level, three highlights. Rendered locally by `Bun.WebView`; the page embeds its fonts and character sheet and references nothing. `--json` prints the card's data. The only command that writes a file.
+- Published on npm as `@drakulavich/zapara`: `bunx @drakulavich/zapara@latest` runs it without a clone; releases publish from GitHub Actions with OIDC trusted publishing and provenance, no npm token.
 
 ### Changed
 - Score weights are integer points of 100 so half-point sums round exactly; the index is the rounded sum of the unrounded weighted parts.

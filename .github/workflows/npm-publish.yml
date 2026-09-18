@@ -1,0 +1,62 @@
+name: npm publish
+
+# The only path to npm, same shape as oura-cli's release.yml: push a tag vX.Y.Z and
+# this checks the commit again, publishes through OIDC trusted publishing (npmjs.com
+# trusts this repository and this file name; no npm token exists anywhere) and creates
+# the GitHub release with that version's CHANGELOG block as the notes. Prereleases are
+# not published: a tag with a suffix is refused before anything runs, so nothing can
+# land on `latest` by accident.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # The job can write to the repository, so the checkout must not leave that token in
+      # .git/config for the install and test steps to read; the release step gets its own.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Refuse a tag that does not line up with package.json and CHANGELOG.md
+        run: |
+          version=$(jq -r .version package.json)
+          printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::$version is a prerelease; those are not published"; exit 1; }
+          [ "$GITHUB_REF_NAME" = "v$version" ] || { echo "::error::tag is $GITHUB_REF_NAME but package.json says $version"; exit 1; }
+          awk -v ver="$version" '
+            /^## \[/ { if (inblock) exit; if ($0 ~ "\\[" ver "\\]") { inblock = 1; next } }
+            inblock { print }
+          ' CHANGELOG.md > release-notes.md
+          grep -q '[^[:space:]]' release-notes.md || { echo "::error::CHANGELOG.md has no ## [$version] block"; exit 1; }
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      # The same gate as ci.yml: a tag on a broken commit must not publish.
+      - run: bun run check
+        env:
+          ZAPARA_REQUIRE_WEBVIEW: "1"
+
+      # Trusted publishing needs npm 11.5.1 or newer, which Node 24 bundles. Nothing is
+      # installed from the network into the job that holds the OIDC token.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: npm must be 11.5.1 or newer
+        run: |
+          have=$(npm --version)
+          [ "$(printf '11.5.1\n%s\n' "$have" | sort -V | head -1)" = "11.5.1" ] || { echo "::error::npm $have is older than 11.5.1"; exit 1; }
+      - run: npm publish --provenance
+
+      - run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
