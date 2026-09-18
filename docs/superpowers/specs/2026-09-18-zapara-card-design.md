@@ -130,7 +130,7 @@ JetBrains Mono.
 
 | Element | Position and style (CSS px) |
 |---|---|
-| Character | the character's picture, 260×260, centred at (190, 204), on a radial halo of the accent colour (radius 150, 35 % opacity at the centre fading to 0) and a dashed accent ring of radius 138 at 28 % opacity |
+| Character | the character's quadrant of the sheet in a 300×300 box at (40, 64) with a soft drop shadow, over a radial halo of the accent colour (260×260 at (60, 84), 42 % opacity at the centre fading to 0 at 72 %) and a dashed accent ring of radius 138 centred at (190, 204) at 28 % opacity |
 | Window label | at (372, 92), Inter 600 15 px, letter-spacing 3.5 px, uppercase, muted `#8e93b3`; the day count in the accent's light shade |
 | Name | at (368, 120), Inter 800 76 px, letter-spacing −2.5 px, filled with a horizontal gradient from white to the accent's light shade |
 | Sentence | at (372, 214), width 760, Inter 400 24 px, line height 32, `#c9cce4`; the bold spans in white Inter 600; the motto follows on the same paragraph |
@@ -151,14 +151,17 @@ template starts from that file's CSS.
 
 ### Characters
 
-Four illustrations in one style, generated once from the prompts in the
-implementation plan and supplied by the owner, stored as
-`assets/characters/{conductor,supervisor,marathoner,night-owl}.webp`,
-512×512, lossy WebP at quality 85 with a transparent background, each under
-120 KB, committed as ordinary files (not LFS) so a plain clone renders cards.
-`scripts/prepare-characters.ts` turns the four source PNGs into those files
-with `Bun.Image` (resize to 512, alpha kept) and is how they are regenerated
-when the art changes. The source PNGs are not in the repository.
+Four illustrations in one style, generated once by the owner as a single
+2×2 sheet with a transparent background (Conductor top left, Supervisor top
+right, Marathoner bottom left, Night Owl bottom right), stored as
+`assets/characters.webp`: the sheet resized to 1024×1024, lossy WebP at
+quality 85 with alpha, about 200 KB, committed as an ordinary file (not
+LFS) so a plain clone renders cards. The template shows one quadrant with
+CSS `background-position` on a 300×300 box (sheet scaled to 600×600), so no
+cropping tool is involved anywhere. `scripts/prepare-characters.ts` turns
+the source PNG into that file with `Bun.Image` (resize to 1024, alpha kept)
+and is how it is regenerated when the art changes. The source PNG is not in
+the repository.
 
 ### Fonts
 
@@ -175,7 +178,7 @@ Core (pure, no `node:`, no `Bun`, no clock), all taking plain data:
 ```
 src/card.ts      cardData(days: Day[], w: { days: number }) → CardData | null   (null when no active hour)
 src/cardhtml.ts  cardHtml(card: CardData, days: Day[], assets: CardAssets) → string
-                 CardAssets = { fonts: { inter400, inter700, inter800, mono500 }, characters: { conductor, … } }
+                 CardAssets = { fonts: { inter400, inter700, inter800, mono500 }, characters: string }  (the sheet)
                  every field a base64 string; the function escapes nothing from the transcripts
                  because nothing from the transcripts reaches it: only numbers, dates and the fixed strings above
 ```
@@ -187,7 +190,7 @@ src/image.ts     loadAssets() → Promise<CardAssets>      reads assets/fonts an
                  renderCard(html: string, out: string) → Promise<void>
 ```
 
-`loadAssets` reads the eight files relative to `import.meta.dir`; a missing
+`loadAssets` reads the five files relative to `import.meta.dir`; a missing
 or unreadable one is `assets missing: reinstall zapara` on stderr, exit 1,
 with no path. `renderCard` writes the HTML as is when `out` ends in `.html`.
 Otherwise it opens `new Bun.WebView({ width: 2400, height: 1260 })`,
@@ -230,8 +233,9 @@ Scenarios:
 - `cardHtml` on `busy-week` (window `--to 2026-09-20 --days 7`): the page
   contains the name and the sentence once each; exactly 7 × 24 heatmap
   cells, of which Monday's 12:00 to 14:00 carry the fried class, Friday's
-  15:00 the heating class and Sunday's row no level class; the conductor
-  picture and all four fonts are embedded as `data:` URIs; no `http:`,
+  15:00 the heating class and Sunday's row no level class; the character
+  box carries the conductor's quadrant class; the sheet and all four fonts
+  are embedded as `data:` URIs; no `http:`,
   `https:` or `//` reference anywhere; the page's SHA-256 is pinned as a
   golden value with a comment naming the command that regenerates it (any
   change to the look has to be acknowledged in the test).
@@ -251,9 +255,9 @@ Scenarios:
   probes once and skips otherwise; GitHub's Ubuntu runners ship Chrome, so
   CI runs it): `--out x.png` produces a file whose `Bun.Image` metadata is
   2400×1260 PNG; `--out x.webp` a 2400×1260 WebP; both larger than 20 KB.
-- Assets: `loadAssets` on the checked-in files returns eight non-empty
-  base64 strings, and each character WebP decodes to 512×512 through
-  `Bun.Image`.
+- Assets: `loadAssets` on the checked-in files returns five non-empty
+  base64 strings (four fonts and the sheet), and the sheet decodes to
+  1024×1024 WebP through `Bun.Image`.
 
 `tests/helpers` gains nothing new: the character fixtures are composed from
 the existing builders.
