@@ -2,6 +2,7 @@
 // Bun.WebView or a Bun.Image, and writes a file. Everything it writes is the one
 // file the person named; nothing here prints.
 import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { CardAssets } from "./cardhtml.ts";
 
 const ASSETS = new URL("../assets/", import.meta.url);
@@ -67,4 +68,32 @@ export async function renderCard(html: string, out: string, timeoutMs = 15_000):
     clearTimeout(timer!);
   }
   await writeFile(out, bytes);
+}
+
+// Puts the PNG just written on the clipboard through the system's own tool. The
+// path travels as a process argument or as stdin, never inside a script string,
+// and is never printed. macOS: osascript. Linux: wl-copy under Wayland, xclip
+// under X11. Anything else is refused; the file is on disk either way.
+export async function copyToClipboard(file: string): Promise<void> {
+  const abs = resolve(file);
+  let cmd: string[];
+  let stdin: "ignore" | Blob = "ignore";
+  if (process.platform === "darwin") {
+    cmd = ["osascript", "-e", "on run argv", "-e", "set the clipboard to (read (POSIX file (item 1 of argv)) as «class PNGf»)", "-e", "end run", abs];
+  } else if (process.platform === "linux" && process.env.WAYLAND_DISPLAY) {
+    cmd = ["wl-copy", "--type", "image/png"];
+    stdin = Bun.file(abs);
+  } else if (process.platform === "linux") {
+    cmd = ["xclip", "-selection", "clipboard", "-t", "image/png", "-i", abs];
+  } else {
+    throw new Error("--copy is not supported on this system yet; the picture is on disk");
+  }
+  const hint = process.platform === "linux" ? ": install wl-clipboard (Wayland) or xclip (X11)" : "";
+  let code: number;
+  try {
+    code = await Bun.spawn(cmd, { stdin, stdout: "ignore", stderr: "ignore" }).exited;
+  } catch {
+    throw new Error(`could not copy to the clipboard${hint}; the picture is on disk`);
+  }
+  if (code !== 0) throw new Error(`could not copy to the clipboard${hint}; the picture is on disk`);
 }

@@ -31,7 +31,7 @@ signal, no new score, and no new data source.
 ## CLI
 
 ```
-zapara card [--days N] [--to YYYY-MM-DD] [--out PATH] [--json] [--projects DIR]
+zapara card [--days N] [--to YYYY-MM-DD] [--out PATH] [--copy] [--json] [--projects DIR]
 ```
 
 - `--days` defaults to 14 and accepts 1 to 90, like `week`.
@@ -55,6 +55,14 @@ zapara card [--days N] [--to YYYY-MM-DD] [--out PATH] [--json] [--projects DIR]
   (see Rendering), stderr gets one line, `card needs a browser engine:
   install Google Chrome, or write --out card.html`, exit 1. A render that
   does not finish within 15 seconds is `render timed out`, exit 1.
+- `--copy` puts the picture on the clipboard after the file is written, and
+  stdout gets a third line, `copied to the clipboard`. It needs a `.png`
+  output and no `--json`, else a usage error. The copy goes through the
+  system's own tool with the file's path as a process argument, never in a
+  script string and never printed: `osascript` on macOS, `wl-copy` under
+  Wayland, `xclip` under X11. A missing tool, a failed copy or another
+  system is one stderr line ending in `the picture is on disk`, exit 1; the
+  file stays.
 - Colors and TTY detection do not apply: the card is the same everywhere.
 
 Privacy amendment to the base spec: `card` is the one command that writes a

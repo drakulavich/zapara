@@ -85,6 +85,7 @@ The grid is a fixed 98 columns wide, 100 with its hour header, and does not refl
 ```bash
 zapara card                    # writes zapara-card.png in the current directory
 zapara card --out card.webp    # WebP instead; --out card.html writes the page itself
+zapara card --copy             # and put the PNG on the clipboard, ready to paste
 ```
 
 ```
@@ -107,12 +108,14 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 | `zapara day 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
 | `zapara card` | The last 14 days as one shareable picture, `zapara-card.png` in the current directory. |
 | `zapara card --days 30 --out me.webp` | Any window from 1 to 90 days; `.png`, `.webp` or `.html` by extension. `--json` prints the card's data instead. |
+| `zapara card --copy` | Also put the PNG on the clipboard, ready to paste into a chat. macOS and Linux (`wl-copy` or `xclip`). |
 
 | Flag | What it does |
 |---|---|
 | `--json` | Print the whole window as one JSON document instead of a table. |
 | `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
 | `--out <path>` | Where `card` writes; the extension picks the format. |
+| `--copy` | After `card` writes a `.png`, copy it to the clipboard through the system's own tool: `osascript` on macOS, `wl-copy` or `xclip` on Linux. Not on Windows yet. |
 | `--no-color` | Plain glyphs with no ANSI codes. `NO_COLOR` in the environment does the same. |
 | `--help` | Usage, exit 0. |
 | `--version` | The version from `package.json`, exit 0. |

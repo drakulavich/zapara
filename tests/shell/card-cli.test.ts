@@ -95,6 +95,24 @@ describe("zapara card", () => {
     }
   });
 
+  test("--copy is a card flag that needs a .png and no --json", async () => {
+    const first = async (...args: string[]) => { const r = await run(...args); return [r.code, r.err.split("\n")[0]]; };
+    expect(await first("week", "--copy")).toEqual([2, "zapara: --copy applies to card only"]);
+    expect(await first("card", "--copy", "--out", "x.webp")).toEqual([2, "zapara: --copy needs a .png output"]);
+    expect(await first("card", "--copy", "--out", "x.html")).toEqual([2, "zapara: --copy needs a .png output"]);
+    expect(await first("card", "--copy", "--json")).toEqual([2, "zapara: --copy needs the picture, not --json"]);
+    expect(await files()).toEqual([]);
+  });
+
+  // The real copy replaces whatever is on the developer's clipboard, so it runs only
+  // when asked for (ZAPARA_TEST_CLIPBOARD=1) and only where a WebView renders.
+  test.skipIf(!process.env.ZAPARA_TEST_CLIPBOARD || webviewMissing !== null)("--copy writes the PNG, then reports the copy on a third line", async () => {
+    const r = await run("card", "--to", "2026-09-20", "--copy");
+    expect(r.code).toBe(0);
+    expect(r.out.split("\n").slice(1, 3)).toEqual(["wrote zapara-card.png", "copied to the clipboard"]);
+    expect(await files()).toEqual(["zapara-card.png"]);
+  }, 15_000);
+
   test("--out on week and --explain on card are usage errors", async () => {
     expect((await run("week", "--out", "x.png")).code).toBe(2);
     expect((await run("card", "--explain")).code).toBe(2);

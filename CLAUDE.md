@@ -20,8 +20,8 @@ when a test or CI step comes to catch it.
 - **Functional core, imperative shell.** `src/index.ts`, `src/report.ts`,
   `src/scan.ts` and `src/image.ts` are the only files that touch argv, stdout,
   the file system or the clock; `src/image.ts` is the only one that may use
-  `Bun.WebView` or `Bun.Image`, read the card assets, or write a file (the
-  card). Everything else is pure functions over plain data: `analyze()` takes
+  `Bun.WebView` or `Bun.Image`, read the card assets, write a file (the
+  card), or spawn a process (the clipboard tool). Everything else is pure functions over plain data: `analyze()` takes
   transcript text already in memory and a window with an explicit `now`, and
   returns the `Day[]` the CLI prints; `render` and `cardHtml` return strings.
   A core module that imports from `node:` or `Bun`, or calls `Date.now()`, is

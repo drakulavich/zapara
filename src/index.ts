@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { cardData, sentenceText } from "./card.ts";
 import { cardHtml } from "./cardhtml.ts";
 import { localDate } from "./derive.ts";
-import { loadAssets, renderCard } from "./image.ts";
+import { copyToClipboard, loadAssets, renderCard } from "./image.ts";
 import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
 import type { Day } from "./types.ts";
@@ -24,11 +24,11 @@ function version(): string {
 
 const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
        zapara day [YYYY-MM-DD] [--explain]
-       zapara card [--days N] [--to YYYY-MM-DD] [--out PATH.png|.webp|.html]
+       zapara card [--days N] [--to YYYY-MM-DD] [--out PATH.png|.webp|.html] [--copy]
 flags: --json  --projects <dir>  --no-color  --help  --version
 levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
 
-type Args = { command: "week" | "day" | "card"; to: string; days: number; date: string | null; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
+type Args = { command: "week" | "day" | "card"; to: string; days: number; date: string | null; explain: boolean; json: boolean; out: string; copy: boolean; projects: string; color: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position (never when a token was consumed as another
@@ -46,7 +46,7 @@ function validDate(s: string): boolean {
 }
 
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: false, out: "zapara-card.png", projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: false, out: "zapara-card.png", copy: false, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
   let days: number | null = null;
   let jsonFlag = false;
   let outGiven = false;
@@ -72,6 +72,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
       case "--to": a.to = value(); break;
       case "--days": { const v = value(true); if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 90) throw new UsageError(`--days must be 1..90, got ${v}`); days = Number(v); break; }
       case "--out": a.out = value(); outGiven = true; break;
+      case "--copy": a.copy = true; break;
       default:
         if (arg.startsWith("-")) throw new UsageError(`unknown flag ${arg}`);
         positional.push(arg);
@@ -88,10 +89,13 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   a.json = a.command === "card" ? jsonFlag : jsonFlag || !isTTY;
   if (a.command !== "day" && a.explain) throw new UsageError("--explain applies to day only");
   if (a.command !== "card" && outGiven) throw new UsageError("--out applies to card only");
+  if (a.copy && a.command !== "card") throw new UsageError("--copy applies to card only");
+  if (a.copy && a.json) throw new UsageError("--copy needs the picture, not --json");
   // The value is printed back verbatim in `wrote …`, so it must be one plain line:
   // no control character, and the message never quotes it.
   if (/[\x00-\x1f\x7f]/.test(a.out)) throw new UsageError("--out must not contain control characters");
   if (!/\.(png|webp|html)$/i.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
+  if (a.copy && !/\.png$/i.test(a.out)) throw new UsageError("--copy needs a .png output");
   if (!validDate(a.to)) throw new UsageError(`--to must be YYYY-MM-DD, got ${a.to}`);
   if (a.date !== null && !validDate(a.date)) throw new UsageError(`date must be YYYY-MM-DD, got ${a.date}`);
   return a;
@@ -128,6 +132,10 @@ async function card(a: Args): Promise<number> {
   }
   await renderCard(cardHtml(data, await loadAssets()), a.out);
   console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${a.out}`);
+  if (a.copy) {
+    await copyToClipboard(a.out);
+    console.log("copied to the clipboard");
+  }
   return 0;
 }
 
