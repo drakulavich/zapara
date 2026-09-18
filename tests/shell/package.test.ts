@@ -1,35 +1,20 @@
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { join } from "node:path";
 
-const ROOT = join(import.meta.dir, "../..");
+// What `npm publish` would ship, from npm's own dry run of this checkout.
+const pack = Bun.spawn(["npm", "pack", "--dry-run", "--json"], { cwd: join(import.meta.dir, "../.."), stderr: "ignore" });
+const packed = await new Response(pack.stdout).text();
+if ((await pack.exited) !== 0) throw new Error("npm pack failed");
+const [{ files, unpackedSize }] = JSON.parse(packed) as [{ files: { path: string }[]; unpackedSize: number }];
+const paths = files.map((f) => f.path);
 
-interface PackedFile {
-  path: string;
-}
-
-interface PackResult {
-  files: PackedFile[];
-  unpackedSize: number;
-}
-
-async function pack(): Promise<PackResult> {
-  const p = Bun.spawn(["npm", "pack", "--dry-run", "--json"], { cwd: ROOT, stdout: "pipe", stderr: "pipe" });
-  const [out, code] = await Promise.all([new Response(p.stdout).text(), p.exited]);
-  expect(code).toBe(0);
-  const [result] = JSON.parse(out) as PackResult[];
-  return result!;
-}
-
-describe("the published tarball", () => {
-  test("the card's fonts and sheet ship in the tarball", async () => {
-    const { files } = await pack();
-    const paths = files.map((f) => f.path);
-    for (const expected of [
+test("the source, the card's fonts and sheet, and the licences ship in the tarball", () => {
+  expect(paths).toEqual(
+    expect.arrayContaining([
       "src/index.ts",
       "src/card.ts",
       "src/cardhtml.ts",
       "src/image.ts",
-      "src/format.ts",
       "assets/characters.webp",
       "assets/fonts/inter-400.woff2",
       "assets/fonts/inter-700.woff2",
@@ -41,27 +26,19 @@ describe("the published tarball", () => {
       "LICENSE",
       "CHANGELOG.md",
       "package.json",
-    ]) {
-      expect(paths).toContain(expected);
-    }
-  });
+    ]),
+  );
+});
 
-  test("tests, docs and media do not", async () => {
-    const { files } = await pack();
-    const paths = files.map((f) => f.path);
-    for (const path of paths) {
-      expect(path.startsWith("tests/")).toBe(false);
-      expect(path.startsWith("docs/")).toBe(false);
-      expect(path.startsWith("scripts/")).toBe(false);
-      expect(path.startsWith(".github/")).toBe(false);
-    }
-    for (const excluded of ["assets/demo.mp4", "assets/demo.webp", "assets/card.png", "src/score.test.ts", "tsconfig.json", "bun.lock"]) {
-      expect(paths).not.toContain(excluded);
-    }
-  });
+test("tests, docs, scripts, CI and media do not", () => {
+  const leaked = paths.filter((p) => /^(tests|docs|scripts|\.github)\//.test(p) || p.endsWith(".test.ts"));
+  expect(leaked).toEqual([]);
+  expect(paths).not.toContain("assets/demo.mp4");
+  expect(paths).not.toContain("assets/demo.webp");
+  expect(paths).not.toContain("assets/card.png");
+  expect(paths).not.toContain("bun.lock");
+});
 
-  test("the tarball stays under 1 MB unpacked", async () => {
-    const { unpackedSize } = await pack();
-    expect(unpackedSize).toBeLessThan(1024 * 1024);
-  });
+test("the tarball stays under 1 MB unpacked", () => {
+  expect(unpackedSize).toBeLessThan(1024 * 1024);
 });

@@ -12,10 +12,11 @@ when a test or CI step comes to catch it.
   `bin` points at `src/index.ts` with a `#!/usr/bin/env bun` shebang. The only
   devDependency is `typescript`, for `bun run typecheck`. No runtime dependencies.
 - **Releases go through `npm-publish.yml` only.** Bump `version` in
-  `package.json` and move the CHANGELOG's Unreleased entries under the new
-  version on `main`, tag `vX.Y.Z`, publish the GitHub release; the workflow
-  checks, verifies the version against the tag and publishes with OIDC
-  provenance. Never publish from a laptop.
+  `package.json` and move the CHANGELOG's Unreleased entries under
+  `## [X.Y.Z]` on `main`, then push the tag `vX.Y.Z`; the workflow runs the
+  check, refuses a tag that does not match the version, publishes with OIDC
+  provenance and creates the GitHub release from that CHANGELOG block. Never
+  publish from a laptop.
 - **Functional core, imperative shell.** `src/index.ts`, `src/report.ts`,
   `src/scan.ts` and `src/image.ts` are the only files that touch argv, stdout,
   the file system or the clock; `src/image.ts` is the only one that may use

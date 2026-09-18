@@ -1,100 +1,52 @@
 name: npm publish
 
-# The only path to npm. Runs when a GitHub release is published (the manual gate) or by
-# hand for an existing tag. Trusted Publishing: npm exchanges this job's GitHub OIDC token
-# for a short-lived credential, so no npm token exists anywhere. The package must be
-# configured as a Trusted Publisher on npmjs.com for this repository and this workflow
-# file name. A SemVer prerelease (v0.2.0-beta.1) publishes under its identifier's
-# dist-tag (`beta`) so `@latest` never gets an unstable build.
+# The only path to npm, same shape as oura-cli's release.yml: push a tag vX.Y.Z and
+# this checks the commit again, publishes through OIDC trusted publishing (npmjs.com
+# trusts this repository and this file name; no npm token exists anywhere) and creates
+# the GitHub release with that version's CHANGELOG block as the notes.
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing tag to publish (vX.Y.Z)"
-        required: true
+  push:
+    tags: ["v*"]
 
 permissions:
-  contents: read
-
-concurrency:
-  group: npm-publish
-  cancel-in-progress: false
+  contents: write
+  id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      id-token: write
     steps:
-      # The tag reaches the shell through env, never interpolation: a tag is user input.
-      - name: Resolve tag and version
-        id: tag
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_TAG: ${{ inputs.tag }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then tag="$INPUT_TAG"; else tag="$RELEASE_TAG"; fi
-          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
-            echo "::error::tag '$tag' is not vX.Y.Z or vX.Y.Z-pre.N" >&2; exit 1
-          fi
-          version="${tag#v}"
-          case "$version" in
-            *-*) pre="${version#*-}"; dist_tag="${pre%%.*}" ;;
-            *) dist_tag=latest ;;
-          esac
-          { echo "tag=$tag"; echo "version=$version"; echo "dist_tag=$dist_tag"; } >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.tag.outputs.tag }}
-
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Check before the world sees it
-        run: bun run check
+      # The same gate as ci.yml: a tag on a broken commit must not publish.
+      - run: bun run check
         env:
           ZAPARA_REQUIRE_WEBVIEW: "1"
 
-      - name: Verify package.json version matches the tag
-        env:
-          VERSION: ${{ steps.tag.outputs.version }}
+      - name: The tag must be v<version from package.json>
         run: |
-          actual=$(jq -r .version package.json)
-          if [ "$VERSION" != "$actual" ]; then
-            echo "::error::tag says $VERSION but package.json says $actual" >&2
-            exit 1
-          fi
-
-      # Trusted Publishing needs Node >= 22.14 and npm >= 11.5.1; registry-url sets the
-      # target without any token.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "lts/*"
-          registry-url: "https://registry.npmjs.org"
-      - run: npm install -g npm@latest && npm --version
-
-      # A re-run after a successful publish must be a no-op, not a failure.
-      - name: Skip if this version is already on npm
-        id: registry
-        run: |
-          name=$(jq -r .name package.json)
           version=$(jq -r .version package.json)
-          if npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "$name@$version is already on npm"
-          else
-            echo "published=false" >> "$GITHUB_OUTPUT"
-          fi
+          [ "$GITHUB_REF_NAME" = "v$version" ] || { echo "::error::tag is $GITHUB_REF_NAME but package.json says $version"; exit 1; }
 
-      - name: Publish with provenance
-        if: steps.registry.outputs.published == 'false'
+      # Trusted Publishing needs Node 22.14+ and npm 11.5.1+.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm install -g npm@latest
+      - run: npm publish --provenance
+
+      - name: Create the GitHub release from the CHANGELOG
         env:
-          DIST_TAG: ${{ steps.tag.outputs.dist_tag }}
-        run: npm publish --provenance --access public --tag "$DIST_TAG"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            /^## \[/ { if (inblock) exit; if ($0 ~ "\\[" ver "\\]") { inblock = 1; next } }
+            inblock { print }
+          ' CHANGELOG.md > release-notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
