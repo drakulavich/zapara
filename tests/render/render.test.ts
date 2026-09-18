@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { analyze } from "../../src/analyze.ts";
 import { renderDay, renderJson, renderWeek } from "../../src/render.ts";
 import { report } from "../../src/report.ts";
+import { assistant, interrupt, mode, plan, prompt, question, reject, teammate, transcript } from "../helpers/transcript.ts";
 import type { Day, HourBucket } from "../../src/types.ts";
 
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
@@ -146,6 +148,48 @@ describe("day table", () => {
     const note = "  no reports, interrupts, rejects, questions, plans, mode switches, context switches today";
     expect(coloredLines[coloredLines.length - 1]).toBe(`\x1b[2m${note}\x1b[0m`);
     expect(coloredText.replace(/\x1b\[\d+m/g, "")).toBe(plainText);
+  });
+
+  test("a day where every event happened prints the full header and no note", () => {
+    // Built through analyze(), not the busy-week fixture: busy-week's `rep` reads 0
+    // every day (it has no inbound agent messages anywhere), so leftOut is never
+    // truly empty there and this branch would otherwise go unpinned. Two sessions,
+    // one file each (mode tracking is per file, so interleaving them in one file
+    // would let A's mode records be read as B's): A gets a prompt, an interrupt, a
+    // reject, a question, a plan review and a mode switch; B gets a later prompt
+    // (a context switch, since the last prompt was A's) and a report.
+    // Mutation this pins: `if (leftOut.length > 0)` -> `if (true)` would still print
+    // a note here, since every event column is nonzero somewhere in this day.
+    const A = "aaaaaaaa-1111-4111-8111-111111111111";
+    const B = "bbbbbbbb-1111-4111-8111-111111111111";
+    const at = (hhmm: string) => `2026-09-14T${hhmm}:00.000Z`;
+    const ta = transcript(
+      [
+        mode(A, "auto"),
+        prompt(at("13:00"), A),
+        assistant(at("13:01"), A),
+        interrupt(at("13:02"), A),
+        reject(at("13:03"), A),
+        question(at("13:04"), A),
+        plan(at("13:05"), A),
+        mode(A, "plan"),
+      ],
+      "a/s.jsonl",
+    );
+    const tb = transcript(
+      [
+        mode(B, "auto"),
+        prompt(at("13:06"), B),
+        assistant(at("13:07"), B),
+        teammate(at("13:08"), B),
+      ],
+      "b/s.jsonl",
+    );
+    const day = analyze([ta, tb], { to: "2026-09-14", days: 1 })[0]!;
+    const lines = renderDay(day, { explain: false, color: false }).split("\n");
+    expect(lines[0]).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
+    expect(lines.length).toBe(2); // header + one row (13:00), no note
+    expect(lines.some((l) => l.startsWith("  no "))).toBe(false);
   });
 
   test("--explain appends the six weighted parts, named and in order, and they add up to the index", () => {
