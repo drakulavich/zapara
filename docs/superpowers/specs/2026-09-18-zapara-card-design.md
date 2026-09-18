@@ -194,8 +194,8 @@ the sentence and the numbers; every small label is JetBrains Mono.
 | Element | Position and style (CSS px) |
 |---|---|
 | Background | `#07070a` |
-| Streaks | a 900×1100 group at (−200, −260) rotated 38°, blurred 22 px, opacity 0.9: four vertical bars (widths 150, 70, 200, 90 at x = 120, 320, 440, 700) with vertical gradients from transparent through the accent (peak alpha 0.9, 0.7, 0.35 with a cyan `#22d3ee` touch, 0.5) back to transparent; a radial vignette centred at (30 %, 40 %) fades everything to the background beyond 75 % |
-| Grain | an SVG `feTurbulence` fractal-noise tile (300×300, base frequency 0.9, two octaves) as a repeating background over the whole card, opacity 0.35, blend mode overlay |
+| Streaks | a 900×1100 group at (−200, −260) rotated 38°, blurred 22 px, opacity 0.9: four vertical bars (widths 150, 70, 200, 90 at x = 120, 320, 440, 700, radius 40) with vertical gradients from transparent through the accent (peak alpha 0.9, 0.7, 0.35 with a cyan `#22d3ee` touch, 0.5) back to transparent; a radial vignette centred at (30 %, 40 %) fades everything to the background beyond 75 % |
+| Grain | an SVG `feTurbulence` fractal-noise tile (300×300, base frequency 0.9, two octaves, alpha 0.6 through a colour matrix) as a repeating background over the whole card, opacity 0.35, blend mode overlay |
 | Character | the character's crop of the sheet (see Characters), longer side 360 px, centred at (195, 300), drop shadow 0 30 40 at 70 % black |
 | Panel | at (380, 56), 760×518, radius 20, 1-px border at 10 % white, fill a vertical gradient from 4.5 % to 2 % white, inner 1-px top highlight at 8 % white, shadow 0 30 80 at 50 % black, padding 36 px 40 px; everything below sits inside it, top to bottom |
 | Label | JetBrains Mono 13 px, `#6b6b76`, uppercase, letter-spacing 0.5 px: `LAST 14 DAYS` (the day count from `--days`) |
