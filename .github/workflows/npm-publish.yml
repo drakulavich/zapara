@@ -18,7 +18,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      # The job can write to the repository, so the checkout must not leave that token in
+      # .git/config for the install and test steps to read; the release step gets its own.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: The tag must be v<version from package.json> with no prerelease suffix
         run: |
