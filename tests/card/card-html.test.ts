@@ -13,7 +13,7 @@ const html = cardHtml(card, assets);
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
 
 // Regenerate with: bun scripts/card-golden.ts
-const GOLDEN = "9bac5873cb4cd12eee3aee67ae3c9cb7a30ac360694b019eff26cf3b5acd528b";
+const GOLDEN = "31b580dce3be3a5c24622b8da70f07d454c9ce7354ebfdcf4d4bced751d15979";
 
 describe("card page for busy-week", () => {
   test("name and sentence appear once, the motto follows the sentence", () => {
