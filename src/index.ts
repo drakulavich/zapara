@@ -3,7 +3,10 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { localDate } from "./derive.ts";
+import { cardData, sentenceText } from "./card.ts";
+import { cardHtml } from "./cardhtml.ts";
+import { localDate, windowBounds } from "./derive.ts";
+import { loadAssets, renderCard } from "./image.ts";
 import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
 import type { Day } from "./types.ts";
@@ -21,9 +24,10 @@ function version(): string {
 
 const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
        zapara day [YYYY-MM-DD] [--explain]
+       zapara card [--days N] [--to YYYY-MM-DD] [--out PATH.png|.webp|.html]
 flags: --json  --projects <dir>  --no-color  --help  --version`;
 
-type Args = { command: "week" | "day"; to: string; days: number; date: string | null; explain: boolean; json: boolean; projects: string; color: boolean };
+type Args = { command: "week" | "day" | "card"; to: string; days: number; date: string | null; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position (never when a token was consumed as another
@@ -41,7 +45,10 @@ function validDate(s: string): boolean {
 }
 
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: !isTTY, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: false, out: "zapara-card.png", projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  let days: number | null = null;
+  let jsonFlag = false;
+  let outGiven = false;
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -52,12 +59,13 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
       case "--help":
       case "-h": throw new HelpRequested();
       case "--version": throw new VersionRequested();
-      case "--json": a.json = true; break;
+      case "--json": jsonFlag = true; break;
       case "--explain": a.explain = true; break;
       case "--no-color": a.color = false; break;
       case "--projects": a.projects = value(); break;
       case "--to": a.to = value(); break;
-      case "--days": { const v = value(); if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 90) throw new UsageError(`--days must be 1..90, got ${v}`); a.days = Number(v); break; }
+      case "--days": { const v = value(); if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 90) throw new UsageError(`--days must be 1..90, got ${v}`); days = Number(v); break; }
+      case "--out": a.out = value(); outGiven = true; break;
       default:
         if (arg.startsWith("-")) throw new UsageError(`unknown flag ${arg}`);
         positional.push(arg);
@@ -66,8 +74,18 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   const [cmd, ...rest] = positional;
   if (cmd === undefined || cmd === "week") { if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`); a.command = "week"; }
   else if (cmd === "day") { a.command = "day"; a.date = rest[0] ?? a.to; if (rest.length > 1) throw new UsageError(`unexpected argument ${rest[1]}`); }
+  else if (cmd === "card") { a.command = "card"; if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`); }
   else throw new UsageError(`unknown command ${cmd}`);
-  if (a.command === "week" && a.explain) throw new UsageError("--explain applies to day only");
+  // Two weeks make a pattern; a week makes a picture of one week.
+  a.days = days ?? (a.command === "card" ? 14 : 7);
+  // Tables turn into JSON in a pipe; the card is a file either way, so only an explicit --json switches it.
+  a.json = a.command === "card" ? jsonFlag : jsonFlag || !isTTY;
+  if (a.command !== "day" && a.explain) throw new UsageError("--explain applies to day only");
+  if (a.command !== "card" && outGiven) throw new UsageError("--out applies to card only");
+  // The value is printed back verbatim in `wrote …`, so it must be one plain line:
+  // no control character, and the message never quotes it.
+  if (/[\x00-\x1f\x7f]/.test(a.out)) throw new UsageError("--out must not contain control characters");
+  if (!/\.(png|webp|html)$/.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
   if (!validDate(a.to)) throw new UsageError(`--to must be YYYY-MM-DD, got ${a.to}`);
   if (a.date !== null && !validDate(a.date)) throw new UsageError(`date must be YYYY-MM-DD, got ${a.date}`);
   return a;
@@ -76,6 +94,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const a = parseArgs(argv, new Date(), process.env, process.stdout.isTTY === true);
+  if (a.command === "card") return card(a);
   const days: Day[] = a.command === "day"
     ? await report({ projects: a.projects, to: a.date!, days: 1 })
     : await report({ projects: a.projects, to: a.to, days: a.days });
@@ -83,6 +102,27 @@ async function main(): Promise<number> {
   if (a.json) console.log(renderJson(data!));
   else if (a.command === "day") console.log(renderDay(days[0]!, { explain: a.explain, color: a.color }));
   else console.log(renderWeek(days, a.color));
+  return 0;
+}
+
+async function card(a: Args): Promise<number> {
+  const window = { to: a.to, days: a.days };
+  const data = cardData(await report({ projects: a.projects, ...window }), { days: a.days });
+  if (data === null) throw new Error(`no activity in the last ${a.days} days`);
+  if (a.json) {
+    const { dates } = windowBounds(window);
+    const round2 = (x: number): number => Math.round(x * 100) / 100;
+    const json = {
+      from: dates[0], to: dates[dates.length - 1], days: data.days, character: data.character, name: data.name,
+      sentence: sentenceText(data.sentence), motto: data.motto,
+      shares: { conductor: round2(data.shares.conductor), supervisor: round2(data.shares.supervisor), marathoner: round2(data.shares.marathoner), nightOwl: round2(data.shares.nightOwl) },
+      peak: data.peak, spectrum: data.spectrum, highlights: data.highlights,
+    };
+    console.log(JSON.stringify(json, null, 2));
+    return 0;
+  }
+  await renderCard(cardHtml(data, await loadAssets()), a.out);
+  console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${a.out}`);
   return 0;
 }
 
