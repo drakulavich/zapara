@@ -136,16 +136,14 @@ describe("cli", () => {
   });
 
   test("--days -1 is a bad range, not a missing value", async () => {
-    const r = await run("week", "--days", "-1");
-    expect(r.code).toBe(2);
-    expect(r.err.split("\n")[0]).toBe("zapara: --days must be 1..90, got -1");
+    // Code and first stderr line together, so a failure names both.
+    const first = async (...args: string[]) => { const r = await run(...args); return [r.code, r.err.split("\n")[0]]; };
+    expect(await first("week", "--days", "-1")).toEqual([2, "zapara: --days must be 1..90, got -1"]);
     // A real flag in the value position is still a missing value, and no other
     // flag takes a negative number: -1 is not a directory, a date or a file name.
-    expect((await run("week", "--days", "--json")).err.split("\n")[0]).toBe("zapara: --days needs a value");
+    expect(await first("week", "--days", "--json")).toEqual([2, "zapara: --days needs a value"]);
     for (const [flag, cmd] of [["--projects", "week"], ["--to", "week"], ["--out", "card"]] as const) {
-      const bad = await run(cmd, flag, "-1");
-      expect(bad.code).toBe(2);
-      expect(bad.err.split("\n")[0]).toBe(`zapara: ${flag} needs a value`);
+      expect(await first(cmd, flag, "-1")).toEqual([2, `zapara: ${flag} needs a value`]);
     }
   });
 
