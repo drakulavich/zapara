@@ -198,8 +198,8 @@ exact quadrants), stored as `assets/characters.webp`: the sheet resized to
 an ordinary file (not LFS) so a plain clone renders cards. The template
 shows each character through a crop rectangle given in sheet fractions
 `[x, y, w, h]`, a constant `CHARACTER_RECTS` in `src/cardhtml.ts` measured
-on the current sheet (Conductor `[0.02, 0.01, 0.53, 0.525]`, Supervisor
-`[0.55, 0.07, 0.38, 0.505]`, Marathoner `[0.02, 0.57, 0.50, 0.42]`, Night
+on the current sheet (Conductor `[0.02, 0.01, 0.53, 0.543]`, Supervisor
+`[0.55, 0.07, 0.38, 0.505]`, Marathoner `[0.02, 0.553, 0.50, 0.437]`, Night
 Owl `[0.54, 0.585, 0.45, 0.41]`); the box is scaled so the rectangle's longer
 side is 320 px, and centred at (190, 210), using CSS `background-size` and
 `background-position`, so no cropping tool is involved anywhere.
