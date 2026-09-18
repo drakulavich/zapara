@@ -96,9 +96,11 @@ buckets, `reports`, `outputTokens` and `interrupts` are window sums, `streak`
 is the maximum `streakMin` over buckets, `activeHours` is the count of
 active buckets (used only as a divisor, never shown), `lateShare` is the
 share of active buckets with `lateNight` in whole percent, `calmShare` the
-share of active buckets at Calm, `days` the `--days` value. The stdout
-character line and the JSON `sentence` carry the sentence without the bold
-marks and without the motto.
+share of active buckets at Calm, `days` the `--days` value. `CardData`
+carries the sentence as segments, `{ text, strong }[]`, and the motto as a
+separate string, so the page can set the bold spans without parsing anything;
+the stdout character line and the JSON `sentence` are the segments joined,
+without the motto.
 
 Transcript-derived numbers have no upper bound, so every value on the card
 goes through a compact format with a fixed longest form:
@@ -150,8 +152,9 @@ Window label: `LAST {days} DAYS`. No dates appear on the card.
 `--json` prints:
 
 ```json
-{ "days": 14, "from": "2026-09-05", "to": "2026-09-18", "character": "conductor",
+{ "from": "2026-09-05", "to": "2026-09-18", "days": 14, "character": "conductor",
   "name": "The Conductor", "sentence": "6 sessions at once, 38 context switches in one hour.",
+  "motto": "You run agents like an orchestra.",
   "shares": { "conductor": 0.61, "supervisor": 0.33, "marathoner": 0.52, "nightOwl": 0.06 },
   "peak": { "index": 89, "level": "Fried" },
   "spectrum": { "calm": 62, "warming": 25, "heating": 10, "fried": 3 },
@@ -161,8 +164,9 @@ Window label: `LAST {days} DAYS`. No dates appear on the card.
     { "key": "longestStreak", "value": "5h35m", "caption": "longest streak" } ] }
 ```
 
-Shares are rounded to two decimals in JSON only. `from` and `to` are in the
-JSON for scripts; they are not drawn.
+Shares are rounded to two decimals in JSON only. `from` and `to` are added
+by the CLI from the window, for scripts; they are not part of `CardData`, so
+no date can reach the page.
 
 ## Picture
 
@@ -251,10 +255,14 @@ Core (pure, no `node:`, no `Bun`, no clock), all taking plain data:
 
 ```
 src/card.ts      cardData(days: Day[], w: { days: number }) → CardData | null   (null when no active hour)
-src/cardhtml.ts  cardHtml(card: CardData, days: Day[], assets: CardAssets) → string
+                 CardData = { days, character, name, sentence: { text, strong }[], motto, shares,
+                              peak, spectrum, highlights }: every string already formatted, every
+                              selection already made; the only representation of the card
+src/cardhtml.ts  cardHtml(card: CardData, assets: CardAssets) → string
                  CardAssets = { fonts: { inter400, inter700, inter800, mono500 }, characters: string }  (the sheet)
-                 every field a base64 string; the function escapes nothing from the transcripts
-                 because nothing from the transcripts reaches it: only numbers, dates and the fixed strings above
+                 every field a base64 string; the function sees no Day, no date and no raw metric,
+                 only CardData's formatted strings and numbers, and escapes nothing because nothing
+                 from the transcripts reaches it
 ```
 
 Shell:
