@@ -90,7 +90,7 @@ wrote zapara-card.png
 
 <p align="center"><img src="assets/card.png" alt="zapara card: The Marathoner, longest streak 7h53m, 68% of hours calm" width="800"></p>
 
-This one comes from the same `busy-week` fixture as the pictures above. The picture is taken by a headless browser that Bun ships with: WebKit on macOS, Google Chrome elsewhere, so on Linux or Windows install Chrome, or write `--out card.html` and open the page in any browser.
+This one comes from the same `busy-week` fixture as the pictures above. The picture is taken by a headless browser that Bun drives: WebKit on macOS, an installed Google Chrome elsewhere, so on Linux or Windows install Chrome, or write `--out card.html` and open the page in any browser.
 
 ## Usage
 

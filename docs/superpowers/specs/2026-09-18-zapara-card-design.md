@@ -172,13 +172,14 @@ no date can reach the page.
 
 The card is an HTML page, 1200×630 CSS pixels, produced by a pure function
 from the card data, and photographed by a headless browser engine that Bun
-ships with (`Bun.WebView`, WebKit on macOS, Chrome elsewhere). The output
-picture is always 2400×1260 pixels: the page is loaded in a 2400×1260
-viewport with `zoom: 2` on the root element, so the engine lays the card out
-at twice its size and text is rendered at that size rather than upscaled; the
-screenshot is then resized to exactly 2400×1260 with `Bun.Image` when the
-device pixel ratio made it larger. PNG is the screenshot's own format; WebP
-is re-encoded from it with `Bun.Image` at quality 90.
+drives through `Bun.WebView` (WebKit on macOS, an installed Chrome
+elsewhere). The output picture is always 2400×1260 pixels: the page is
+loaded in a 2400×1260 viewport with `zoom: 2` on the root element, so the
+engine lays the card out at twice its size and text is rendered at that
+size rather than upscaled; the screenshot is then resized to exactly
+2400×1260 with `Bun.Image` when the device pixel ratio made it larger. PNG
+is the screenshot's own format; WebP is re-encoded from it with `Bun.Image`
+at quality 90.
 
 The page is self-contained. Fonts and character pictures are embedded as
 `data:` URIs; the template contains no `http`, `https` or protocol-relative
@@ -367,8 +368,9 @@ Scenarios:
   base64 strings (four fonts and the sheet), and the sheet decodes to
   1024×1024 WebP through `Bun.Image`.
 
-`tests/helpers` gains nothing new: the character fixtures are composed from
-the existing builders.
+`tests/helpers` gains `webview.ts` (the one-time engine probe and
+`openPage`); the character fixtures are composed from the existing
+builders.
 
 ## README and repository
 
