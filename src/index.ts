@@ -83,6 +83,21 @@ function spanDays(from: string, to: string): number {
   return Math.round((utc(to) - utc(from)) / 86_400_000) + 1;
 }
 
+// The window from its flags: --days ending today or at --to, or --from/--to, both
+// inclusive. --from with --days is one length too many. Checks run in the order
+// a reader meets the flags in --help.
+function windowOf(days: string | null, from: string | null, to: string | null, defaultDays: number, now: Date): { to: string; days: number } {
+  if (from !== null && days !== null) throw new UsageError("--from sets the length; drop --days");
+  if (days !== null && (!/^\d+$/.test(days) || Number(days) < 1 || Number(days) > 90)) throw new UsageError(`--days must be 1..90${got(days)}`);
+  const last = to === null ? localDate(now) : resolveDate("--to", to, now);
+  if (from === null) return { to: last, days: days === null ? defaultDays : Number(days) };
+  const first = resolveDate("--from", from, now);
+  const span = spanDays(first, last);
+  if (span < 1) throw new UsageError(`--from ${first} is after --to ${last}`);
+  if (span > 90) throw new UsageError(`--from ${first} to ${last} is ${span} days; the most is 90`);
+  return { to: last, days: span };
+}
+
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
   const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: "zapara-card.png", projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
   let days: string | null = null;
@@ -135,19 +150,8 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   if (a.command === "day") {
     if (days !== null || from !== null || to !== null) throw new UsageError("--days, --from and --to do not apply to a named day");
   } else {
-    // The window: --days ending today, or --from/--to; both at once is one length too many.
-    if (from !== null && days !== null) throw new UsageError("--from sets the length; drop --days");
-    if (days !== null && (!/^\d+$/.test(days) || Number(days) < 1 || Number(days) > 90)) throw new UsageError(`--days must be 1..90${got(days)}`);
-    if (to !== null) a.to = resolveDate("--to", to, now);
-    if (from !== null) {
-      const first = resolveDate("--from", from, now);
-      a.days = spanDays(first, a.to);
-      if (a.days < 1) throw new UsageError(`--from ${first} is after --to ${a.to}`);
-      if (a.days > 90) throw new UsageError(`--from ${first} to ${a.to} is ${a.days} days; the most is 90`);
-    } else {
-      // Two weeks make a pattern; a week makes a picture of one week.
-      a.days = days !== null ? Number(days) : a.command === "card" ? 14 : 7;
-    }
+    // Two weeks make a pattern; a week makes a picture of one week.
+    ({ to: a.to, days: a.days } = windowOf(days, from, to, a.command === "card" ? 14 : 7, now));
   }
   // Tables turn into JSON in a pipe; the card is a file either way, so only an explicit --json switches it.
   a.json = a.command === "card" ? jsonFlag : jsonFlag || !isTTY;

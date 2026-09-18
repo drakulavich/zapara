@@ -20,6 +20,8 @@ beforeAll(async () => {
 });
 afterAll(() => rm(root, { recursive: true, force: true }));
 
+// The exit code and the first stderr line, so a failure names both.
+const first = async (...args: string[]): Promise<[number, string]> => { const r = await run(...args); return [r.code, r.err.split("\n")[0]!]; };
 const utcDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
 async function run(...args: string[]): Promise<{ code: number; out: string; err: string }> {
@@ -91,21 +93,21 @@ describe("cli", () => {
       expect(lines[1]).toBe("run 'zapara --help' for usage");
     }
     // The window rules each have their own line.
-    const first = async (...args: string[]) => (await run(...args)).err.split("\n")[0];
-    expect(await first("--from", "2026-09-10", "--days", "3")).toBe("zapara: --from sets the length; drop --days");
-    expect(await first("--from", "2026-09-20", "--to", "2026-09-14")).toBe("zapara: --from 2026-09-20 is after --to 2026-09-14");
-    expect(await first("--from", "2026-06-01", "--to", "2026-09-14")).toBe("zapara: --from 2026-06-01 to 2026-09-14 is 106 days; the most is 90");
-    expect(await first("today", "--days", "3")).toBe("zapara: --days, --from and --to do not apply to a named day");
-    expect(await first("week")).toBe("zapara: unknown command week (try today, yesterday, a date or card)");
+    const line = async (...args: string[]) => (await first(...args))[1];
+    expect(await line("--from", "2026-09-10", "--days", "3")).toBe("zapara: --from sets the length; drop --days");
+    expect(await line("--from", "2026-09-20", "--to", "2026-09-14")).toBe("zapara: --from 2026-09-20 is after --to 2026-09-14");
+    expect(await line("--from", "2026-06-01", "--to", "2026-09-14")).toBe("zapara: --from 2026-06-01 to 2026-09-14 is 106 days; the most is 90");
+    expect(await line("today", "--days", "3")).toBe("zapara: --days, --from and --to do not apply to a named day");
+    expect(await line("week")).toBe("zapara: unknown command week (try today, yesterday, a date or card)");
   });
 
   test("a usage error never echoes a path or an escape, only a short plain value", async () => {
-    const first = async (...args: string[]) => (await run(...args)).err.split("\n")[0];
-    expect(await first(join(root, "secret"))).toBe("zapara: unknown command (try today, yesterday, a date or card)");
-    expect(await first("--to", "/Users/someone/2026-09-14")).toBe("zapara: --to must be YYYY-MM-DD, today or yesterday");
-    expect(await first("--days", "\x1b[31m7")).toBe("zapara: --days must be 1..90");
-    expect(await first("--bogus\n")).toBe("zapara: unknown flag");
-    expect(await first("--days", "seven")).toBe("zapara: --days must be 1..90, got seven");
+    const line = async (...args: string[]) => (await first(...args))[1];
+    expect(await line(join(root, "secret"))).toBe("zapara: unknown command (try today, yesterday, a date or card)");
+    expect(await line("--to", "/Users/someone/2026-09-14")).toBe("zapara: --to must be YYYY-MM-DD, today or yesterday");
+    expect(await line("--days", "\x1b[31m7")).toBe("zapara: --days must be 1..90");
+    expect(await line("--bogus\n")).toBe("zapara: unknown flag");
+    expect(await line("--days", "seven")).toBe("zapara: --days must be 1..90, got seven");
   });
 
   test("the window: --days ends today, --to ends there, --from sets the length", async () => {
@@ -184,8 +186,6 @@ describe("cli", () => {
   });
 
   test("--days -1 is a bad range, not a missing value", async () => {
-    // Code and first stderr line together, so a failure names both.
-    const first = async (...args: string[]) => { const r = await run(...args); return [r.code, r.err.split("\n")[0]]; };
     expect(await first("--days", "-1")).toEqual([2, "zapara: --days must be 1..90, got -1"]);
     // A real flag in the value position is still a missing value, and no other
     // flag takes a negative number: -1 is not a directory, a date or a file name.
