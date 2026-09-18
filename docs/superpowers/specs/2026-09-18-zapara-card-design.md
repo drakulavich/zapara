@@ -99,22 +99,21 @@ motto.
 **Spectrum**: the share of active buckets at each level, four whole percents
 that sum to 100 by largest-remainder rounding (a level with no hours is 0).
 
-**Highlights**: three, chosen from this pool. Each has a key, a value string,
-an optional unit shown small after the value, and a caption. `norm` is the
+**Highlights**: three, chosen from this pool. Each has a key, a value string
+and a one-line caption in sentence case that carries the unit. `norm` is the
 value divided by its calibration norm, for ranking:
 
-| Key | Value / unit | Caption | norm |
+| Key | Value | Caption | norm |
 |---|---|---|---|
-| peakSessions | `{maxSessions}` / `at once` | PEAK SESSIONS | `(maxSessions − 1) / 4` |
-| contextSwitches | `{maxContextSwitches}` / `in one hour` | CONTEXT SWITCHES | `maxContextSwitches / 45` |
-| longestStreak | `{streak}` | LONGEST STREAK | `maxStreakMin / 120` |
-| reportsRead | `{reports}` | AGENT REPORTS | `reports / (12 · activeHours)` |
-| tokensRead | `{outputTokens}` / `≈ {novels} novels` | OUTPUT READ | `outputTokens / (65000 · activeHours)` |
-| interrupts | `{interrupts}` / `times` | STOPPED CLAUDE | `interrupts / (3 · activeHours)` |
-| lateShare | `{lateShare}%` / `after midnight` | LATE-NIGHT HOURS | `lateShare / 25` |
+| peakSessions | `{maxSessions}` | `sessions at once` | `(maxSessions − 1) / 4` |
+| contextSwitches | `{maxContextSwitches}` | `switches in one hour` | `maxContextSwitches / 45` |
+| longestStreak | `{streak}` | `longest streak` | `maxStreakMin / 120` |
+| reportsRead | `{reports}` | `agent reports read` | `reports / (12 · activeHours)` |
+| tokensRead | `{outputTokens}` | `tokens of output read` | `outputTokens / (65000 · activeHours)` |
+| interrupts | `{interrupts}` | `times you stopped Claude` | `interrupts / (3 · activeHours)` |
+| lateShare | `{lateShare}%` | `of hours after midnight` | `lateShare / 25` |
 
-`novels` is `round(outputTokens / 120000)`, shown only when at least 1. The
-first two highlights are the character's own pair, in this order: Conductor
+The first two highlights are the character's own pair, in this order: Conductor
 `peakSessions, contextSwitches`; Supervisor `reportsRead, tokensRead`;
 Marathoner `longestStreak, interrupts`; Night Owl `lateShare, longestStreak`.
 The third is the remaining key with the largest `norm`; `lateShare` is
@@ -122,7 +121,7 @@ eligible as the third only for the Night Owl (a late-night number on someone
 else's card is exactly the kind of thing they would hide). Ties keep the
 table order.
 
-Window label: `YOUR LAST {days} DAYS`. No dates appear on the card.
+Window label: `LAST {days} DAYS`. No dates appear on the card.
 
 `--json` prints:
 
@@ -133,9 +132,9 @@ Window label: `YOUR LAST {days} DAYS`. No dates appear on the card.
   "peak": { "index": 89, "level": "Fried" },
   "spectrum": { "calm": 62, "warming": 25, "heating": 10, "fried": 3 },
   "highlights": [
-    { "key": "peakSessions", "value": "6", "unit": "at once", "caption": "PEAK SESSIONS" },
-    { "key": "contextSwitches", "value": "38", "unit": "in one hour", "caption": "CONTEXT SWITCHES" },
-    { "key": "longestStreak", "value": "5h35m", "caption": "LONGEST STREAK" } ] }
+    { "key": "peakSessions", "value": "6", "caption": "sessions at once" },
+    { "key": "contextSwitches", "value": "38", "caption": "switches in one hour" },
+    { "key": "longestStreak", "value": "5h35m", "caption": "longest streak" } ] }
 ```
 
 Shares are rounded to two decimals in JSON only. `from` and `to` are in the
@@ -159,34 +158,36 @@ reference, and a test guards that.
 
 ### Look
 
-A dark card with two soft colour blooms (the character's accent at the top
-left, cyan at the bottom right), a faint 40-px grid fading out from the
-character's corner, a 3-px gradient line along the top edge, and a subtle
-scanline texture at 6 % opacity. Type is Inter; small numeric labels are
-JetBrains Mono.
+Raycast-like: a near-black card, a few blurred diagonal light streaks in
+the character's accent behind the character, film grain over the whole
+card, and one glass panel holding all the text. Type is Inter for the name,
+the sentence and the numbers; every small label is JetBrains Mono.
 
 | Element | Position and style (CSS px) |
 |---|---|
-| Character | the character's crop of the sheet (see Characters), longer side 320 px, centred at (190, 210), with a soft drop shadow, over a radial halo of the accent colour (260×260 at (60, 84), 42 % opacity at the centre fading to 0 at 72 %) and a dashed accent ring of radius 138 centred at (190, 204) at 28 % opacity |
-| Window label | at (372, 92), Inter 600 15 px, letter-spacing 3.5 px, uppercase, muted `#8e93b3`; the day count in the accent's light shade |
-| Peak pill | right-aligned to x = 1140 at y = 82: a rounded pill (padding 8×16, 1-px border and 8 % fill in the level's colour, outer glow 24 px at 25 %) holding `PEAK HOUR` (Inter 600 12 px, letter-spacing 2.5 px, uppercase, muted) and `{index} · {Level}` (Inter 800 16 px in the level colour) |
-| Name | at (368, 120), Inter 800 76 px, letter-spacing −2.5 px, filled with a horizontal gradient from white to the accent's light shade |
-| Sentence | at (372, 214), width 760, Inter 400 24 px, line height 32, `#c9cce4`; the bold spans in white Inter 600; the motto follows on the same paragraph |
-| Spectrum | block at (372, 310), width 768: title `LOAD SPECTRUM · SHARE OF ACTIVE HOURS` (Inter 600 12 px, letter-spacing 2.5 px, `#585d80`), then a 16-px bar with radius 8 made of the four level segments in order calm, warming, heating, fried, widths in percent, 3-px gaps, segments of 0 % omitted; heating and fried segments glow in their own colour; then a legend row (14 px below, Inter 13 px muted): a dot, the level name and its percent in white |
-| Highlights | a row at (372, 420): three panels 245×82 with 16-px gaps, radius 14, 4 % white fill, 1-px 8 % white border, 1-px inner top highlight; value Inter 800 30 px, letter-spacing −1 px, tabular figures, with the unit after it in Inter 600 16 px muted; caption below (8 px gap) Inter 600 12 px, letter-spacing 2 px, uppercase, muted |
-| Brand | at (72, 520): a 10-px dot with a light-accent-to-cyan gradient and glow, then `zapara` in Inter 700 20 px; below it at (72, 552) `github.com/drakulavich/zapara` in JetBrains Mono 13 px `#585d80` |
-| Source line | at (372, 590), Inter 13 px `#585d80`: `Computed locally from your Claude Code transcripts. Nothing leaves your machine.` with `locally` in muted Inter 600 |
-| Tag | right-aligned to x = 1140 at y = 590, Inter 13 px, letter-spacing 2 px, uppercase, `#585d80`: `keep your head cold` |
+| Background | `#07070a` |
+| Streaks | a 900×1100 group at (−200, −260) rotated 38°, blurred 22 px, opacity 0.9: four vertical bars (widths 150, 70, 200, 90 at x = 120, 320, 440, 700) with vertical gradients from transparent through the accent (peak alpha 0.9, 0.7, 0.35 with a cyan `#22d3ee` touch, 0.5) back to transparent; a radial vignette centred at (30 %, 40 %) fades everything to the background beyond 75 % |
+| Grain | an SVG `feTurbulence` fractal-noise tile (300×300, base frequency 0.9, two octaves) as a repeating background over the whole card, opacity 0.35, blend mode overlay |
+| Character | the character's crop of the sheet (see Characters), longer side 360 px, centred at (195, 300), drop shadow 0 30 40 at 70 % black |
+| Panel | at (380, 56), 760×518, radius 20, 1-px border at 10 % white, fill a vertical gradient from 4.5 % to 2 % white, inner 1-px top highlight at 8 % white, shadow 0 30 80 at 50 % black, padding 36 px 40 px; everything below sits inside it, top to bottom |
+| Label | JetBrains Mono 13 px, `#6b6b76`, uppercase, letter-spacing 0.5 px: `LAST 14 DAYS` (the day count from `--days`) |
+| Peak pill | right end of the same row: JetBrains Mono 12 px uppercase `#6b6b76` in a pill (padding 6×12, radius 8, 1-px border at 10 % white, 3 % white fill): `PEAK HOUR` then `{index} · {LEVEL}` in the level colour, weight 500 |
+| Name | 18 px below, Inter 700 76 px, letter-spacing −3 px, white, text shadow 0 0 40 at 18 % white |
+| Sentence | 22 px below, Inter 400 22 px, line height 31, `#a1a1aa`, max width 660, the bold spans white Inter 600, the motto in the same paragraph |
+| Divider | 30 px below, 1 px at 10 % white, 26 px of space after it |
+| Spectrum bar | 8 px tall, radius 4, four segments in order calm, warming, heating, fried, widths in percent, 2-px gaps, segments of 0 % omitted |
+| Legend | 14 px below the bar, JetBrains Mono 12.5 px `#6b6b76`: a 6-px dot, the percent in `#a1a1aa` weight 500, the level name, items separated by two spaces |
+| Highlights | 30 px below, three equal panels with 16-px gaps: radius 12, 1-px border at 10 % white, 2.5 % white fill, inner top highlight, padding 18×20; value Inter 700 38 px, letter-spacing −1.6 px, tabular figures, white; caption 8 px below, JetBrains Mono 12.5 px `#6b6b76`, sentence case, one line (`sessions at once`, `switches in one hour`, `longest streak`, …) |
+| Repo link | at (60, 566), two lines: JetBrains Mono 11 px uppercase `#6b6b76`, letter-spacing 1.5 px, `GET YOURS`; 8 px below, JetBrains Mono 500 17 px in the character's light accent, letter-spacing −0.2 px: `github.com/drakulavich/zapara` |
+| Source line | right-aligned to x = 1140 at y = 588, JetBrains Mono 12 px `#a1a1aa`: `computed locally from your Claude Code transcripts · nothing leaves your machine` |
 
 Level colours: calm `#7ee2a3`, warming `#fbd77a`, heating `#c4a0ff`, fried
-`#ff6b8f`.
-
-Accents (main / light shade): Conductor `#8b5cf6` / `#c4b5fd`, Supervisor
-`#22d3ee` / `#a5f3fc`, Marathoner `#f59e0b` / `#fde68a`, Night Owl `#60a5fa`
-/ `#bfdbfe`. The background is `#07070f` to `#12122a` at 160°.
+`#ff6b8f`. Each character has an accent for the streaks and a light accent for
+the repo link: Conductor `#8b5cf6` / `#c4b5fd`, Supervisor `#22d3ee` /
+`#a5f3fc`, Marathoner `#f59e0b` / `#fde68a`, Night Owl `#60a5fa` / `#bfdbfe`.
 
 The reference for this look is the mock rendered during design review
-(`card-v4.template.html` in the ledger workspace, a screenshot of which the
+(`card-v6.template.html` in the ledger workspace, a screenshot of which the
 owner approved); the template starts from that file's CSS.
 
 ### Characters
@@ -270,10 +271,10 @@ handed in as data.
 Scenarios:
 
 - `busy-week` through `analyze()` then `cardData()` (window `--to
-  2026-09-20 --days 7`): the character and the full sentence with its numbers
+  2026-09-20 --days 14`, the default): the character and the full sentence with its numbers
   pinned; `peak` pinned; the spectrum pinned (22 active hours: 15 calm, 3
   warming, 1 heating, 3 fried → 68 / 14 / 4 / 14, and a test that the four
-  numbers sum to 100); the three highlights pinned by key, value and unit
+  numbers sum to 100); the three highlights pinned by key, value and caption
   (Conductor: peakSessions `5`, contextSwitches `54`, then longestStreak
   as the largest remaining norm); the four shares pinned to two decimals.
 - One small fixture per character, each built so that one share clearly
@@ -295,10 +296,11 @@ Scenarios:
   regenerates it (any change to the look has to be acknowledged in the test).
 - Sentence fit: the longest sentence the formats can produce (five-digit
   session and switch counts, a seven-figure token count) plus the motto is
-  under 190 characters, the width at which two lines of 24-px Inter overflow
-  760 px. Highlight values: the longest value plus unit (`99999 in one
-  hour`, `1.2M ≈ 99 novels`) fits the 245-px panel at the given sizes; the
-  test pins the character count limit derived from the mock.
+  under 180 characters, the width at which three lines of 22-px Inter
+  overflow the 660-px sentence box. Highlight values: the longest value
+  (`99999`, `5h59m`, `100%`) fits the 40-px-tall value line of a 213-px
+  panel at 38 px; the test pins the character count limit derived from the
+  mock.
 - CLI on the `busy-week` tree: `--out x.html` writes exactly the `cardHtml`
   string; `--json` prints the data and creates no file; an empty window
   exits 1 with the one-line message and no file; `--out x.gif` exits 2 with
