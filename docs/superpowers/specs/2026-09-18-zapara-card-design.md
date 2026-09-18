@@ -26,7 +26,11 @@ zapara card [--days N] [--to YYYY-MM-DD] [--out PATH] [--json] [--projects DIR]
 - `--to` defaults to today, as for `week`.
 - `--out` defaults to `zapara-card.png` in the current directory. The format
   is the extension: `.png` or `.webp`; any other extension is a usage error
-  (exit 2). An existing file is overwritten: the person named it.
+  (exit 2). A value containing a control character (any code point below
+  0x20, or 0x7f) is a usage error too (exit 2, the message names the flag,
+  not the value), so the `wrote …` line is always one line of plain text and
+  can never carry a terminal escape. An existing file is overwritten: the
+  person named it.
 - `--json` prints the card's data (below) to stdout and writes no file.
 - Without `--json`, stdout gets two lines: the character line
   (`The Conductor: 6 sessions at once, 38 context switches in one hour`) and
@@ -76,8 +80,10 @@ buckets with `lateNight`, `days` the `--days` value. `outputTokens` is
 rendered as `412k` or `1.2M` (one decimal, `k` under a million).
 
 Totals shown on the card: `activeHours`, `peak` (max index and its level),
-`hotHours` (active buckets with index ≥ 60). Window label: `{days} days ·
-{first date} – {last date}` with dates as `YYYY-MM-DD`.
+`hotHours` (active buckets with index ≥ 60). Window label:
+`{days} DAYS  {first date} TO {last date}` with dates as `YYYY-MM-DD`. Every
+string drawn on the card is printable ASCII, because that is all the font has;
+separators are spaces and `|`, never `·` or dashes other than `-`.
 
 `--json` prints:
 
@@ -108,8 +114,8 @@ Layout in base pixels (x right, y down):
 | Sprite | (12, 28), 64×64 | the character's 32×32 sprite drawn at ×2 |
 | Name | (88, 36) | `THE CONDUCTOR`, font at ×2 (16 px), `#f5e0dc` |
 | Sentence | (88, 62) | font at ×1, up to two lines of at most 37 characters, wrapped at spaces, `#cdd6f4` |
-| Heatmap | (12, 100) | one row per day, 24 cells; cell width 14, gap 1; row height `floor(84 / days)` (1 to 84) with a 1-px gap when the row height allows (≥ 3), so the block never exceeds 84 px tall; cell colour by level, `#313244` for an hour without activity |
-| Totals | (12, 190) | `70H ACTIVE · PEAK 89 FRIED · 12H HEATING+`, `#a6adc8` |
+| Heatmap | (12, 100) | one row per day, 24 cells; cell width 14 with a 1-px gap (x pitch 15, block width 359). Vertical budget is 84 px: row pitch `p = floor(84 / days)` (84 for 1 day, 6 for 14, 3 for 28); the drawn cell height is `p - 1` when `p >= 3` (the remaining pixel is the gap) and `p` otherwise; row `i` starts at `y = 100 + i * p`, so the block ends at or before y = 184 for every allowed `--days`. Cell colour by level, `#313244` for an hour without activity |
+| Totals | (12, 190) | `70H ACTIVE | PEAK 89 FRIED | 12H HEATING+`, `#a6adc8` |
 | Footer | (12, 200) left, right-aligned to 388 | left `KEEP YOUR HEAD COLD` in `#f5e0dc`; right `github.com/drakulavich/zapara` in `#a6adc8` |
 
 Level colours match the terminal's four: calm `#a6e3a1`, warming `#f9e2af`,
@@ -153,8 +159,9 @@ applies `.resize(1200, 630, { kernel: "nearest" })`, encodes with
 `.png({ palette: true })` or `.webp({ lossless: true })` by extension, and
 `.write(out)`. `Bun.Image` ships with Bun since 1.3.14; `engines` already says
 `>= 1.4.0`. This is the reason the shell grows a fourth file: the base spec's
-"three shell files" becomes four, and `CLAUDE.md` says so. No other module may
-touch `Bun.Image`.
+Architecture section and the CLAUDE.md shell rule are amended in the same
+change to list `src/image.ts` as the only module that may use `Bun.Image` or
+write a file.
 
 `src/index.ts` gains the `card` command and its flags. `report()` is reused
 unchanged; `card` never reads the projects tree itself.
@@ -174,17 +181,22 @@ Scenarios:
   wins, pinning the character and the sentence's numbers. A tie fixture
   (two equal shares) pins the tie order.
 - An empty window through `cardData()` is `null`.
-- `rasterCard` on `busy-week`: the pixel at the centre of Monday's 13:00
-  cell is the fried colour and Sunday's 03:00 cell is the empty colour; a
-  pixel inside the sprite box is not background; the raster's SHA-256 is
-  pinned as a golden value with a comment naming the command that
-  regenerates it (any visual change, wanted or not, has to be acknowledged
-  in the test).
+- `rasterCard` on `busy-week` (window `--to 2026-09-20 --days 7`): the
+  pixel at the centre of Monday's 13:00 cell is the fried colour and Sunday's
+  03:00 cell is the empty colour; a pixel inside the sprite box is not
+  background; the raster's SHA-256 is pinned as a golden value with a comment
+  naming the command that regenerates it (any visual change, wanted or not,
+  has to be acknowledged in the test).
+- Heatmap budget: for `--days 14` and `--days 28`, the last row's bottom
+  pixel is at y ≤ 183 and the pixel row y = 184..189 is background across the
+  block, so the heatmap never touches the totals line.
 - CLI on the `busy-week` tree: the file exists, `Bun.Image(...).metadata()`
   says 1200×630 and `png`; `--out x.webp` gives `webp`; `--json` prints the
   data and creates no file; an empty window exits 1 with the one-line
-  message and no file; `--out x.gif` exits 2 with a usage line; stdout's
-  second line is `wrote <exactly the --out given>`.
+  message and no file; `--out x.gif` exits 2 with a usage line; `--out` with
+  an embedded newline and `--out` with an ESC byte each exit 2, print one
+  stderr line without the value, and create no file; stdout's second line is
+  `wrote <exactly the --out given>`.
 
 `tests/helpers` gains nothing new: the character fixtures are composed from
 the existing builders.
@@ -193,8 +205,9 @@ the existing builders.
 
 README gets a section `## Share a card` after `## What it looks like`: the
 command, the two stdout lines, and the card rendered from `busy-week`
-(`assets/card.png`, tracked by LFS like the other media; the tape does not
-change). CHANGELOG under Unreleased/Added. The demo screencast stays as it is.
+(`assets/card.png`; `.gitattributes` gains `assets/*.png` so it is tracked by
+LFS like the other media; the tape does not change). CHANGELOG under
+Unreleased/Added. The demo screencast stays as it is.
 
 ## Later
 

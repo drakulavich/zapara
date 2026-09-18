@@ -215,7 +215,7 @@ empty day table) and exits 0.
 ## Architecture
 
 Functional core, imperative shell. The core is pure functions over plain data:
-no file system, no clock, no environment, no output. The shell is three small
+no file system, no clock, no environment, no output. The shell is four small
 files that do all the I/O and call the core.
 
 ```
@@ -223,6 +223,8 @@ shell (I/O)
   src/index.ts    argv → options; calls report(); prints; exit codes; the only try/catch
   src/report.ts   report(options) → Day[]: lists files (scan), reads them, calls analyze()
   src/scan.ts     projects dir + cutoff → sorted file paths (fs.stat for mtime)
+  src/image.ts    Raster → PNG/WebP file through Bun.Image; the only module allowed to
+                  use Bun.Image or write a file (see 2026-09-18-zapara-card-design.md)
 
 core (pure)
   src/analyze.ts  analyze(transcripts, window) → Day[]   transcripts = { path, text }[]
