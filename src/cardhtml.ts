@@ -100,9 +100,9 @@ html,body{margin:0;background:#000}
 .legend i{display:inline-block;width:6px;height:6px;border-radius:50%;margin:0 7px 1px 0}
 .legend i.calm{background:var(--calm)}.legend i.warm{background:var(--warm)}.legend i.heat{background:var(--heat)}.legend i.fried{background:var(--fried)}
 .stats{display:flex;gap:16px;margin-top:30px}
-.stat{flex:1;min-width:0;box-sizing:border-box;padding:18px 20px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.025);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.stat{flex:1;min-width:0;box-sizing:border-box;padding:18px 16px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.025);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 .stat .v{font-size:38px;font-weight:700;letter-spacing:-1.6px;line-height:1;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
-.stat .c{margin-top:8px;font-size:12.5px;color:var(--dim);letter-spacing:.2px;white-space:nowrap}
+.stat .c{margin-top:8px;font-size:12px;color:var(--dim);letter-spacing:0;white-space:nowrap}
 .repo{position:absolute;left:60px;top:566px;line-height:1;white-space:nowrap}
 .repo small{display:block;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
 .repo span{font-size:17px;font-weight:500;color:var(--accent2);letter-spacing:-.2px}

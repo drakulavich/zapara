@@ -16,3 +16,5 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
+        env:
+          ZAPARA_REQUIRE_WEBVIEW: "1"

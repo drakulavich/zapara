@@ -172,13 +172,14 @@ no date can reach the page.
 
 The card is an HTML page, 1200×630 CSS pixels, produced by a pure function
 from the card data, and photographed by a headless browser engine that Bun
-ships with (`Bun.WebView`, WebKit on macOS, Chrome elsewhere). The output
-picture is always 2400×1260 pixels: the page is loaded in a 2400×1260
-viewport with `zoom: 2` on the root element, so the engine lays the card out
-at twice its size and text is rendered at that size rather than upscaled; the
-screenshot is then resized to exactly 2400×1260 with `Bun.Image` when the
-device pixel ratio made it larger. PNG is the screenshot's own format; WebP
-is re-encoded from it with `Bun.Image` at quality 90.
+drives through `Bun.WebView` (WebKit on macOS, an installed Chrome
+elsewhere). The output picture is always 2400×1260 pixels: the page is
+loaded in a 2400×1260 viewport with `zoom: 2` on the root element, so the
+engine lays the card out at twice its size and text is rendered at that
+size rather than upscaled; the screenshot is then resized to exactly
+2400×1260 with `Bun.Image` when the device pixel ratio made it larger. PNG
+is the screenshot's own format; WebP is re-encoded from it with `Bun.Image`
+at quality 90.
 
 The page is self-contained. Fonts and character pictures are embedded as
 `data:` URIs; the template contains no `http`, `https` or protocol-relative
@@ -205,7 +206,7 @@ the sentence and the numbers; every small label is JetBrains Mono.
 | Divider | 30 px below, 1 px at 10 % white, 26 px of space after it |
 | Spectrum bar | 8 px tall, radius 4, four segments in order calm, warming, heating, fried, widths in percent, 2-px gaps, segments of 0 % omitted |
 | Legend | 14 px below the bar, JetBrains Mono 12.5 px `#6b6b76`: a 6-px dot, the percent in `#a1a1aa` weight 500, the level name, items separated by two spaces |
-| Highlights | 30 px below, three equal panels with 16-px gaps: radius 12, 1-px border at 10 % white, 2.5 % white fill, inner top highlight, padding 18×20; value Inter 700 38 px, letter-spacing −1.6 px, tabular figures, white; caption 8 px below, JetBrains Mono 12.5 px `#6b6b76`, sentence case, one line (`sessions at once`, `switches in one hour`, `longest streak`, …) |
+| Highlights | 30 px below, three equal panels with 16-px gaps: radius 12, 1-px border at 10 % white, 2.5 % white fill, inner top highlight, padding 18×16; value Inter 700 38 px, letter-spacing −1.6 px, tabular figures, white; caption 8 px below, JetBrains Mono 12 px `#6b6b76`, sentence case, one line (`sessions at once`, `switches in one hour`, `longest streak`, …) |
 | Repo link | at (60, 566), two lines: JetBrains Mono 11 px uppercase `#6b6b76`, letter-spacing 1.5 px, `GET YOURS`; 8 px below, JetBrains Mono 500 17 px in the character's light accent, letter-spacing −0.2 px: `github.com/drakulavich/zapara` |
 | Source line | right-aligned to x = 1140 at y = 588, JetBrains Mono 12 px `#a1a1aa`: `computed locally from your Claude Code transcripts · nothing leaves your machine` |
 
@@ -367,8 +368,9 @@ Scenarios:
   base64 strings (four fonts and the sheet), and the sheet decodes to
   1024×1024 WebP through `Bun.Image`.
 
-`tests/helpers` gains nothing new: the character fixtures are composed from
-the existing builders.
+`tests/helpers` gains `webview.ts` (the one-time engine probe and
+`openPage`); the character fixtures are composed from the existing
+builders.
 
 ## README and repository
 
