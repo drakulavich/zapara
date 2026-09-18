@@ -88,6 +88,25 @@ describe("card page rules", () => {
     expect(pages[2]).toContain("--accent:#f59e0b;");
     expect(pages[3]).toContain("--accent:#60a5fa;");
   });
+
+  test("each character's sprite box is 360px on its long side, centred at (195,300), inside the card", () => {
+    for (const character of ["conductor", "supervisor", "marathoner", "nightOwl"] as const) {
+      const page = cardHtml({ ...card, character }, assets);
+      const style = new RegExp(`<div class="char ${character}" style="([^"]+)">`).exec(page)![1]!;
+      const px = (name: string): number => Number(new RegExp(`${name}:(-?\\d+\\.\\d)px`).exec(style)![1]);
+      const width = px("width");
+      const height = px("height");
+      const left = px("left");
+      const top = px("top");
+      expect(Math.abs(Math.max(width, height) - 360.0)).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(left + width / 2 - 195.0)).toBeLessThanOrEqual(0.1);
+      expect(Math.abs(top + height / 2 - 300.0)).toBeLessThanOrEqual(0.1);
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(top).toBeGreaterThanOrEqual(0);
+      expect(left + width).toBeLessThanOrEqual(1200);
+      expect(top + height).toBeLessThanOrEqual(630);
+    }
+  });
 });
 
 describe("loadAssets", () => {
