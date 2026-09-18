@@ -87,6 +87,12 @@ zapara card                    # writes zapara-card.png in the current directory
 zapara card --out card.webp    # WebP instead; --out card.html writes the page itself
 ```
 
+On macOS, one more command puts the picture on the clipboard, ready to paste into a chat:
+
+```bash
+zapara card && osascript -e 'set the clipboard to (read (POSIX file "zapara-card.png") as «class PNGf»)'
+```
+
 ```
 The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.
 wrote zapara-card.png
