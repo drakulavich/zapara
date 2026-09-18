@@ -119,7 +119,7 @@ describe("compact formats", () => {
   });
 
   test("a streak of ten hours or more shows whole hours", () => {
-    // A prompt every 5 minutes from 10:00 to 21:00 inclusive: 661 minutes at hour 21 -> "11h".
+    // A prompt every 5 minutes from 10:00 to 21:00 inclusive: 660 minutes at hour 21 -> "11h".
     const lines = Array.from({ length: 133 }, (_, i) => prompt(at(10 + Math.floor(i / 12), (i % 12) * 5), sid("m")));
     const c = cardOf(lines);
     expect(sentenceText(c.sentence)).toBe("Longest streak 11h without a break, 100% of your hours calm.");
