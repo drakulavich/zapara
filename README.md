@@ -118,7 +118,7 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 
 Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
-Output is a text table when stdout is a terminal and JSON otherwise, so `zapara week | cat` prints JSON. There is no flag to force text in a pipe yet.
+`week` and `day` print a text table when stdout is a terminal and JSON otherwise, so `zapara week | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON.
 
 Exit codes are 0 on success, 1 when the projects directory cannot be read, and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
 
@@ -136,7 +136,7 @@ No message text, prompt length, file path or session title is kept, written or p
 - The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
 - The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
 - The 98-column grid does not adapt to a narrow terminal.
-- A pipe always gets JSON, and there is no flag to ask for text instead.
+- For `week` and `day` a pipe always gets JSON, and there is no flag to ask for text instead.
 - The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
 
 ## Under the hood
