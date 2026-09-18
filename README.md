@@ -8,7 +8,7 @@
 <p align="center"><b>How hard was today?</b> zapara reads the transcripts Claude Code already writes on your machine and scores every hour 0–100 from parallel sessions, prompt pace, agent supervision, model output, streak length and late-night work. Nothing leaves the machine, no message text is kept.</p>
 
 <p align="center">
-  <img src="https://github.com/drakulavich/zapara/raw/main/assets/demo.webp" alt="zapara demo: week heatmap, day table with --explain, JSON" width="800">
+  <img src="https://github.com/drakulavich/zapara/raw/main/assets/demo.webp" alt="zapara demo: week heatmap, day table, JSON" width="800">
 </p>
 
 Claude Code writes a JSONL transcript for every session under `~/.claude/projects`. zapara reads those files, puts each record in the local hour it happened in, and turns the hour into one number. A week is a heatmap of seven rows by 24 cells; a day is a table with one row per hour and, with `--explain`, the weighted contribution of each component. Nothing is installed into Claude Code, no hook is registered, and no network call is made.
