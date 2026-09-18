@@ -130,7 +130,7 @@ JetBrains Mono.
 
 | Element | Position and style (CSS px) |
 |---|---|
-| Character | the character's quadrant of the sheet in a 300×300 box at (40, 64) with a soft drop shadow, over a radial halo of the accent colour (260×260 at (60, 84), 42 % opacity at the centre fading to 0 at 72 %) and a dashed accent ring of radius 138 centred at (190, 204) at 28 % opacity |
+| Character | the character's crop of the sheet (see Characters), longer side 320 px, centred at (190, 210), with a soft drop shadow, over a radial halo of the accent colour (260×260 at (60, 84), 42 % opacity at the centre fading to 0 at 72 %) and a dashed accent ring of radius 138 centred at (190, 204) at 28 % opacity |
 | Window label | at (372, 92), Inter 600 15 px, letter-spacing 3.5 px, uppercase, muted `#8e93b3`; the day count in the accent's light shade |
 | Name | at (368, 120), Inter 800 76 px, letter-spacing −2.5 px, filled with a horizontal gradient from white to the accent's light shade |
 | Sentence | at (372, 214), width 760, Inter 400 24 px, line height 32, `#c9cce4`; the bold spans in white Inter 600; the motto follows on the same paragraph |
@@ -152,16 +152,22 @@ template starts from that file's CSS.
 ### Characters
 
 Four illustrations in one style, generated once by the owner as a single
-2×2 sheet with a transparent background (Conductor top left, Supervisor top
-right, Marathoner bottom left, Night Owl bottom right), stored as
-`assets/characters.webp`: the sheet resized to 1024×1024, lossy WebP at
-quality 85 with alpha, about 200 KB, committed as an ordinary file (not
-LFS) so a plain clone renders cards. The template shows one quadrant with
-CSS `background-position` on a 300×300 box (sheet scaled to 600×600), so no
-cropping tool is involved anywhere. `scripts/prepare-characters.ts` turns
-the source PNG into that file with `Bun.Image` (resize to 1024, alpha kept)
-and is how it is regenerated when the art changes. The source PNG is not in
-the repository.
+sheet with a transparent background (Conductor top left, Supervisor top
+right, Marathoner bottom left, Night Owl bottom right; they do not respect
+exact quadrants), stored as `assets/characters.webp`: the sheet resized to
+1024×1024, lossy WebP at quality 85 with alpha, about 200 KB, committed as
+an ordinary file (not LFS) so a plain clone renders cards. The template
+shows each character through a crop rectangle given in sheet fractions
+`[x, y, w, h]`, a constant `CHARACTER_RECTS` in `src/cardhtml.ts` measured
+on the current sheet (Conductor `[0.02, 0.01, 0.53, 0.525]`, Supervisor
+`[0.55, 0.07, 0.38, 0.505]`, Marathoner `[0.02, 0.57, 0.50, 0.42]`, Night
+Owl `[0.54, 0.585, 0.45, 0.41]`); the box is scaled so the rectangle's longer
+side is 320 px, and centred at (190, 210), using CSS `background-size` and
+`background-position`, so no cropping tool is involved anywhere.
+`scripts/prepare-characters.ts` turns the source PNG into the WebP with
+`Bun.Image` (resize to 1024, alpha kept) and is how it is regenerated when
+the art changes; a new sheet means re-measuring the four rectangles. The
+source PNG is not in the repository.
 
 ### Fonts
 
