@@ -14,7 +14,7 @@ when a test or CI step comes to catch it.
 - **Functional core, imperative shell.** `src/index.ts`, `src/report.ts`,
   `src/scan.ts` and `src/image.ts` are the only files that touch argv, stdout,
   the file system or the clock; `src/image.ts` is the only one that may use
-  `Bun.Image`, and the only one that writes a file (the card). Everything else
+  `Bun.Image`, read the font atlases, or write a file (the card). Everything else
   is pure functions over plain data: `analyze()` takes transcript text already
   in memory and a window with an explicit `now`, and returns the `Day[]` the
   CLI prints; `render` returns strings; `rasterCard` returns pixels. A core
