@@ -25,27 +25,34 @@ zapara card [--days N] [--to YYYY-MM-DD] [--out PATH] [--json] [--projects DIR]
   rows; `week` keeps its own 1 to 90).
 - `--to` defaults to today, as for `week`.
 - `--out` defaults to `zapara-card.png` in the current directory. The format
-  is the extension: `.png` or `.webp`; any other extension is a usage error
-  (exit 2). A value containing a control character (any code point below
-  0x20, or 0x7f) is a usage error too (exit 2, the message names the flag,
-  not the value), so the `wrote …` line is always one line of plain text and
-  can never carry a terminal escape. An existing file is overwritten: the
-  person named it.
+  is the extension: `.png` or `.webp` for the picture, `.html` for the page
+  the picture is taken of (written as is, no browser involved, for checking
+  the design). Any other extension is a usage error (exit 2). A value
+  containing a control character (any code point below 0x20, or 0x7f) is a
+  usage error too (exit 2, the message names the flag, not the value), so
+  the `wrote …` line is always one line of plain text and can never carry a
+  terminal escape. An existing file is overwritten: the person named it.
 - `--json` prints the card's data (below) to stdout and writes no file.
 - Without `--json`, stdout gets two lines: the character line
-  (`The Conductor: 6 sessions at once, 38 context switches in one hour`) and
+  (`The Conductor: 5 sessions at once, 54 context switches in one hour`) and
   `wrote zapara-card.png`, echoing `--out` exactly as given. No other path is
   ever printed.
 - A window with no active hour prints `no activity in the last 14 days`
   (with the actual `--days`) to stderr, writes nothing, exits 1.
+- When the picture cannot be rendered because no browser engine is available
+  (see Rendering), stderr gets one line, `card needs a browser engine:
+  install Google Chrome, or write --out card.html`, exit 1. A render that
+  does not finish within 15 seconds is `render timed out`, exit 1.
 - Colors and TTY detection do not apply: the card is the same everywhere.
 
 Privacy amendment to the base spec: `card` is the one command that writes a
 file. It writes exactly one file, at the path the person gave or the default in
 the current directory, and prints that path back verbatim. It never writes
 anywhere else and never prints a path it derived from the projects tree or
-from its own install location. The README's privacy section says "no file is
-written except the card you ask for".
+from its own install location. The page it renders is self-contained: no
+network request is made while rendering, and the browser engine runs
+headless with an ephemeral data store. The README's privacy section says "no
+file is written except the card you ask for".
 
 ## Card data
 
@@ -65,22 +72,24 @@ window actually collected, so a 10-point component competes fairly with a
 Conductor, Supervisor, Marathoner, Night Owl. With every share zero (possible
 only for a window of lone single-event hours) the tie rule gives Conductor.
 
-| Character | Name on the card | Sentence (numbers from the window) |
-|---|---|---|
-| conductor | The Conductor | `{maxSessions} sessions at once, {maxContextSwitches} context switches in one hour` |
-| supervisor | The Supervisor | `{reports} agent reports and {outputTokens} tokens of output read` |
-| marathoner | The Marathoner | `longest streak {streak}, {activeHours}h active in {days} days` |
-| nightOwl | The Night Owl | `{lateHours} late-night hours out of {activeHours}` |
+| Character | Name | Sentence (numbers from the window; bold spans marked with `**`) | Motto |
+|---|---|---|---|
+| conductor | The Conductor | `**{maxSessions} sessions** at once, **{maxContextSwitches} context switches** in one hour.` | `You run agents like an orchestra.` |
+| supervisor | The Supervisor | `**{reports} agent reports** and **{outputTokens} tokens** of output read.` | `Nothing ships without your eyes on it.` |
+| marathoner | The Marathoner | `Longest streak **{streak}**, **{activeHours}h active** in {days} days.` | `You do not stop while it compiles.` |
+| nightOwl | The Night Owl | `**{lateHours} late-night hours** out of {activeHours}.` | `The best commits happen after midnight.` |
 
 Where `maxSessions` and `maxContextSwitches` are the window maxima over
 buckets, `reports` and `outputTokens` are window sums, `streak` is the maximum
 `streakMin` over buckets rendered as `5h12m` (or `48m` under an hour),
 `activeHours` is the count of active buckets, `lateHours` the count of active
 buckets with `lateNight`, `days` the `--days` value. `outputTokens` is
-rendered as `412k` or `1.2M` (one decimal, `k` under a million).
+rendered as `412k` or `1.2M` (one decimal, `k` under a million). The stdout
+character line and the JSON `sentence` carry the sentence without the bold
+marks and without the motto.
 
-Totals shown on the card: `activeHours`, `peak` (max index and its level),
-`hotHours` (active buckets with index ≥ 60). Window label:
+Totals shown on the card: `activeHours` (as `13h`), `peak` (max index and its
+level), `hotHours` (active buckets with index ≥ 60). Window label:
 `YOUR LAST {days} DAYS · {first date} – {last date}` with dates as
 `YYYY-MM-DD`.
 
@@ -88,7 +97,7 @@ Totals shown on the card: `activeHours`, `peak` (max index and its level),
 
 ```json
 { "days": 14, "from": "2026-09-05", "to": "2026-09-18", "character": "conductor",
-  "name": "The Conductor", "sentence": "6 sessions at once, 38 context switches in one hour",
+  "name": "The Conductor", "sentence": "6 sessions at once, 38 context switches in one hour.",
   "shares": { "conductor": 0.61, "supervisor": 0.33, "marathoner": 0.52, "nightOwl": 0.06 },
   "activeHours": 70, "peak": { "index": 89, "level": "Fried" }, "hotHours": 12 }
 ```
@@ -97,136 +106,106 @@ Shares are rounded to two decimals in JSON only.
 
 ## Picture
 
-1200×630 pixels (the aspect ratio social previews use), drawn directly at
-that size by the pure core with anti-aliased primitives and a real typeface.
-Nothing is scaled afterwards.
+The card is an HTML page, 1200×630 CSS pixels, produced by a pure function
+from the card data, and photographed by a headless browser engine that Bun
+ships with (`Bun.WebView`, WebKit on macOS, Chrome elsewhere). The output
+picture is always 2400×1260 pixels: the page is loaded in a 2400×1260
+viewport with `zoom: 2` on the root element, so the engine lays the card out
+at twice its size and text is rendered at that size rather than upscaled; the
+screenshot is then resized to exactly 2400×1260 with `Bun.Image` when the
+device pixel ratio made it larger. PNG is the screenshot's own format; WebP
+is re-encoded from it with `Bun.Image` at quality 90.
 
-### Typeface
+The page is self-contained. Fonts and character pictures are embedded as
+`data:` URIs; the template contains no `http`, `https` or protocol-relative
+reference, and a test guards that.
 
-Inter (SIL Open Font License), Regular and Bold, rendered ahead of time into
-glyph atlases: one file per weight and size holding, for every glyph, its
-advance, bearings, bitmap size and an 8-bit coverage bitmap. The core draws
-text by alpha-blending those bitmaps; there is no rasterizer in the runtime.
+### Look
 
-| Atlas | Used for |
+A dark card with two soft colour blooms (the character's accent at the top
+left, cyan at the bottom right), a faint 40-px grid fading out from the
+character's corner, a 3-px gradient line along the top edge, and a subtle
+scanline texture at 6 % opacity. Type is Inter; small numeric labels are
+JetBrains Mono.
+
+| Element | Position and style (CSS px) |
 |---|---|
-| bold 64 | character name |
-| bold 40 | the three totals' numbers |
-| regular 26 | the sentence |
-| regular 20 | window label, totals' captions, weekday letters, footer |
+| Character | the character's picture, 260×260, centred at (190, 204), on a radial halo of the accent colour (radius 150, 35 % opacity at the centre fading to 0) and a dashed accent ring of radius 138 at 28 % opacity |
+| Window label | at (372, 92), Inter 600 15 px, letter-spacing 3.5 px, uppercase, muted `#8e93b3`; the day count in the accent's light shade |
+| Name | at (368, 120), Inter 800 76 px, letter-spacing −2.5 px, filled with a horizontal gradient from white to the accent's light shade |
+| Sentence | at (372, 214), width 760, Inter 400 24 px, line height 32, `#c9cce4`; the bold spans in white Inter 600; the motto follows on the same paragraph |
+| Heatmap | block at (372, 296), 768×168: 24 columns at a pitch of 32 px, cells 28 px wide with radius 4; rows at pitch `p = floor(168 / days)`, cell height `p − 3` when `p ≥ 4`, else `p`; an hour without activity is white at 5.5 % with a 1-px inner hairline at 3 %; level colours calm `#7ee2a3`, warming `#fbd77a`, heating `#c4a0ff`, fried `#ff6b8f`; heating and fried cells carry an outer glow of their own colour (14 px, 55 %; 16 px, 60 %) |
+| Weekday letters | JetBrains Mono 500 13 px, `#585d80`, centred in a 22-px column at x = 340, one per row, vertically centred on the row; omitted when `p < 16` |
+| Hour axis | at y = 470 under the heatmap, JetBrains Mono 12 px `#585d80`: `00 06 12 18 23` at x = 372 + 32 · hour (23 right-aligned to the block) |
+| Totals | a row at (372, 512): three blocks separated by 1-px lines at 10 % white with 44 px of padding on each side; number Inter 800 44 px, letter-spacing −1.5 px, tabular figures; caption below (8 px gap) Inter 600 12 px, letter-spacing 2.5 px, uppercase, muted. `13h` / `ACTIVE`; `87 Fried` / `PEAK HOUR` with the level word in its level colour and a text glow; `4` / `HOT HOURS` |
+| Brand | at (72, 520): a 10-px dot with a light-accent-to-cyan gradient and glow, then `zapara` in Inter 700 20 px; below it at (72, 552) `github.com/drakulavich/zapara` in JetBrains Mono 13 px `#585d80` |
+| Tag | right-aligned to x = 1140 at y = 590, Inter 13 px, letter-spacing 2 px, uppercase, `#585d80`: `keep your head cold` |
 
-Charset: printable ASCII plus `·` and `–`. Anything else renders as `?`.
-Kerning is ignored; the advance is the glyph's own. No hinting: the atlases
-are rendered at the exact pixel size they are used at, so text is crisp
-without it.
+Accents (main / light shade): Conductor `#8b5cf6` / `#c4b5fd`, Supervisor
+`#22d3ee` / `#a5f3fc`, Marathoner `#f59e0b` / `#fde68a`, Night Owl `#60a5fa`
+/ `#bfdbfe`. The background is `#07070f` to `#12122a` at 160°.
 
-The atlases live in `assets/fonts/inter-{bold,regular}-{64,40,26,20}.atlas`
-(gzip, a few hundred KB together), committed as ordinary files, not LFS, so a
-plain clone renders cards without Git LFS. `scripts/font-atlas.ts` rebuilds
-them: it downloads a pinned Inter release from the upstream repository
-(version and SHA-256 in the script), serves `scripts/font-atlas.html` on a
-local port, runs the system Chrome headless against it, and reads the atlas
-bytes the page emits. The page draws every glyph into a canvas with
-`fillText`, measures it with `measureText`, and reads coverage from the alpha
-channel. Chrome is a tool for regenerating the fonts, never a runtime
-requirement; the script says which Chrome paths it tries and fails with one
-line if none exists. The OFL text sits beside the atlases as
-`assets/fonts/LICENSE-Inter.txt`.
+The reference for this look is the mock rendered during design review
+(scratch file `card-v2.html`, a screenshot of which the owner approved); the
+template starts from that file's CSS.
 
-### Drawing primitives (core, `src/raster.ts`)
+### Characters
 
-- `Raster = { width, height, rgb: Uint8Array }`, row-major, 3 bytes per pixel.
-- `fillRect`, `fillRoundedRect(radius)`, `fillCircle`, each with an
-  anti-aliased edge: coverage is computed analytically per edge pixel (no
-  supersampling of the whole card), then blended.
-- `linearGradient` (vertical) and `radialGradient` fills for rectangles and
-  circles.
-- `glow(mask, color, radius, strength)`: a separable box blur run three times
-  over a coverage mask, added to the raster as light. Used behind the badge
-  and under hot heatmap cells.
-- `strokeLine(x0, y0, x1, y1, width)` with round caps, anti-aliased, for the
-  icons.
-- `text(font, x, y, string, color, { align: left | right })` and
-  `measure(font, string)`; `wrap(font, string, maxWidth)` breaks at spaces.
+Four illustrations in one style, generated once from the prompts in the
+implementation plan and supplied by the owner, stored as
+`assets/characters/{conductor,supervisor,marathoner,night-owl}.webp`,
+512×512, lossy WebP at quality 85 with a transparent background, each under
+120 KB, committed as ordinary files (not LFS) so a plain clone renders cards.
+`scripts/prepare-characters.ts` turns the four source PNGs into those files
+with `Bun.Image` (resize to 512, alpha kept) and is how they are regenerated
+when the art changes. The source PNGs are not in the repository.
 
-All arithmetic is deterministic floating point over integers, so the raster
-for a given input is byte-identical across runs and machines.
+### Fonts
 
-### Layout
-
-| Element | Position and size | Detail |
-|---|---|---|
-| Background | whole card | vertical gradient `#0f1020` (top) → `#1b1d3d` (bottom) |
-| Accent glow | centred on the badge | `glow` with the character's accent, radius 60, so the badge floats on a soft halo |
-| Badge | circle, centre (180, 190), radius 110 | radial gradient from the accent (centre) to its darker shade (edge), 2-px rim at 30 % white |
-| Icon | inside the badge, 120×120 box centred | the character's icon in white with one accent-tinted detail |
-| Window label | (340, 96), regular 20, `#9aa0b8`, letter-spaced 2 px | `YOUR LAST 14 DAYS · 2026-09-05 – 2026-09-18` |
-| Name | (340, 170), bold 64, `#f4f4f8` | `The Conductor` |
-| Sentence | (340, 226), regular 26, `#c9cce0`, line height 34, wrapped to at most 820 px, at most two lines | |
-| Heatmap | block from (340, 310) to (1140, 470) | 24 columns, x pitch `800 / 24`; cells are rounded rectangles (radius 3) of width pitch − 3; rows: pitch `p = floor(160 / days)`, height `p − 2` when `p ≥ 4` else `p`, row `i` at `y = 310 + i · p`, so the block ends at or before y = 470 for 1 to 28 days. Cell colour by level; an hour without activity is white at 8 % over the background. Cells at Heating and above get a `glow` of their own colour, radius 6 |
-| Weekday letters | x = 322, right-aligned, regular 20, `#9aa0b8`, one per row when `p ≥ 20`, otherwise none | `M T W T F S S` |
-| Totals | three blocks at x = 340, 620, 900, baseline y = 536 (number, bold 40, `#f4f4f8`) and y = 566 (caption, regular 20, `#9aa0b8`, letter-spaced 1 px) | `70` / `ACTIVE HOURS`; `89 · Fried` / `PEAK` with the level word in the level colour; `12` / `HOT HOURS` |
-| Footer | right-aligned to x = 1140, baseline y = 600, regular 20, `#6b7090` | `keep your head cold · github.com/drakulavich/zapara` |
-
-A mock of this layout with the `busy-week` numbers was rendered in a browser
-during design review; the implementation is expected to look like it, with
-the icon and the halo drawn by the core instead of CSS.
-
-Colours: level colours are the terminal's four (calm `#a6e3a1`, warming
-`#f9e2af`, heating `#cba6f7`, fried `#f38ba8`). Accents: Conductor `#8b5cf6`,
-Supervisor `#38bdf8`, Marathoner `#f59e0b`, Night Owl `#60a5fa`.
-
-### Icons
-
-Flat, geometric, drawn with the primitives above in `src/icons.ts`, one
-function per character taking the raster, a centre, a size and the accent:
-
-- Conductor: a raised baton (a thick diagonal line with a dot at the tip) over
-  two arcs that read as raised arms.
-- Supervisor: two round lenses joined by a bridge, above three short
-  horizontal lines that read as a stack of pages.
-- Marathoner: a figure mid-stride, built from a head circle, a leaning torso
-  line, two leg lines, and a headband ribbon trailing behind.
-- Night Owl: an owl body (a rounded shape) with two large eye circles, a small
-  beak triangle, on a branch line, with a crescent moon at the upper right.
-
-The exact geometry belongs to the implementation plan; the spec fixes the
-concept, the 120×120 box, white as the main colour and one accent detail per
-icon. The four must be distinguishable at 40 px, because that is how large
-they are in a chat preview.
+Inter 400, 700 and 800 and JetBrains Mono 500, Latin subsets as WOFF2, in
+`assets/fonts/` with their SIL Open Font License texts, committed as ordinary
+files (about 30 KB each). `scripts/fetch-fonts.ts` downloads them from pinned
+URLs and checks pinned SHA-256 digests; it is how they are regenerated. The
+template declares them with `@font-face` and `data:font/woff2;base64,` URIs.
 
 ## Architecture
 
 Core (pure, no `node:`, no `Bun`, no clock), all taking plain data:
 
 ```
-src/card.ts     cardData(days: Day[], w: { days: number }) → CardData | null   (null when no active hour)
-src/raster.ts   Raster and the drawing primitives above
-src/font.ts     Font = decoded atlas; decodeAtlas(bytes: Uint8Array) → Font (parses the atlas format, pure)
-src/icons.ts    the four icons
-src/cardview.ts rasterCard(card: CardData, days: Day[], fonts: Fonts) → Raster   (1200×630)
+src/card.ts      cardData(days: Day[], w: { days: number }) → CardData | null   (null when no active hour)
+src/cardhtml.ts  cardHtml(card: CardData, days: Day[], assets: CardAssets) → string
+                 CardAssets = { fonts: { inter400, inter700, inter800, mono500 }, characters: { conductor, … } }
+                 every field a base64 string; the function escapes nothing from the transcripts
+                 because nothing from the transcripts reaches it: only numbers, dates and the fixed strings above
 ```
 
 Shell:
 
 ```
-src/image.ts    loadFonts() → Promise<Fonts>            reads and gunzips the atlases next to the source
-                writeImage(raster: Raster, out: string) → Promise<void>
+src/image.ts     loadAssets() → Promise<CardAssets>      reads assets/fonts and assets/characters next to the source
+                 renderCard(html: string, out: string) → Promise<void>
 ```
 
-`loadFonts` reads the four atlas files relative to `import.meta.dir` and
-gunzips them with `node:zlib`; the path is never printed, and a missing or
-corrupt atlas is reported as one stderr line (`fonts missing: reinstall
-zapara`) with exit 1. `writeImage` wraps the raster in a 24-bit BMP header
-(54 bytes, no compression, no checksums), hands the bytes to
-`new Bun.Image(bytes)`, encodes with `.png({ compressionLevel: 9 })` or
-`.webp({ quality: 90 })` by extension, and `.write(out)`. `Bun.Image` ships
-with Bun since 1.3.14; `engines` already says `>= 1.4.0`.
+`loadAssets` reads the eight files relative to `import.meta.dir`; a missing
+or unreadable one is `assets missing: reinstall zapara` on stderr, exit 1,
+with no path. `renderCard` writes the HTML as is when `out` ends in `.html`.
+Otherwise it opens `new Bun.WebView({ width: 2400, height: 1260 })`,
+navigates to a `data:text/html;charset=utf-8` URL of the page, waits until
+`document.fonts.status` is `loaded` and every `<img>` reports `complete`
+(polled through `evaluate`, 15-second budget), takes a PNG screenshot, resizes
+it to 2400×1260 with `Bun.Image` when it is larger, re-encodes to WebP when
+asked, writes the file, and closes the view (also on failure). A constructor
+or navigation failure whose message says no browser is available becomes the
+`card needs a browser engine` line.
 
-This is the reason the shell grows a fourth file: the base spec's Architecture
+`Bun.WebView` has been in Bun since April 2026 and `Bun.Image` since May
+2026; `engines` says `>= 1.4.0`, which has both.
+
+This is why the shell grows a fourth file: the base spec's Architecture
 section and the CLAUDE.md shell rule are amended in the same change to list
-`src/image.ts` as the only module that may use `Bun.Image`, read the font
-atlases, or write a file. No other module may touch `Bun.Image`.
+`src/image.ts` as the only module that may use `Bun.WebView` or `Bun.Image`,
+read the assets, or write a file.
 
 `src/index.ts` gains the `card` command and its flags. `report()` is reused
 unchanged; `card` never reads the projects tree itself.
@@ -234,9 +213,9 @@ unchanged; `card` never reads the projects tree itself.
 ## Testing
 
 Same rules as the base spec: fixtures in the real transcript format, through
-`analyze()` (for `cardData` and `rasterCard`) or the CLI; nothing imports
+`analyze()` (for `cardData` and `cardHtml`) or the CLI; nothing imports
 `parse`, `derive` or `scan`; every new test fails under a one-line mutation.
-Raster tests get the real atlases through the same loader the CLI uses,
+`cardHtml` tests get the real assets through the same loader the CLI uses,
 handed in as data.
 
 Scenarios:
@@ -248,29 +227,33 @@ Scenarios:
   wins, pinning the character and the sentence's numbers. A tie fixture
   (two equal shares) pins the tie order.
 - An empty window through `cardData()` is `null`.
-- `rasterCard` on `busy-week` (window `--to 2026-09-20 --days 7`): the
-  pixel at the centre of Monday's 13:00 cell is exactly the fried colour and
-  Sunday's 03:00 cell is exactly the empty-cell colour over the background
-  at that y; the badge centre is not background; a horizontal scan through
-  the name's baseline band finds text pixels; the raster's SHA-256 is pinned
-  as a golden value with a comment naming the command that regenerates it
-  (any visual change, wanted or not, has to be acknowledged in the test).
-- Heatmap budget: for `--days 14` and `--days 28` the last row's bottom
-  pixel is at y ≤ 469 and the rows y = 470..479 hold no cell colour across
-  the block.
+- `cardHtml` on `busy-week` (window `--to 2026-09-20 --days 7`): the page
+  contains the name and the sentence once each; exactly 7 × 24 heatmap
+  cells, of which Monday's 12:00 to 14:00 carry the fried class, Friday's
+  15:00 the heating class and Sunday's row no level class; the conductor
+  picture and all four fonts are embedded as `data:` URIs; no `http:`,
+  `https:` or `//` reference anywhere; the page's SHA-256 is pinned as a
+  golden value with a comment naming the command that regenerates it (any
+  change to the look has to be acknowledged in the test).
+- Heatmap budget: for 14 and 28 days the last row's bottom edge computed
+  from the pitch rule stays within the 168-px block.
 - Sentence fit: the longest sentence the formats can produce (five-digit
-  session and switch counts, a seven-figure token count) wraps to two lines
-  within 820 px.
-- CLI on the `busy-week` tree: the file exists, `Bun.Image(...).metadata()`
-  says 1200×630 and `png`; `--out x.webp` gives `webp`; `--json` prints the
-  data and creates no file; an empty window exits 1 with the one-line
-  message and no file; `--out x.gif` exits 2 with a usage line; `--out` with
-  an embedded newline and `--out` with an ESC byte each exit 2, print one
-  stderr line without the value, and create no file; stdout's second line is
-  `wrote <exactly the --out given>`.
-- Atlas round trip: the checked-in atlases decode to fonts whose glyph count
-  and sizes match the table above (a corrupt or truncated atlas is caught by
-  `decodeAtlas`, which is what the CLI's `fonts missing` line relies on).
+  session and switch counts, a seven-figure token count) plus the motto is
+  under 190 characters, the width at which two lines of 24-px Inter overflow
+  760 px.
+- CLI on the `busy-week` tree: `--out x.html` writes exactly the `cardHtml`
+  string; `--json` prints the data and creates no file; an empty window
+  exits 1 with the one-line message and no file; `--out x.gif` exits 2 with
+  a usage line; `--out` with an embedded newline and `--out` with an ESC byte
+  each exit 2, print one stderr line without the value, and create no file;
+  stdout's second line is `wrote <exactly the --out given>`.
+- CLI rendering, run only where a `Bun.WebView` can be constructed (the test
+  probes once and skips otherwise; GitHub's Ubuntu runners ship Chrome, so
+  CI runs it): `--out x.png` produces a file whose `Bun.Image` metadata is
+  2400×1260 PNG; `--out x.webp` a 2400×1260 WebP; both larger than 20 KB.
+- Assets: `loadAssets` on the checked-in files returns eight non-empty
+  base64 strings, and each character WebP decodes to 512×512 through
+  `Bun.Image`.
 
 `tests/helpers` gains nothing new: the character fixtures are composed from
 the existing builders.
@@ -278,16 +261,15 @@ the existing builders.
 ## README and repository
 
 README gets a section `## Share a card` after `## What it looks like`: the
-command, the two stdout lines, and the card rendered from `busy-week`
-(`assets/card.png`; `.gitattributes` gains `assets/*.png` so it is tracked by
-LFS like the other media; the tape does not change). The font atlases are not
-under `assets/*.png` and stay ordinary files. CHANGELOG under
-Unreleased/Added. The demo screencast stays as it is.
+command, the two stdout lines, the card rendered from `busy-week`
+(`assets/card.png`, 2400×1260; `.gitattributes` gains `assets/card.png` so it
+is tracked by LFS like the other media), and one line saying the picture
+needs macOS or an installed Google Chrome, while `--out card.html` works
+anywhere. CHANGELOG under Unreleased/Added. The demo screencast stays as it
+is.
 
 ## Later
 
-Not in this change: a `--theme light`, a card for `day`, custom text, hand
-drawn illustrations in place of the geometric icons (they would arrive as
-PNG assets and need a small PNG decoder in the shell), or posting anywhere.
-If people share the card, the next thing to consider is a tiny caption they
-can edit; until then the card says only what the data says.
+Not in this change: a `--theme light`, a card for `day`, custom text, or
+posting anywhere. If people share the card, the next thing to consider is a
+tiny caption they can edit; until then the card says only what the data says.

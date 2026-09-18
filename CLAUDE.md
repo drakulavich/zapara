@@ -14,11 +14,12 @@ when a test or CI step comes to catch it.
 - **Functional core, imperative shell.** `src/index.ts`, `src/report.ts`,
   `src/scan.ts` and `src/image.ts` are the only files that touch argv, stdout,
   the file system or the clock; `src/image.ts` is the only one that may use
-  `Bun.Image`, read the font atlases, or write a file (the card). Everything else
-  is pure functions over plain data: `analyze()` takes transcript text already
-  in memory and a window with an explicit `now`, and returns the `Day[]` the
-  CLI prints; `render` returns strings; `rasterCard` returns pixels. A core
-  module that imports from `node:` or `Bun`, or calls `Date.now()`, is a bug.
+  `Bun.WebView` or `Bun.Image`, read the card assets, or write a file (the
+  card). Everything else is pure functions over plain data: `analyze()` takes
+  transcript text already in memory and a window with an explicit `now`, and
+  returns the `Day[]` the CLI prints; `render` and `cardHtml` return strings.
+  A core module that imports from `node:` or `Bun`, or calls `Date.now()`, is
+  a bug.
 - **Tests are fixture-driven, in the real transcript format.** A test builds or
   loads transcripts (in memory for `analyze()`, or a projects tree on disk for
   the CLI) shaped exactly like Claude Code writes them (`type`, `timestamp`, `sessionId`, `isMeta`, `isSidechain`,

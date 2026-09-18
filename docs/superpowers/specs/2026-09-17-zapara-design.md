@@ -223,9 +223,9 @@ shell (I/O)
   src/index.ts    argv → options; calls report(); prints; exit codes; the only try/catch
   src/report.ts   report(options) → Day[]: lists files (scan), reads them, calls analyze()
   src/scan.ts     projects dir + cutoff → sorted file paths (fs.stat for mtime)
-  src/image.ts    font atlases → Fonts; Raster → PNG/WebP file through Bun.Image; the only
-                  module allowed to use Bun.Image, read the atlases or write a file
-                  (see 2026-09-18-zapara-card-design.md)
+  src/image.ts    card assets → CardAssets; card HTML → PNG/WebP file through Bun.WebView and
+                  Bun.Image; the only module allowed to use those, read the assets or write a
+                  file (see 2026-09-18-zapara-card-design.md)
 
 core (pure)
   src/analyze.ts  analyze(transcripts, window) → Day[]   transcripts = { path, text }[]
