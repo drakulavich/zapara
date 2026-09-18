@@ -28,37 +28,43 @@ const HEIGHT = 1260;
 const READY = 'document.fonts.ready.then(() => document.fonts.status === "loaded" && Array.from(document.images).every((i) => i.complete))';
 
 // Writes the page as is for `.html`; otherwise photographs it at 2400x1260 and
-// writes PNG or WebP. The view is closed on every path. A constructor or navigation
-// failure means no engine: the message never quotes the engine's own text.
+// writes PNG or WebP. The 15s budget bounds the whole render (construct, navigate,
+// poll, screenshot, resize, encode), raced against a single timer; the view is
+// closed on every path. Any engine failure (constructor, navigate, evaluate,
+// screenshot) is mapped to one line that never quotes the engine's own text; the
+// timeout error passes through unchanged. `writeFile` failures are the one
+// exception, left unmapped, so they keep reporting the user's own `--out` string.
 export async function renderCard(html: string, out: string, timeoutMs = 15_000): Promise<void> {
-  if (out.endsWith(".html")) {
+  const lower = out.toLowerCase();
+  if (lower.endsWith(".html")) {
     await writeFile(out, html);
     return;
   }
-  const deadline = Date.now() + timeoutMs;
-  let view: Bun.WebView;
+  let bytes: Uint8Array;
+  let timer: ReturnType<typeof setTimeout>;
   try {
-    view = new Bun.WebView({ width: WIDTH, height: HEIGHT, backend: BACKEND });
-  } catch {
+    bytes = await Promise.race([
+      (async () => {
+        const view = new Bun.WebView({ width: WIDTH, height: HEIGHT, backend: BACKEND });
+        try {
+          await view.navigate("data:text/html;charset=utf-8," + encodeURIComponent(html));
+          while (!(await view.evaluate<boolean>(READY))) await Bun.sleep(50);
+          const shot = await view.screenshot({ encoding: "buffer", format: "png" });
+          const image = new Bun.Image(shot);
+          const meta = await image.metadata();
+          if (meta.width !== WIDTH || meta.height !== HEIGHT) image.resize(WIDTH, HEIGHT, { fit: "fill" });
+          return lower.endsWith(".webp") ? await image.webp({ quality: 90 }).bytes() : await image.png().bytes();
+        } finally {
+          view.close();
+        }
+      })(),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("render timed out")), timeoutMs); }),
+    ]);
+  } catch (e) {
+    if (e instanceof Error && e.message === "render timed out") throw e;
     throw new Error(ENGINE_LINE);
-  }
-  try {
-    try {
-      await view.navigate("data:text/html;charset=utf-8," + encodeURIComponent(html));
-    } catch {
-      throw new Error(ENGINE_LINE);
-    }
-    while (!(await view.evaluate<boolean>(READY))) {
-      if (Date.now() > deadline) throw new Error("render timed out");
-      await Bun.sleep(50);
-    }
-    const shot = await view.screenshot({ encoding: "buffer", format: "png" });
-    const image = new Bun.Image(shot);
-    const meta = await image.metadata();
-    if (meta.width !== WIDTH || meta.height !== HEIGHT) image.resize(WIDTH, HEIGHT, { fit: "fill" });
-    const bytes = out.endsWith(".webp") ? await image.webp({ quality: 90 }).bytes() : await image.png().bytes();
-    await writeFile(out, bytes);
   } finally {
-    view.close();
+    clearTimeout(timer!);
   }
+  await writeFile(out, bytes);
 }
