@@ -53,16 +53,17 @@ Sun 20/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  · 
 ```
 
 ```
-hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
-09:00      9  Calm        1        6    0     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
-10:00     14  Calm        1        6    0     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
-11:00     15  Calm        1        6    0     0    0      0     0     0       0    173m      600    0   4.5     0   0.1    10     0
-12:00     87  Fried       5       55    0    20    1      1     1     2      54    237m    55.0k   25    15    30   6.9    10     0
-13:00     87  Fried       5       55    0    20    1      1     1     2      54    297m    55.0k   25    15    30   6.9    10     0
-14:00     87  Fried       5       55    0    20    1      1     1     2      54    357m    55.0k   25    15    30   6.9    10     0
-20:00      9  Calm        1        6    0     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
-21:00     14  Calm        1        6    0     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
-23:00     19  Calm        1        6    0     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4    10
+hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
+09:00      9  Calm        1        6     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
+10:00     14  Calm        1        6     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
+11:00     15  Calm        1        6     0    0      0     0     0       0    173m      600    0   4.5     0   0.1    10     0
+12:00     87  Fried       5       55    20    1      1     1     2      54    237m    55.0k   25    15    30   6.9    10     0
+13:00     87  Fried       5       55    20    1      1     1     2      54    297m    55.0k   25    15    30   6.9    10     0
+14:00     87  Fried       5       55    20    1      1     1     2      54    357m    55.0k   25    15    30   6.9    10     0
+20:00      9  Calm        1        6     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
+21:00     14  Calm        1        6     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
+23:00     19  Calm        1        6     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4    10
+  no reports today
 ```
 
 Two commands in a terminal reproduce them. The fixture's timestamps are UTC and zapara buckets by local time, so pin the zone to get these exact hours:

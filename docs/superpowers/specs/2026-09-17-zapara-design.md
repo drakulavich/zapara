@@ -194,6 +194,11 @@ hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw 
 13:00     87  Fried       5       24   12     6    2      3     1     2       4     95m    72.0k
 ```
 
+An event column (`rep`, `intr`, `rej`, `quest`, `plan`, `mode`, `ctx-sw`) that
+is 0 in every row is left out, and one line under the table, dimmed in a TTY,
+names what the day had none of (`no reports, rejects today`). The other
+columns always show, so two days still line up.
+
 `--explain` adds six columns with each weighted contribution; for the row above
 they read `par 25 pace 15 sup 30 read 9 strk 7.9 late 0`, so the number can be
 traced to its inputs.

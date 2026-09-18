@@ -18,3 +18,4 @@ All notable changes to this project are documented here. The format follows
 - Score weights are integer points of 100 so half-point sums round exactly; the index is the rounded sum of the unrounded weighted parts.
 - Index calibrated on two machines × 14 days: parallel 25 (norm 4 sessions), pace 15 (norm 20 prompts/h), supervision 30 (3·decisions + reports + context switches, norm 45), reading 10 (norm 80k output tokens), streak 10, late night 10. `parts` in JSON and `--explain` are now six: `par pace sup read strk late`.
 - Week footer: the legend drops the ranges and the "none" entry, the totals line drops its prefix and commas, and both are dimmed in a TTY; the level ranges are in `--help`; counts past 9 999 print compact (12k, 1.2M).
+- Day table: an event column that is 0 in every row is left out, and one dimmed line names what the day had none of; the skeleton columns always show.

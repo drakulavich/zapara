@@ -7,6 +7,8 @@ import type { Day, HourBucket } from "../../src/types.ts";
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
 const days = await report({ projects, to: "2026-09-20", days: 7 });
 const monday = days[0]!;
+const wednesday = days[2]!; // empty
+const thursday = days[3]!; // one calm session, 11-13: every event column reads zero
 
 describe("week grid", () => {
   const text = renderWeek(days, false);
@@ -103,15 +105,47 @@ describe("week grid", () => {
 });
 
 describe("day table", () => {
-  test("one row per active hour with the raw signals", () => {
+  test("one row per active hour with the raw signals, and the all-zero rep column left out", () => {
     const lines = renderDay(monday, { explain: false, color: false }).split("\n");
-    expect(lines[0]).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
+    // busy-week has no inbound agent messages, so `rep` reads 0 in every bucket all
+    // day and is left out; every other event column is nonzero somewhere (the
+    // storm hours). Mutation: dropping `rep` from EVENT_COLS would put it back.
+    expect(lines[0]).toBe("hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
     const row13 = lines.find((l) => l.startsWith("13:00"))!;
     // 5 sessions x 11 prompt/reply pairs each (m = n, n+5, ..., <=55) = 55 prompts and
-    // 55 assistant replies at 1000 output tokens apiece = 55000 -> "55.0k"; busy-week has
-    // no inbound agent messages, so rep is 0 at every bucket, this one included.
-    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+55\s+0\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m\s+55\.0k$/);
+    // 55 assistant replies at 1000 output tokens apiece = 55000 -> "55.0k".
+    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+55\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m\s+55\.0k$/);
     expect(lines.some((l) => l.startsWith("03:00"))).toBe(false);
+    expect(lines[lines.length - 1]).toBe("  no reports today");
+  });
+
+  test("a day with only one calm session leaves out every event column", () => {
+    // Thursday: one session, 11:00-13:00, no interrupts/rejects/questions/plans/mode
+    // switches/context switches all day (a lone session never hops or gets flagged).
+    // Mutation: forgetting one column from EVENT_COLS, or the wrong full name for
+    // one, leaves this note short a word or wrong.
+    const lines = renderDay(thursday, { explain: false, color: false }).split("\n");
+    expect(lines[0]).toBe("hour   index  level    sess  prompts  streak  out-tok");
+    expect(lines.length).toBe(4); // header + 11:00 + 12:00 + note
+    expect(lines[1]!.startsWith("11:00")).toBe(true);
+    expect(lines[2]!.startsWith("12:00")).toBe(true);
+    expect(lines[3]).toBe("  no reports, interrupts, rejects, questions, plans, mode switches, context switches today");
+  });
+
+  test("an empty day keeps the full header and no note", () => {
+    // Mutation: emitting the note, or dropping columns, on a day with no active bucket.
+    const text = renderDay(wednesday, { explain: false, color: false });
+    expect(text).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
+  });
+
+  test("color mode dims the left-out-columns note and nothing else changes", () => {
+    // Mutation: forgetting to dim the note, or dimming more than just that line.
+    const plainText = renderDay(thursday, { explain: false, color: false });
+    const coloredText = renderDay(thursday, { explain: false, color: true });
+    const coloredLines = coloredText.split("\n");
+    const note = "  no reports, interrupts, rejects, questions, plans, mode switches, context switches today";
+    expect(coloredLines[coloredLines.length - 1]).toBe(`\x1b[2m${note}\x1b[0m`);
+    expect(coloredText.replace(/\x1b\[\d+m/g, "")).toBe(plainText);
   });
 
   test("--explain appends the six weighted parts, named and in order, and they add up to the index", () => {
