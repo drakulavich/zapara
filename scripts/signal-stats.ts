@@ -142,14 +142,21 @@ type Drift = {
 // `subagents` segment, mtime >= cutoff) and counts what the parser currently
 // recognises, so a machine with a newer Claude Code that renamed a field shows up
 // as `events` well below `recordsWithType` instead of silently scoring zero.
+// `scan()` selects *files* by mtime, which can be well inside the window even
+// though the file holds older lines too (a session spanning weeks); to describe
+// the same data the distributions above do, both `recordsWithType`/`topTypes` and
+// the parsed `events` are additionally filtered to timestamps within
+// `[cutoffMs, endMs)` — the exact bounds `derive()` uses. A record with no
+// parseable `timestamp` is not counted at all (there is no window to test it against).
 async function computeDrift(projects: string, to: string, days: number): Promise<Drift> {
-  const { cutoffMs } = windowBounds({ to, days });
+  const { cutoffMs, endMs } = windowBounds({ to, days });
   const paths = await scan(projects, cutoffMs);
   let lines = 0;
   let recordsWithType = 0;
   const typeCounts = new Map<string, number>();
   const eventsByKind = Object.fromEntries(EVENT_KINDS.map((k) => [k, 0])) as Record<EventKind, number>;
   let events = 0;
+  const inWindow = (ts: number): boolean => !Number.isNaN(ts) && ts >= cutoffMs && ts < endMs;
 
   for (const path of paths) {
     let text: string;
@@ -163,11 +170,15 @@ async function computeDrift(projects: string, to: string, days: number): Promise
       if (typeof rec !== "object" || rec === null) continue;
       const type = (rec as { type?: unknown }).type;
       if (typeof type !== "string") continue;
+      const rawTs = (rec as { timestamp?: unknown }).timestamp;
+      const ts = typeof rawTs === "string" ? Date.parse(rawTs) : NaN;
+      if (!inWindow(ts)) continue;
       recordsWithType++;
       typeCounts.set(type, (typeCounts.get(type) ?? 0) + 1);
     }
 
     for (const e of parseTranscript(text)) {
+      if (!inWindow(e.ts)) continue;
       events++;
       eventsByKind[e.kind]++;
     }
@@ -183,9 +194,12 @@ async function computeDrift(projects: string, to: string, days: number): Promise
 
 function renderDrift(d: Drift): string {
   const byKind = EVENT_KINDS.map((k) => `${k} ${d.eventsByKind[k]}`).join(", ");
-  const topTypes = d.topTypes.map((t) => `${t.type} ${t.count}`).join(", ");
+  // A `type` value comes straight from someone else's JSONL and is never trusted: it could hold
+  // a newline or an ANSI escape. Capped to 40 characters, then JSON-encoded, so it can never
+  // split this into more than one physical line or write a raw control byte to the terminal.
+  const topTypes = d.topTypes.map((t) => `${JSON.stringify(t.type.slice(0, 40))} ${t.count}`).join(", ");
   return [
-    `files: ${d.files}, lines: ${d.lines}`,
+    `files: ${d.files}, lines read: ${d.lines}`,
     `records with type: ${d.recordsWithType}, events: ${d.events} (${byKind})`,
     `top types: ${topTypes}`,
     `events per record with type: ${d.eventsPerRecordWithType.toFixed(2)}`,
@@ -241,5 +255,14 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
-  main().then((code) => process.exit(code));
+  // computeDrift() runs after the CLI has already succeeded and can still reject on its own
+  // (e.g. the projects root vanishes or becomes unreadable between the two): caught here so
+  // it never surfaces as an unhandled-rejection stack trace, only ever one stderr line, no path.
+  main().then(
+    (code) => process.exit(code),
+    (e: unknown) => {
+      console.error(`signal-stats: ${e instanceof Error ? e.message : String(e)}`);
+      process.exit(1);
+    },
+  );
 }

@@ -129,4 +129,76 @@ describe("signal-stats", () => {
     expect(r.err).not.toContain(missing);
     expect(r.err).toContain("projects directory not found");
   });
+
+  // scan() picks *files* by mtime; a file with a recent mtime can still hold lines from weeks
+  // earlier. The drift line must describe the same window the distributions do, so a record or
+  // event from outside [cutoffMs, endMs) must not be counted even though its file was scanned.
+  test("drift metrics count only records and events inside the analysis window, not every line of a scanned file", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zapara-stats-window-"));
+    try {
+      await writeTree(root, [
+        {
+          path: "-Users-me-proj/a.jsonl",
+          lines: [
+            // 20 days before --to: well before cutoffMs (--to minus the 2-day window minus the
+            // 3h lookback), but the file's mtime is recent so scan() still returns this file.
+            prompt("2026-08-26T10:00:00.000Z", A),
+            assistantText("2026-08-26T10:01:00.000Z", A, 40, "req-old"),
+            // Inside the --to 2026-09-15 --days 2 window (dates 2026-09-14/15).
+            prompt("2026-09-14T10:00:00.000Z", A),
+            assistantText("2026-09-14T10:01:00.000Z", A, 40, "req-new"),
+          ],
+          mtime: "2026-09-14T10:01:00.000Z",
+        },
+      ]);
+      const r = await run("--projects", root, "--to", "2026-09-15", "--days", "2", "--json");
+      expect(r.code).toBe(0);
+      expect(r.err).toBe("");
+      const data = JSON.parse(r.out) as {
+        drift: { files: number; lines: number; recordsWithType: number; events: number; eventsByKind: Record<string, number> };
+      };
+      // 4 raw lines were read (both pairs), but only the 2 in-window records count.
+      expect(data.drift.files).toBe(1);
+      expect(data.drift.lines).toBe(4);
+      expect(data.drift.recordsWithType).toBe(2);
+      expect(data.drift.events).toBe(4); // in-window pair only: activity x2, prompt x1, output x1
+      expect(data.drift.eventsByKind).toEqual({
+        prompt: 1, report: 0, output: 1, interrupt: 0, reject: 0, question: 0, plan_review: 0, mode_change: 0, activity: 2,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  // A `type` value is untrusted input straight from someone else's JSONL; it must never be
+  // able to write a raw control byte to the terminal or split the "top types" line in two.
+  test("an unusual record type with control characters is escaped and length-capped in the drift line", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zapara-stats-weird-type-"));
+    try {
+      const weirdType = "x\n[31my";
+      const longType = "z".repeat(50);
+      await writeTree(root, [
+        {
+          path: "-Users-me-proj/a.jsonl",
+          lines: [
+            prompt("2026-09-14T09:00:00.000Z", A),
+            JSON.stringify({ type: weirdType, sessionId: A, timestamp: "2026-09-14T09:30:00.000Z" }),
+            JSON.stringify({ type: longType, sessionId: A, timestamp: "2026-09-14T09:31:00.000Z" }),
+          ],
+          mtime: "2026-09-14T09:31:00.000Z",
+        },
+      ]);
+      const r = await run("--projects", root, "--to", "2026-09-15", "--days", "2");
+      expect(r.code).toBe(0);
+      expect(r.err).toBe("");
+      expect(r.out).not.toContain(""); // no raw ESC byte anywhere in stdout
+      expect(r.out).toContain(JSON.stringify(weirdType)); // printed escaped, not raw
+      expect(r.out).toContain(JSON.stringify(longType.slice(0, 40))); // capped to 40 chars before encoding
+      expect(r.out).not.toContain(JSON.stringify(longType)); // the untruncated 50-char form must not appear
+      const topTypesLine = r.out.split("\n").find((l) => l.startsWith("top types:"));
+      expect(topTypesLine).toBeDefined(); // the control chars did not split this into two lines
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
