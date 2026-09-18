@@ -55,7 +55,7 @@ export function cardHtml(card: CardData, assets: CardAssets): string {
     ["fried", card.spectrum.fried, "fried"],
   ] as const;
   const bar = levels.filter(([, pct]) => pct > 0).map(([cls, pct]) => `<div class="${cls}" style="width:${pct}%"></div>`).join("");
-  const legend = levels.map(([cls, pct, name]) => `<span><i class="${cls}"></i><b>${pct}%</b> ${name}</span>`).join(" &nbsp;&nbsp; ");
+  const legend = levels.map(([cls, pct, name]) => `<span><i class="${cls}"></i><b>${pct}%</b> ${name}</span>`).join("&nbsp;&nbsp;");
   const stats = card.highlights
     .map((h) => `<div class="stat" data-key="${h.key}"><div class="v">${h.value}</div><div class="c mono">${h.caption}</div></div>`)
     .join("");
@@ -90,7 +90,7 @@ html,body{margin:0;background:#000}
 .peak b.calm{color:var(--calm)}.peak b.warm{color:var(--warm)}.peak b.heat{color:var(--heat)}.peak b.fried{color:var(--fried)}
 .name{margin-top:18px;font-size:76px;font-weight:700;line-height:1;letter-spacing:-3px;color:#fff;text-shadow:0 0 40px rgba(255,255,255,.18);white-space:nowrap}
 .sentence{margin-top:22px;font-size:22px;line-height:31px;color:var(--muted);letter-spacing:-.2px;max-width:660px}
-.sentence b{color:var(--ink);font-weight:600}
+.sentence b{color:#fff;font-weight:600}
 .divider{height:1px;background:var(--line);margin:30px 0 26px}
 .bar{height:8px;border-radius:4px;overflow:hidden;display:flex;gap:2px}
 .bar div{height:100%}
