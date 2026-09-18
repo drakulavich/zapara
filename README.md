@@ -1,18 +1,172 @@
-# zapara
+<h1 align="center">zapara</h1>
 
-Cognitive load index for people driving Claude Code. Reads the transcripts
-Claude Code already writes under `~/.claude/projects`, scores every hour
-0–100 from parallel sessions, prompt pace, decisions (interrupts, rejections,
-questions, plan reviews, mode switches), streak length and late-night work,
-and prints a week heatmap and a per-hour day table. Nothing is installed into
-Claude Code, nothing leaves the machine, no message text is kept.
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun" alt="Bun"></a>
+</p>
 
-Status: MVP under construction. See `docs/superpowers/specs/` for the design.
+<p align="center"><b>How hard was today?</b> zapara reads the transcripts Claude Code already writes on your machine and scores every hour 0–100 from parallel sessions, prompt pace, agent supervision, model output, streak length and late-night work. Nothing leaves the machine, no message text is kept.</p>
 
-## Run
+<p align="center">
+  <img src="https://github.com/drakulavich/zapara/raw/main/assets/demo.webp" alt="zapara demo: week heatmap, day table with --explain, JSON" width="800">
+</p>
 
-```sh
+Claude Code writes a JSONL transcript for every session under `~/.claude/projects`. zapara reads those files, puts each record in the local hour it happened in, and turns the hour into one number. A week is a heatmap of seven rows by 24 cells; a day is a table with one row per hour and, with `--explain`, the weighted contribution of each component. Nothing is installed into Claude Code, no hook is registered, and no network call is made.
+
+## Quick Start
+
+```bash
+# 1. Install Bun (skip if you have it). zapara needs 1.4 or newer.
+curl -fsSL https://bun.sh/install | bash
+
+# 2. Clone and install
+git clone git@github.com:drakulavich/zapara.git
+cd zapara
 bun install
-bun run src/index.ts --version
-bun run stats --days 14
+
+# 3. Look at your week
+bun src/index.ts week
+
+# 4. Zoom into a day
+bun src/index.ts day --explain
 ```
+
+There is no build step and no runtime dependency. Bun runs `src/index.ts` directly, and the one devDependency is TypeScript, for the typecheck. If you would rather type `zapara` than `bun src/index.ts`, run `bun link` once in the clone and the `bin` entry puts the command on your PATH.
+
+## What it looks like
+
+Both pictures below come from the synthetic fixture in `tests/fixtures/busy-week`: a calm morning of one session, a five-session storm in the middle of the day, and a late tail that runs past midnight.
+
+```
+            00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active
+Mon 14/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  █  █  █  ·  ·  ·  ·  ·  ░  ░  ·  ░     87    6h00
+Tue 15/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  ░  ▒  ▒  ▒  ░  ·  ·  ·  ·  ·  ·     33    4h00
+Wed 16/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
+Thu 17/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     14    1h00
+Fri 18/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▓  ·  ·  ·  ·  ·  ·  ·  ·     82    1h00
+Sat 19/09    ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     24    1h00
+Sun 20/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
+
+  · none  ░ calm 0-29  ▒ warming 30-59  ▓ heating 60-84  █ fried 85-100
+week: active 13h00, prompts 346, reports 0, decisions 100, max sessions 5
+```
+
+```
+hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
+09:00      9  Calm        1        6    0     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
+10:00     14  Calm        1        6    0     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
+11:00     15  Calm        1        6    0     0    0      0     0     0       0    173m      600    0   4.5     0   0.1    10     0
+12:00     87  Fried       5       55    0    20    1      1     1     2      54    237m    55.0k   25    15    30   6.9    10     0
+13:00     87  Fried       5       55    0    20    1      1     1     2      54    297m    55.0k   25    15    30   6.9    10     0
+14:00     87  Fried       5       55    0    20    1      1     1     2      54    357m    55.0k   25    15    30   6.9    10     0
+20:00      9  Calm        1        6    0     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
+21:00     14  Calm        1        6    0     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
+23:00     19  Calm        1        6    0     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4    10
+```
+
+Two commands in a terminal reproduce them. The fixture's timestamps are UTC and zapara buckets by local time, so pin the zone to get these exact hours:
+
+```bash
+TZ=UTC bun src/index.ts week --projects tests/fixtures/busy-week --to 2026-09-20 --no-color
+TZ=UTC bun src/index.ts day 2026-09-14 --projects tests/fixtures/busy-week --explain --no-color
+```
+
+The grid is a fixed 98 columns wide, 100 with its hour header, and does not reflow, so it needs a terminal at least that wide.
+
+## Usage
+
+| Command | What it does |
+|---|---|
+| `zapara` | Same as `zapara week`. |
+| `zapara week` | The last 7 days ending today, in local time. |
+| `zapara week --days 14 --to 2026-09-17` | Any window. `--days` takes an integer from 1 to 90. |
+| `zapara day` | Today, one row per hour that had activity. |
+| `zapara day 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
+
+| Flag | What it does |
+|---|---|
+| `--json` | Print the whole window as one JSON document instead of a table. |
+| `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
+| `--no-color` | Plain glyphs with no ANSI codes. `NO_COLOR` in the environment does the same. |
+| `--help` | Usage, exit 0. |
+| `--version` | The version from `package.json`, exit 0. |
+
+Output is a text table when stdout is a terminal and JSON otherwise, so `zapara week | cat` prints JSON. There is no flag to force text in a pipe yet.
+
+Exit codes are 0 on success, 1 when the projects directory cannot be read, and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
+
+## How the index works
+
+Every hour that had activity gets six components normalized into `[0, 1]` and summed with integer weights:
+
+```
+parallel    = clamp((sessions - 1) / 4)                                   # 1 session → 0, 3 → 0.5, 5+ → 1
+pace        = clamp(prompts / 20)                                         # 10 prompts/hour → 0.5, 20+ → 1
+supervision = clamp((3 * decisions + reports + contextSwitches) / 45)     # 15 decisions alone → 1; 45 reports alone → 1
+reading     = clamp(outputTokens / 80000)                                 # 40k → 0.5, 80k+ → 1
+streak      = clamp(streakMin / 120)                                      # 60 min → 0.5, 2h+ → 1
+late        = lateNight ? 1 : 0
+
+index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 10*late)
+```
+
+`decisions` is the sum of interrupts, tool rejections, questions, plan reviews and permission-mode switches. Without the late-night flag the index tops out at 90. An hour with no activity has no index at all: it renders as `·` and is `null` in JSON.
+
+| Level | Range |
+|---|---|
+| Calm | 0–29 |
+| Warming | 30–59 |
+| Heating | 60–84 |
+| Fried | 85–100 |
+
+The norms come from two machines, 14 days each, of real transcripts covering 116 and 114 active hours. The surprise in that data was how rare explicit decisions are: in auto mode the p90 is 3 decisions per hour, so a component built on decisions alone reads near zero on hours that felt heavy. What those hours actually cost is reading the reports agents send back, switching between sessions, and getting through the volume of model output, which is why supervision carries 30 points and reading 10. Human prompts reached a p90 of 13 per hour on one machine and 20 on the other, hence the pace norm of 20. The parallel-session threshold follows the research this project started from rather than the transcripts: BCG and HBR report that productivity drops past three simultaneous AI tools, and Osmani makes the same point as three focused teammates beating five scattered ones.
+
+Weights and norms live in one exported constant in `src/score.ts`, so a recalibration is one diff there plus a line in `CHANGELOG.md`.
+
+## Signals
+
+Every column of the day table, and the transcript record behind it.
+
+| Column | What it counts |
+|---|---|
+| `sess` | Distinct session ids with at least one user or assistant record in the hour. |
+| `prompts` | Messages the human typed. A `user` record whose text is neither an interrupt marker nor an agent-message marker; `isMeta` and sidechain records are excluded. |
+| `rep` | Inbound messages from subagents, other sessions and background tasks. A `user` record whose text starts with one of the agent-message markers, which is something to read and react to rather than something typed. |
+| `intr` | Interrupts. A `user` record whose text block starts with `[Request interrupted by user`, covering both the plain and the tool-use form. |
+| `rej` | Tool rejections. A `tool_result` block saying the user did not want to proceed with that tool use. |
+| `quest` | `AskUserQuestion` tool calls in an assistant message, one per block. |
+| `plan` | `ExitPlanMode` tool calls in an assistant message, one per block. |
+| `mode` | Permission-mode switches. A `permission-mode` record whose mode differs from the previous one; the first record of a session sets the baseline and repeats of the same mode count nothing. |
+| `ctx-sw` | Context switches. Over the hour's prompts in time order, the number of consecutive pairs that came from different sessions. |
+| `streak` | Minutes since the current activity streak began, which may reach back before the hour. A gap longer than 10 minutes between records breaks the streak. |
+| `out-tok` | Assistant output tokens, summed once per request and only for requests that produced a text block. Claude Code repeats the same usage on each content block of a response, and a request holding only tool calls is not text anyone reads. |
+
+`bun run stats --days 14` is the tool the norms were set with. It prints the per-hour distribution of each signal over the active hours of a window (n, p50, p75, p90, max, and how many hours were zero), the top hours by reports and by human prompts, and a format-drift line comparing records seen against events the parser recognised. Run it on another machine, or after a Claude Code update, to see whether the norms and the parser still fit. It prints numbers and nothing else.
+
+## Privacy
+
+zapara reads `~/.claude/projects/**/*.jsonl`, taking only files modified inside the window and skipping subagent transcripts under `subagents/`. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
+
+No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written, and nothing is installed into Claude Code.
+
+## Limits
+
+- Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge.
+- Only Claude Code transcripts are read. Work in other tools, and time away from the keyboard, is invisible.
+- Files are chosen by modification time. A very old session touched today is read in full, but only its in-window events count.
+- The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
+- The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
+- The 98-column grid does not adapt to a narrow terminal.
+- A pipe always gets JSON, and there is no flag to ask for text instead.
+
+## Development
+
+```bash
+bun run check    # tsc --noEmit, then the test suite under TZ=UTC
+```
+
+Tests are fixture-driven: they build or load transcripts in the real Claude Code format and assert the statistics that come out of the public seams, `analyze()`, `report()` and the CLI itself. No test imports the parser, the deriver or the scanner, so refactoring internals never touches a test. The rules every change follows are in [CLAUDE.md](CLAUDE.md), the design is in [docs/superpowers/specs/2026-09-17-zapara-design.md](docs/superpowers/specs/2026-09-17-zapara-design.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
