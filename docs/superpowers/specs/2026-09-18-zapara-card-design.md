@@ -12,10 +12,18 @@ three highlights, and the project's line. It exists to make the tool travel:
 the week heatmap convinces the person who ran it, the card convinces the
 person they show it to.
 
-The card shows aggregates only. Nothing on it says when the person worked,
-how much, or on which days: no heatmap, no dates, no hour totals. A person
-should never want to hide their card from a manager or a partner, so every
-number on it reads as a trait or an achievement, not as a timesheet.
+The card's privacy boundary is schedule and identity, not volume. It never
+shows when the person worked (no dates, weekdays or clock hours, no heatmap),
+how long they worked (no count or sum of active hours, no per-day totals), or
+on what (no project, file, prompt or title: the base spec's contract). It
+does show interaction volumes on purpose, because they are the traits the
+card is about: the peak number of parallel sessions, the most context
+switches in one hour, the longest unbroken streak, the sums of agent reports,
+output tokens and interrupts, and the peak load. The one time-of-day number,
+the share of late-night hours, appears only on the Night Owl's own card,
+where it is the trait. Every number reads as an achievement, not as a
+timesheet; a person should never want to hide their card from a manager or a
+partner.
 
 The card is a picture of numbers zapara already computes. It adds no new
 signal, no new score, and no new data source.
@@ -85,14 +93,30 @@ only for a window of lone single-event hours) the tie rule gives Conductor.
 
 Where `maxSessions` and `maxContextSwitches` are the window maxima over
 buckets, `reports`, `outputTokens` and `interrupts` are window sums, `streak`
-is the maximum `streakMin` over buckets rendered as `5h12m` (or `48m` under
-an hour), `activeHours` is the count of active buckets (used only as a
-divisor, never shown), `lateShare` is the share of active buckets with
-`lateNight` in whole percent, `calmShare` the share of active buckets at
-Calm, `days` the `--days` value. `outputTokens` is rendered as `412k` or
-`1.2M` (one decimal, `k` under a million). The stdout character line and the
-JSON `sentence` carry the sentence without the bold marks and without the
-motto.
+is the maximum `streakMin` over buckets, `activeHours` is the count of
+active buckets (used only as a divisor, never shown), `lateShare` is the
+share of active buckets with `lateNight` in whole percent, `calmShare` the
+share of active buckets at Calm, `days` the `--days` value. The stdout
+character line and the JSON `sentence` carry the sentence without the bold
+marks and without the motto.
+
+Transcript-derived numbers have no upper bound, so every value on the card
+goes through a compact format with a fixed longest form:
+
+| Kind | Format | Longest form |
+|---|---|---|
+| count (`maxSessions`, `maxContextSwitches`, `reports`, `interrupts`) | as is under 10 000; then `12k` (integer thousands) under a million, `1.2M` (one decimal) under 10 M, `12M` under a billion, `1.2B` / `12B` likewise; `999B+` from 1000 B | `999B+` (5) |
+| tokens (`outputTokens`) | as is under 1000; then the same ladder from `1k` | `999B+` (5) |
+| streak (`streakMin`) | `48m` under an hour, `5h12m` under 10 h, `12h` (whole hours) under 1000 h, `999h+` from there | `999h+` (5) |
+| percent (`lateShare`, `calmShare`, spectrum) | whole percent, 0 to 100 | `100%` (4) |
+| index | 0 to 100 | `100` (3) |
+
+With these bounds the longest sentence any character can produce is under
+110 characters, and the longest highlight value is 5 characters, so the
+layout in Picture is sized for the longest forms and nothing on the card can
+overflow; the fit is verified by rendering, see Testing. A value the format
+cannot represent (negative, `NaN`) cannot come out of `analyze()` and is
+not handled.
 
 **Peak**: the maximum index over active buckets and its level.
 
@@ -186,9 +210,12 @@ Level colours: calm `#7ee2a3`, warming `#fbd77a`, heating `#c4a0ff`, fried
 the repo link: Conductor `#8b5cf6` / `#c4b5fd`, Supervisor `#22d3ee` /
 `#a5f3fc`, Marathoner `#f59e0b` / `#fde68a`, Night Owl `#60a5fa` / `#bfdbfe`.
 
-The reference for this look is the mock rendered during design review
-(`card-v6.template.html` in the ledger workspace, a screenshot of which the
-owner approved); the template starts from that file's CSS.
+The table is the complete description of the look; the template is written
+from it. `docs/superpowers/specs/assets/2026-09-18-zapara-card-reference.webp`
+is the owner-approved render of the design mock built from this table with
+the `busy-week` numbers (2400×1260, tracked by LFS), kept for comparing the
+implementation's output by eye. It is a reference, not an input: nothing
+reads it.
 
 ### Characters
 
@@ -203,7 +230,7 @@ shows each character through a crop rectangle given in sheet fractions
 on the current sheet (Conductor `[0.02, 0.01, 0.53, 0.543]`, Supervisor
 `[0.55, 0.07, 0.38, 0.505]`, Marathoner `[0.02, 0.553, 0.50, 0.437]`, Night
 Owl `[0.54, 0.585, 0.45, 0.41]`); the box is scaled so the rectangle's longer
-side is 320 px, and centred at (190, 210), using CSS `background-size` and
+side is 360 px, and centred at (195, 300), using CSS `background-size` and
 `background-position`, so no cropping tool is involved anywhere.
 `scripts/prepare-characters.ts` turns the source PNG into the WebP with
 `Bun.Image` (resize to 1024, alpha kept) and is how it is regenerated when
@@ -294,23 +321,36 @@ Scenarios:
   anywhere; no date string (`2026-`) anywhere in the page; the page's
   SHA-256 is pinned as a golden value with a comment naming the command that
   regenerates it (any change to the look has to be acknowledged in the test).
-- Sentence fit: the longest sentence the formats can produce (five-digit
-  session and switch counts, a seven-figure token count) plus the motto is
-  under 180 characters, the width at which three lines of 22-px Inter
-  overflow the 660-px sentence box. Highlight values: the longest value
-  (`99999`, `5h59m`, `100%`) fits the 40-px-tall value line of a 213-px
-  panel at 38 px; the test pins the character count limit derived from the
-  mock.
+- Formats: a fixture whose window carries 12 345 sessions' worth of
+  parallel session ids in one hour is not practical, so the format ladder is
+  pinned through `cardData()` on a fixture with 1 200 storm replies carrying
+  1 000 tokens each (`outputTokens` renders `1.2M`) and 10 000 prompts in
+  the window (`reports` and switch counts render `10k`); the streak ladder
+  through a fixture with one 11-hour streak (`11h`).
+- Fit, rendered: for each character, `cardHtml` on a hand-built `CardData`
+  holding every value's longest form (`999B+` counts and tokens, `999h+`
+  streak, `100%` shares, the widest spectrum legend `100% / 100% / 100% /
+  100%` is impossible so `25%` each, index `100`, `--days 90`) is loaded
+  into a `Bun.WebView` and measured through `evaluate`: no element's
+  `scrollWidth` exceeds its `clientWidth`, the sentence's height is at most
+  three lines (93 px), every highlight value stays on one line, and the
+  panel's content does not exceed its height. This is the only fit test;
+  character counts are never used as a proxy for layout.
 - CLI on the `busy-week` tree: `--out x.html` writes exactly the `cardHtml`
   string; `--json` prints the data and creates no file; an empty window
   exits 1 with the one-line message and no file; `--out x.gif` exits 2 with
   a usage line; `--out` with an embedded newline and `--out` with an ESC byte
   each exit 2, print one stderr line without the value, and create no file;
   stdout's second line is `wrote <exactly the --out given>`.
-- CLI rendering, run only where a `Bun.WebView` can be constructed (the test
-  probes once and skips otherwise; GitHub's Ubuntu runners ship Chrome, so
-  CI runs it): `--out x.png` produces a file whose `Bun.Image` metadata is
-  2400×1260 PNG; `--out x.webp` a 2400×1260 WebP; both larger than 20 KB.
+- CLI rendering and the fit test run only where a `Bun.WebView` can be
+  constructed: the suite probes once; when the probe fails the tests skip,
+  unless `ZAPARA_REQUIRE_WEBVIEW=1` is set, in which case they fail with
+  the probe's message. `ci.yml` sets that variable, so the raster coverage
+  cannot disappear silently after a runner image or Bun change (GitHub's
+  Ubuntu runners ship Chrome today; the variable is what guarantees it is
+  still there). `--out x.png` produces a file whose `Bun.Image` metadata
+  is 2400×1260 PNG; `--out x.webp` a 2400×1260 WebP; both larger than
+  20 KB.
 - Assets: `loadAssets` on the checked-in files returns five non-empty
   base64 strings (four fonts and the sheet), and the sheet decodes to
   1024×1024 WebP through `Bun.Image`.
@@ -323,7 +363,8 @@ the existing builders.
 README gets a section `## Share a card` after `## What it looks like`: the
 command, the two stdout lines, the card rendered from `busy-week`
 (`assets/card.png`, 2400×1260; `.gitattributes` gains `assets/card.png` so it
-is tracked by LFS like the other media), and one line saying the picture
+is tracked by LFS like the other media; the same change tracks
+`docs/superpowers/specs/assets/*.webp`), and one line saying the picture
 needs macOS or an installed Google Chrome, while `--out card.html` works
 anywhere. CHANGELOG under Unreleased/Added. The demo screencast stays as it
 is.
