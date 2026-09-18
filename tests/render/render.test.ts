@@ -15,13 +15,13 @@ describe("week grid", () => {
     expect(lines[0]).toBe("            00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active");
     expect(lines.slice(1, 8).map((l) => l.slice(0, 9))).toEqual(["Mon 14/09", "Tue 15/09", "Wed 16/09", "Thu 17/09", "Fri 18/09", "Sat 19/09", "Sun 20/09"]);
     expect(lines[8]).toBe("");
-    expect(lines[9]).toBe("  · none  ░ calm 0-29  ▒ warming 30-59  ▓ heating 60-84  █ fried 85-100");
+    expect(lines[9]).toBe("  ░ calm   ▒ warming   ▓ heating   █ fried");
     // Hand-computed from the generator's day-by-day schedule (see busy-week.ts):
     // prompts 201 (Mon) + 66 (Tue) + 12 (Thu) + 55 (Fri) + 12 (Sat) = 346;
     // reports 0, since busy-week has no inbound agent-message lines;
     // decisions 75 (Mon storm) + 25 (Fri storm) = 100; active sums to 13h00;
     // max sessions is the Mon/Fri storm's 5.
-    expect(lines[10]).toBe("week: active 13h00, prompts 346, reports 0, decisions 100, max sessions 5");
+    expect(lines[10]).toBe("  13h00 active   346 prompts   0 reports   100 decisions   5 sessions at once");
   });
 
   test("Monday reads calm morning, fried storm, quiet evening, late tail", () => {
@@ -63,6 +63,17 @@ describe("week grid", () => {
     const colored = renderWeek(days, true);
     expect(colored).toContain("\x1b[31m█\x1b[0m");
     expect(colored.replace(/\x1b\[\d+m/g, "")).toBe(text);
+  });
+
+  test("color mode dims the legend and totals lines, without losing the painted glyph's dim", () => {
+    // Mutation this pins: dropping the \x1b[2m/\x1b[0m dim wrapper around either
+    // line, or forgetting to re-emit \x1b[2m after the glyph's own \x1b[0m
+    // (which would leave "calm" etc. bright instead of dim).
+    const coloredLines = renderWeek(days, true).split("\n");
+    expect(coloredLines[9]).toMatch(/^\x1b\[2m/);
+    expect(coloredLines[9]).toMatch(/\x1b\[0m$/);
+    expect(coloredLines[9]).toContain("\x1b[32m░\x1b[0m\x1b[2m");
+    expect(coloredLines[10]).toBe("\x1b[2m  13h00 active   346 prompts   0 reports   100 decisions   5 sessions at once\x1b[0m");
   });
 });
 

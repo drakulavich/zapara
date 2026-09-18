@@ -2,6 +2,8 @@ import type { Day, HourBucket, Level } from "./types.ts";
 
 const GLYPH: Record<Level, string> = { Calm: "░", Warming: "▒", Heating: "▓", Fried: "█" };
 const ANSI: Record<Level, string> = { Calm: "32", Warming: "33", Heating: "35", Fried: "31" };
+const LEVEL_NAME: Record<Level, string> = { Calm: "calm", Warming: "warming", Heating: "heating", Fried: "fried" };
+const LEVELS: Level[] = ["Calm", "Warming", "Heating", "Fried"];
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const paint = (s: string, level: Level, color: boolean) => (color ? `\x1b[${ANSI[level]}m${s}\x1b[0m` : s);
@@ -18,13 +20,17 @@ export function renderWeek(days: Day[], color: boolean): string {
     const cells = d.buckets.map((b) => ` ${b.score ? paint(GLYPH[b.score.level], b.score.level, color) : "·"} `).join("");
     return `${label(d.date).padEnd(12)}${cells}${String(d.peak ?? "-").padStart(6)}${hm(d.activeMin).padStart(8)}`;
   });
-  const legend = "  · none  ░ calm 0-29  ▒ warming 30-59  ▓ heating 60-84  █ fried 85-100";
+  // A painted glyph's own \x1b[0m would cancel the line's outer dim, so in
+  // color mode re-emit \x1b[2m right after it to keep the label dim too.
+  const dimGlyph = (level: Level) => paint(GLYPH[level], level, color) + (color ? "\x1b[2m" : "");
+  const dim = (line: string) => (color ? `\x1b[2m${line}\x1b[0m` : line);
+  const legend = dim("  " + LEVELS.map((l) => `${dimGlyph(l)} ${LEVEL_NAME[l]}`).join("   "));
   const active = days.reduce((s, d) => s + d.activeMin, 0);
   const prompts = days.reduce((s, d) => s + d.totals.prompts, 0);
   const reports = days.reduce((s, d) => s + d.totals.reports, 0);
   const decisions = days.reduce((s, d) => s + d.totals.decisions, 0);
   const maxSessions = Math.max(0, ...days.map((d) => d.totals.maxSessions));
-  const totals = `week: active ${hm(active)}, prompts ${prompts}, reports ${reports}, decisions ${decisions}, max sessions ${maxSessions}`;
+  const totals = dim(`  ${hm(active)} active   ${prompts} prompts   ${reports} reports   ${decisions} decisions   ${maxSessions} sessions at once`);
   return [header, ...rows, "", legend, totals].join("\n");
 }
 

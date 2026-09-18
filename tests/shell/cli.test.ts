@@ -100,7 +100,11 @@ describe("cli", () => {
   });
 
   test("--help exits 0 and --version prints the version", async () => {
-    expect((await run("--help")).code).toBe(0);
+    const help = await run("--help");
+    expect(help.code).toBe(0);
+    // Mutation this pins: dropping the levels line from USAGE (the ranges
+    // moved out of the week footer and into --help).
+    expect(help.out).toContain("levels: calm 0-29");
     expect((await run("--version")).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 

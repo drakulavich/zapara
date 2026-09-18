@@ -25,7 +25,8 @@ function version(): string {
 const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
        zapara day [YYYY-MM-DD] [--explain]
        zapara card [--days N] [--to YYYY-MM-DD] [--out PATH.png|.webp|.html]
-flags: --json  --projects <dir>  --no-color  --help  --version`;
+flags: --json  --projects <dir>  --no-color  --help  --version
+levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
 
 type Args = { command: "week" | "day" | "card"; to: string; days: number; date: string | null; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
 
