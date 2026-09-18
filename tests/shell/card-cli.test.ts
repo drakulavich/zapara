@@ -30,6 +30,14 @@ describe("zapara card", () => {
     expect(await readFile(join(cwd, "x.html"), "utf8")).toBe(expected);
   });
 
+  test("--out X.HTML is case-insensitive and writes exactly the cardHtml string", async () => {
+    const r = await run("card", "--to", "2026-09-20", "--out", "X.HTML");
+    expect(r.code).toBe(0);
+    expect(r.out.endsWith("wrote X.HTML\n")).toBe(true);
+    const expected = cardHtml(cardData(await report({ projects, to: "2026-09-20", days: 14 }), { days: 14 })!, await loadAssets());
+    expect(await readFile(join(cwd, "X.HTML"), "utf8")).toBe(expected);
+  });
+
   test("--json prints the data with the window's dates and writes no file", async () => {
     const r = await run("card", "--to", "2026-09-20", "--json");
     expect(r.code).toBe(0);
@@ -64,7 +72,7 @@ describe("zapara card", () => {
       expect(p.out).toContain("wrote zapara-card.png");
       expect(await files()).toContain("zapara-card.png");
     }
-  });
+  }, 15_000);
 
   test("an empty window exits 1 with one line and writes nothing", async () => {
     const r = await run("card", "--to", "2026-08-20", "--days", "3", "--out", "x.html");

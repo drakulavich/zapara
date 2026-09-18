@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { cardData, sentenceText } from "./card.ts";
 import { cardHtml } from "./cardhtml.ts";
-import { localDate, windowBounds } from "./derive.ts";
+import { localDate } from "./derive.ts";
 import { loadAssets, renderCard } from "./image.ts";
 import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
@@ -85,7 +85,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   // The value is printed back verbatim in `wrote …`, so it must be one plain line:
   // no control character, and the message never quotes it.
   if (/[\x00-\x1f\x7f]/.test(a.out)) throw new UsageError("--out must not contain control characters");
-  if (!/\.(png|webp|html)$/.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
+  if (!/\.(png|webp|html)$/i.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
   if (!validDate(a.to)) throw new UsageError(`--to must be YYYY-MM-DD, got ${a.to}`);
   if (a.date !== null && !validDate(a.date)) throw new UsageError(`date must be YYYY-MM-DD, got ${a.date}`);
   return a;
@@ -106,14 +106,13 @@ async function main(): Promise<number> {
 }
 
 async function card(a: Args): Promise<number> {
-  const window = { to: a.to, days: a.days };
-  const data = cardData(await report({ projects: a.projects, ...window }), { days: a.days });
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days });
+  const data = cardData(days, { days: a.days });
   if (data === null) throw new Error(`no activity in the last ${a.days} days`);
   if (a.json) {
-    const { dates } = windowBounds(window);
     const round2 = (x: number): number => Math.round(x * 100) / 100;
     const json = {
-      from: dates[0], to: dates[dates.length - 1], days: data.days, character: data.character, name: data.name,
+      from: days[0]!.date, to: days[days.length - 1]!.date, days: data.days, character: data.character, name: data.name,
       sentence: sentenceText(data.sentence), motto: data.motto,
       shares: { conductor: round2(data.shares.conductor), supervisor: round2(data.shares.supervisor), marathoner: round2(data.shares.marathoner), nightOwl: round2(data.shares.nightOwl) },
       peak: data.peak, spectrum: data.spectrum, highlights: data.highlights,
