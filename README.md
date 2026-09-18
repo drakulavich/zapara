@@ -19,19 +19,20 @@ Claude Code writes a JSONL transcript for every session under `~/.claude/project
 # 1. Install Bun (skip if you have it). zapara needs 1.4 or newer.
 curl -fsSL https://bun.sh/install | bash
 
-# 2. Clone and install
+# 2. Clone, install, and put `zapara` on your PATH
 git clone git@github.com:drakulavich/zapara.git
 cd zapara
 bun install
+bun link
 
 # 3. Look at your week
-bun src/index.ts week
+zapara week
 
 # 4. Zoom into a day
-bun src/index.ts day --explain
+zapara day --explain
 ```
 
-There is no build step and no runtime dependency. Bun runs `src/index.ts` directly, and the one devDependency is TypeScript, for the typecheck. If you would rather type `zapara` than `bun src/index.ts`, run `bun link` once in the clone and the `bin` entry puts the command on your PATH.
+There is no build step and no runtime dependency. Bun runs `src/index.ts` directly, and the one devDependency is TypeScript, for the typecheck. `bun link` registers the clone's `bin` entry, so `zapara` runs this checkout; without it, `bun src/index.ts week` does the same thing.
 
 ## What it looks like
 
