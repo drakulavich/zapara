@@ -74,6 +74,24 @@ TZ=UTC bun src/index.ts day 2026-09-14 --projects tests/fixtures/busy-week --exp
 
 The grid is a fixed 98 columns wide, 100 with its hour header, and does not reflow, so it needs a terminal at least that wide.
 
+## Share a card
+
+`zapara card` turns your last two weeks into one picture: a character named after the kind of load that dominates your hours, the sentence behind it, the peak hour, the share of calm, warming, heating and fried hours, and three highlights. No dates, no hour totals, nothing that reads as a timesheet.
+
+```bash
+zapara card                    # writes zapara-card.png in the current directory
+zapara card --out card.webp    # WebP instead; --out card.html writes the page itself
+```
+
+```
+The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.
+wrote zapara-card.png
+```
+
+<p align="center"><img src="assets/card.png" alt="zapara card: The Marathoner, longest streak 7h53m, 68% of hours calm" width="800"></p>
+
+This one comes from the same `busy-week` fixture as the pictures above. The picture is taken by a headless browser that Bun ships with: WebKit on macOS, Google Chrome elsewhere, so on Linux or Windows install Chrome, or write `--out card.html` and open the page in any browser.
+
 ## Usage
 
 | Command | What it does |
@@ -83,11 +101,14 @@ The grid is a fixed 98 columns wide, 100 with its hour header, and does not refl
 | `zapara week --days 14 --to 2026-09-17` | Any window. `--days` takes an integer from 1 to 90. |
 | `zapara day` | Today, one row per hour that had activity. |
 | `zapara day 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
+| `zapara card` | The last 14 days as one shareable picture, `zapara-card.png` in the current directory. |
+| `zapara card --days 30 --out me.webp` | Any window from 1 to 90 days; `.png`, `.webp` or `.html` by extension. `--json` prints the card's data instead. |
 
 | Flag | What it does |
 |---|---|
 | `--json` | Print the whole window as one JSON document instead of a table. |
 | `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
+| `--out <path>` | Where `card` writes; the extension picks the format. |
 | `--no-color` | Plain glyphs with no ANSI codes. `NO_COLOR` in the environment does the same. |
 | `--help` | Usage, exit 0. |
 | `--version` | The version from `package.json`, exit 0. |
@@ -148,7 +169,7 @@ Every column of the day table, and the transcript record behind it.
 
 zapara reads `~/.claude/projects/**/*.jsonl`, taking only files modified inside the window and skipping subagent transcripts under `subagents/`. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
 
-No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written, and nothing is installed into Claude Code.
+No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card you ask for, and nothing is installed into Claude Code.
 
 ## Limits
 
@@ -159,6 +180,7 @@ No message text, prompt length, file path or session title is kept, written or p
 - The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
 - The 98-column grid does not adapt to a narrow terminal.
 - A pipe always gets JSON, and there is no flag to ask for text instead.
+- The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
 
 ## Development
 
