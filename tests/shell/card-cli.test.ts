@@ -65,7 +65,7 @@ describe("zapara card", () => {
   });
 
   test("a pipe without --json still writes the picture", async () => {
-    // Rule: card ignores the TTY default that makes week and day print JSON in a pipe.
+    // Rule: card ignores the TTY default that makes the grid and a day print JSON in a pipe.
     const r = await run("card", "--to", "2026-09-20", "--out", "p.html");
     expect(r.out.endsWith("wrote p.html\n")).toBe(true);
     expect(await files()).toEqual(["p.html"]);
@@ -104,7 +104,7 @@ describe("zapara card", () => {
     }
   });
 
-  test("--out on week and --explain on card are usage errors", async () => {
+  test("--out on the grid and --explain on card are usage errors", async () => {
     expect((await run("--out", "x.png")).code).toBe(2);
     expect((await run("card", "--explain")).code).toBe(2);
     expect((await run("card", "--days", "91", "--out", "x.html")).code).toBe(2);

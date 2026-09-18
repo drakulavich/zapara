@@ -79,11 +79,9 @@ function resolveDate(what: string, s: string, now: Date): string {
 
 // Calendar days from one date to another, inclusive; UTC arithmetic so a DST day is still one day.
 function spanDays(from: string, to: string): number {
-  const [f, t] = [from, to].map((s) => DATE.exec(s)!.slice(1).map(Number));
-  return Math.round((Date.UTC(t![0]!, t![1]! - 1, t![2]!) - Date.UTC(f![0]!, f![1]! - 1, f![2]!)) / 86_400_000) + 1;
+  const utc = (s: string): number => { const [y = 0, m = 0, d = 0] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((utc(to) - utc(from)) / 86_400_000) + 1;
 }
-
-const VALUE_FLAGS = new Set(["--projects", "--from", "--to", "--days", "--out"]);
 
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
   const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: "zapara-card.png", projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
@@ -95,10 +93,11 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     let arg = argv[i]!;
-    // `--days=30` is `--days 30`; the inline value is used only by a flag that takes one.
+    // `--days=30` is `--days 30`. A flag that takes no value refuses an inline one.
     let inline: string | null = null;
     const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
-    if (eq > 0 && VALUE_FLAGS.has(arg.slice(0, eq))) { inline = arg.slice(eq + 1); arg = arg.slice(0, eq); }
+    if (eq > 0) { inline = arg.slice(eq + 1); arg = arg.slice(0, eq); }
+    const bare = (): void => { if (inline !== null) throw new UsageError(`unknown flag${named(argv[i]!)}`); };
     // A missing value or one that looks like another flag is a usage error,
     // never treated as this flag's value (e.g. `--projects --json`). Only --days
     // takes a negative number as a value, so `--days -1` reaches the range check.
@@ -110,12 +109,12 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
     };
     switch (arg) {
       case "--help":
-      case "-h": throw new HelpRequested();
+      case "-h": bare(); throw new HelpRequested();
       case "--version":
-      case "-V": throw new VersionRequested();
-      case "--json": jsonFlag = true; break;
-      case "--explain": a.explain = true; break;
-      case "--no-color": a.color = false; break;
+      case "-V": bare(); throw new VersionRequested();
+      case "--json": bare(); jsonFlag = true; break;
+      case "--explain": bare(); a.explain = true; break;
+      case "--no-color": bare(); a.color = false; break;
       case "--projects": a.projects = value(); break;
       case "--from": from = value(); break;
       case "--to": to = value(); break;
