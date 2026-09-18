@@ -185,7 +185,7 @@ Fried. In a TTY the glyphs are colored green / yellow / magenta / red; in a pipe
 with `--no-color` / `NO_COLOR` they are plain. Below the grid, dimmed in a TTY: a
 legend line (the four level glyphs and names, no ranges; the ranges are in
 `--help`) and one totals line (active time, prompts, reports, decisions, sessions
-at once).
+at once; counts past 9 999 print compact, `12k`, `1.2M`).
 
 `day` prints one row per bucket that has activity:
 

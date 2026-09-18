@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { renderDay, renderJson, renderWeek } from "../../src/render.ts";
 import { report } from "../../src/report.ts";
+import type { Day, HourBucket } from "../../src/types.ts";
 
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
 const days = await report({ projects, to: "2026-09-20", days: 7 });
@@ -74,6 +75,30 @@ describe("week grid", () => {
     expect(coloredLines[9]).toMatch(/\x1b\[0m$/);
     expect(coloredLines[9]).toContain("\x1b[32m░\x1b[0m\x1b[2m");
     expect(coloredLines[10]).toBe("\x1b[2m  13h00 active   346 prompts   0 reports   100 decisions   5 sessions at once\x1b[0m");
+  });
+
+  test("the totals line stays inside 100 columns by compacting large counts", () => {
+    // Mutation this pins: dropping formatCount from any of the four counts
+    // (prompts, reports, decisions, sessions at once) in the totals line.
+    const emptyBucket = (hour: number): HourBucket => ({
+      hour, score: null, sessions: 0, prompts: 0, reports: 0, outputTokens: 0, interrupts: 0, rejects: 0,
+      questions: 0, plans: 0, modeSwitches: 0, decisions: 0, contextSwitches: 0, activeMin: 0, streakMin: 0, lateNight: false,
+    });
+    const emptyBuckets = (): HourBucket[] => Array.from({ length: 24 }, (_, h) => emptyBucket(h));
+    const emptyDay = (date: string): Day => ({ date, peak: null, mean: null, activeMin: 0, buckets: emptyBuckets(), totals: { prompts: 0, reports: 0, outputTokens: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0, decisions: 0, contextSwitches: 0, maxSessions: 0 } });
+    // One day carries every huge value; the other six stay empty, so the week
+    // sums (prompts, reports, decisions) equal that day's totals exactly and
+    // maxSessions (a max, not a sum) is unaffected by how many days hold it.
+    const hugeDay: Day = { ...emptyDay("2026-09-14"), activeMin: 999_999, totals: { prompts: 999_999_999, reports: 999_999_999, outputTokens: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0, decisions: 999_999_999, contextSwitches: 0, maxSessions: 999_999_999 } };
+    const hugeDays = [hugeDay, emptyDay("2026-09-15"), emptyDay("2026-09-16"), emptyDay("2026-09-17"), emptyDay("2026-09-18"), emptyDay("2026-09-19"), emptyDay("2026-09-20")];
+    const hugeLines = renderWeek(hugeDays, false).split("\n");
+    expect(hugeLines[9]).toBe("  ░ calm   ▒ warming   ▓ heating   █ fried");
+    expect(hugeLines[10]).toBe("  16666h39 active   999M prompts   999M reports   999M decisions   999M sessions at once");
+    expect(hugeLines[9]!.length).toBeLessThanOrEqual(100);
+    expect(hugeLines[10]!.length).toBeLessThanOrEqual(100);
+    // Values under 10 000 (busy-week's) are unaffected by the compact format.
+    expect(lines[9]).toBe("  ░ calm   ▒ warming   ▓ heating   █ fried");
+    expect(lines[10]).toBe("  13h00 active   346 prompts   0 reports   100 decisions   5 sessions at once");
   });
 });
 
