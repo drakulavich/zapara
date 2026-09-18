@@ -6,8 +6,8 @@
 # fixture's. scripts/demo-fixture.ts builds a throwaway directory whose bin/zapara runs
 # this checkout with --projects pinned to the fixture, which is what makes that true.
 #
-# Git LFS holds assets/demo.mp4 and assets/demo.webp, so run `git lfs install` once per
-# clone before touching either.
+# assets/demo.mp4 and assets/demo.webp are plain files in git, not LFS, so a clone needs
+# nothing extra before touching either.
 #
 # 1. Record the mp4.
 #
