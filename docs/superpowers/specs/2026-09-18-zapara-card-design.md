@@ -216,9 +216,11 @@ the repo link: Conductor `#8b5cf6` / `#c4b5fd`, Supervisor `#22d3ee` /
 
 The table is the complete description of the look; the template is written
 from it. `docs/superpowers/specs/assets/2026-09-18-zapara-card-reference.webp`
-is the owner-approved render of the design mock built from this table with
-the `busy-week` numbers (2400×1260, tracked by LFS), kept for comparing the
-implementation's output by eye. It is a reference, not an input: nothing
+is the owner-approved render of the design mock built from this table
+(2400×1260, tracked by LFS), kept for comparing the implementation's output
+by eye. It shows the Conductor with the `busy-week` peak and spectrum and
+the Conductor's own highlights, not the `busy-week` card itself, which is
+the Marathoner's. It is a reference, not an input: nothing
 reads it.
 
 ### Characters
@@ -310,8 +312,10 @@ Scenarios:
   pinned; `peak` pinned; the spectrum pinned (22 active hours: 15 calm, 3
   warming, 1 heating, 3 fried → 68 / 14 / 4 / 14, and a test that the four
   numbers sum to 100); the three highlights pinned by key, value and caption
-  (Conductor: peakSessions `5`, contextSwitches `54`, then longestStreak
-  as the largest remaining norm); the four shares pinned to two decimals.
+  (the fixture's long calm days make it the Marathoner, shares 0.31 / 0.19 /
+  0.81 / 0.23: longestStreak `7h53m`, interrupts `80`, then contextSwitches
+  `54` as the largest remaining norm, 1.2 against peakSessions' 1.0); the
+  four shares pinned to two decimals.
 - One small fixture per character, each built so that one share clearly
   wins, pinning the character, the sentence's numbers and the two owned
   highlights. A tie fixture (two equal shares) pins the tie order. A fixture
@@ -324,7 +328,7 @@ Scenarios:
   once each; the peak pill carries `87 · Fried` in the fried class; the
   spectrum bar has exactly four segments whose inline widths are `68%`,
   `14%`, `4%`, `14%`; three highlight panels in the pinned order; the
-  character box carries the conductor's class; the sheet and all four fonts
+  character box carries the marathoner's class; the sheet and all four fonts
   are embedded as `data:` URIs; no `http:`, `https:` or `//` reference
   anywhere; no date string (`2026-`) anywhere in the page; the page's
   SHA-256 is pinned as a golden value with a comment naming the command that
