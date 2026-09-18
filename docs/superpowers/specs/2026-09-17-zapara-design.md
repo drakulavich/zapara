@@ -173,9 +173,9 @@ window: --days N | --to <date> | --from <date> --to <date>
 common flags: --json  --projects <dir>  --no-color  -h/--help  -V/--version
 ```
 
-The window is one of: `--days N` ending today; `--to <date>`, 7 days ending
-there; `--from <date> --to <date>`, both inclusive, at most 90 days; `--from`
-alone runs to today. `--from` with `--days` is an error: the dates set the
+The window is one of: `--days N` ending today, or ending at `--to <date>`
+when both are given; `--to <date>` alone, 7 days ending there; `--from <date>
+--to <date>`, both inclusive, at most 90 days; `--from` alone runs to today. `--from` with `--days` is an error: the dates set the
 length. A date is `YYYY-MM-DD`, `today` or `yesterday`, in every position,
 including the day's name; `--days`, `--from` and `--to` on a named day are
 errors. `--days=30` is accepted beside `--days 30`. (Until 0.2.0 the grid

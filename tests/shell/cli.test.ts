@@ -20,6 +20,8 @@ beforeAll(async () => {
 });
 afterAll(() => rm(root, { recursive: true, force: true }));
 
+const utcDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
 async function run(...args: string[]): Promise<{ code: number; out: string; err: string }> {
   const p = Bun.spawn(["bun", CLI, "--projects", root, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
@@ -88,6 +90,22 @@ describe("cli", () => {
       expect(lines[0]!.startsWith("zapara: ")).toBe(true);
       expect(lines[1]).toBe("run 'zapara --help' for usage");
     }
+    // The window rules each have their own line.
+    const first = async (...args: string[]) => (await run(...args)).err.split("\n")[0];
+    expect(await first("--from", "2026-09-10", "--days", "3")).toBe("zapara: --from sets the length; drop --days");
+    expect(await first("--from", "2026-09-20", "--to", "2026-09-14")).toBe("zapara: --from 2026-09-20 is after --to 2026-09-14");
+    expect(await first("--from", "2026-06-01", "--to", "2026-09-14")).toBe("zapara: --from 2026-06-01 to 2026-09-14 is 106 days; the most is 90");
+    expect(await first("today", "--days", "3")).toBe("zapara: --days, --from and --to do not apply to a named day");
+    expect(await first("week")).toBe("zapara: unknown command week (try today, yesterday, a date or card)");
+  });
+
+  test("a usage error never echoes a path or an escape, only a short plain value", async () => {
+    const first = async (...args: string[]) => (await run(...args)).err.split("\n")[0];
+    expect(await first(join(root, "secret"))).toBe("zapara: unknown command (try today, yesterday, a date or card)");
+    expect(await first("--to", "/Users/someone/2026-09-14")).toBe("zapara: --to must be YYYY-MM-DD, today or yesterday");
+    expect(await first("--days", "\x1b[31m7")).toBe("zapara: --days must be 1..90");
+    expect(await first("--bogus\n")).toBe("zapara: unknown flag");
+    expect(await first("--days", "seven")).toBe("zapara: --days must be 1..90, got seven");
   });
 
   test("the window: --days ends today, --to ends there, --from sets the length", async () => {
@@ -96,17 +114,22 @@ describe("cli", () => {
     expect(await dates("--from", "2026-09-14", "--to", "2026-09-14")).toEqual(["2026-09-14"]);
     expect(await dates("--to", "2026-09-14")).toHaveLength(7);
     expect(await dates("--days=2", "--to=2026-09-14")).toEqual(["2026-09-13", "2026-09-14"]);
-    const today = new Date().toISOString().slice(0, 10); // TZ=UTC in run()
-    expect((await dates("--days", "1"))[0]).toBe(today);
-    expect((await dates("--from", today)).length).toBe(1);
+    // The CLI reads its own clock (TZ=UTC in run()); bracketing the call keeps a
+    // run that straddles midnight from failing.
+    const before = utcDay(0);
+    const only = (await dates("--days", "1"))[0];
+    expect([before, utcDay(0)]).toContain(only);
+    expect((await dates("--from", only)).length).toBe(1);
   });
 
   test("today and yesterday name a day, in the local zone", async () => {
-    const utcDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
-    expect(JSON.parse((await run("today", "--json")).out).date).toBe(utcDay(0));
-    expect(JSON.parse((await run("yesterday", "--json")).out).date).toBe(utcDay(-1));
-    // --to accepts the same words.
-    expect(JSON.parse((await run("--to", "yesterday", "--days", "1", "--json")).out)[0].date).toBe(utcDay(-1));
+    for (const [word, offset] of [["today", 0], ["yesterday", -1]] as const) {
+      const before = utcDay(offset);
+      const date = JSON.parse((await run(word, "--json")).out).date;
+      expect([before, utcDay(offset)]).toContain(date);
+      // --to accepts the same words.
+      expect(JSON.parse((await run("--to", word, "--days", "1", "--json")).out)[0].date).toBe(date);
+    }
   });
 
   test("missing projects directory exits 1 with one line, no path and no stack trace", async () => {
@@ -130,6 +153,7 @@ describe("cli", () => {
     expect(help.out.split("\n").every((l) => l.length <= 80)).toBe(true);
     expect((await run("--version")).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
     expect((await run("-V")).out).toBe((await run("--version")).out);
+    expect((await run("-h")).out).toBe(help.out);
   });
 
   test("--help and --version are only recognized at a flag position, not as a value", async () => {

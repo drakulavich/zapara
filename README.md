@@ -102,7 +102,7 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 |---|---|
 | `zapara` | The last 7 days ending today, one cell per hour, in local time. |
 | `zapara --days 30` | The last 30 days. `--days` takes an integer from 1 to 90. |
-| `zapara --from 2026-09-01 --to 2026-09-14` | Any window, both days inclusive, at most 90 days. `--to` alone is 7 days ending there. |
+| `zapara --from 2026-09-01 --to 2026-09-14` | Any window, both days inclusive, at most 90 days. `--to` alone is 7 days ending there, `--days 30 --to 2026-09-14` is 30 days ending there. |
 | `zapara today` | Today, one row per hour that had activity. `yesterday` likewise. |
 | `zapara 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
 | `zapara card` | The last 14 days as one shareable picture, `zapara-card.png` in the current directory. |

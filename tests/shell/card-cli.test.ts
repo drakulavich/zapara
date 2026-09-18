@@ -55,6 +55,15 @@ describe("zapara card", () => {
     expect(await files()).toEqual([]);
   });
 
+  test("card takes the grid's window flags: --from/--to set from, to and days", async () => {
+    const j = JSON.parse((await run("card", "--from", "2026-09-13", "--to", "2026-09-14", "--json")).out);
+    expect([j.from, j.to, j.days]).toEqual(["2026-09-13", "2026-09-14", 2]);
+    const k = JSON.parse((await run("card", "--days", "3", "--to", "2026-09-14", "--json")).out);
+    expect([k.from, k.to, k.days]).toEqual(["2026-09-12", "2026-09-14", 3]);
+    // The window changes the picture: the 14-day card reads 7h53m (the test above); Monday alone does not.
+    expect(j.sentence).not.toContain("7h53m");
+  });
+
   test("a pipe without --json still writes the picture", async () => {
     // Rule: card ignores the TTY default that makes week and day print JSON in a pipe.
     const r = await run("card", "--to", "2026-09-20", "--out", "p.html");

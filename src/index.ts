@@ -27,7 +27,7 @@ const USAGE = `usage: zapara [window]                 the last 7 days, one cell 
        zapara card [window] [--out]    the last 14 days as one picture
 
 window:
-  --days <N>        the last N days, 1..90
+  --days <N>        the last N days, 1..90; with --to, N days ending there
   --from <date>     first day; --to <date> last day, default today
                     a date is YYYY-MM-DD, today or yesterday
 
@@ -54,6 +54,13 @@ class VersionRequested extends Error {}
 
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+// A usage error quotes the offending value only when it is short, printable ASCII
+// with no path separator: the CLI never prints a filesystem path or an escape,
+// not even one the person typed.
+const quotable = (v: string): boolean => /^[\x21-\x7e]{1,24}$/.test(v) && !/[\/\\]/.test(v);
+const got = (v: string): string => (quotable(v) ? `, got ${v}` : "");
+const named = (v: string): string => (quotable(v) ? ` ${v}` : "");
+
 function validDate(s: string): boolean {
   const m = DATE.exec(s);
   if (!m) return false;
@@ -66,7 +73,7 @@ function validDate(s: string): boolean {
 function resolveDate(what: string, s: string, now: Date): string {
   if (s === "today") return localDate(now);
   if (s === "yesterday") return localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
-  if (!validDate(s)) throw new UsageError(`${what} must be YYYY-MM-DD, today or yesterday, got ${s}`);
+  if (!validDate(s)) throw new UsageError(`${what} must be YYYY-MM-DD, today or yesterday${got(s)}`);
   return s;
 }
 
@@ -115,23 +122,23 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
       case "--days": days = value(true); break;
       case "--out": a.out = value(); outGiven = true; break;
       default:
-        if (arg.startsWith("-")) throw new UsageError(`unknown flag ${arg}`);
+        if (arg.startsWith("-")) throw new UsageError(`unknown flag${named(arg)}`);
         positional.push(arg);
     }
   }
-  if (positional.length > 1) throw new UsageError(`unexpected argument ${positional[1]}`);
+  if (positional.length > 1) throw new UsageError(`unexpected argument${named(positional[1]!)}`);
   const [word] = positional;
   if (word === undefined) a.command = "grid";
   else if (word === "card") a.command = "card";
   else if (word === "today" || word === "yesterday" || DATE.test(word)) { a.command = "day"; a.to = resolveDate("date", word, now); a.days = 1; }
-  else throw new UsageError(`unknown command ${word} (try today, yesterday, a date or card)`);
+  else throw new UsageError(`unknown command${named(word)} (try today, yesterday, a date or card)`);
 
   if (a.command === "day") {
     if (days !== null || from !== null || to !== null) throw new UsageError("--days, --from and --to do not apply to a named day");
   } else {
     // The window: --days ending today, or --from/--to; both at once is one length too many.
     if (from !== null && days !== null) throw new UsageError("--from sets the length; drop --days");
-    if (days !== null && (!/^\d+$/.test(days) || Number(days) < 1 || Number(days) > 90)) throw new UsageError(`--days must be 1..90, got ${days}`);
+    if (days !== null && (!/^\d+$/.test(days) || Number(days) < 1 || Number(days) > 90)) throw new UsageError(`--days must be 1..90${got(days)}`);
     if (to !== null) a.to = resolveDate("--to", to, now);
     if (from !== null) {
       const first = resolveDate("--from", from, now);
