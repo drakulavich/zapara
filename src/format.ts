@@ -15,3 +15,6 @@ function ladder(n: number): string {
 }
 export const formatCount = (n: number): string => (n < 10_000 ? String(n) : ladder(n));
 export const formatTokens = (n: number): string => (n < 1000 ? String(n) : ladder(n));
+
+// "1 session", "5 sessions": a count with its noun, singular only for exactly one.
+export const plural = (n: number, one: string, many = `${one}s`, count = formatCount): string => `${count(n)} ${n === 1 ? one : many}`;

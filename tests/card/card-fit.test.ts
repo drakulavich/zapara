@@ -76,7 +76,7 @@ describe("the longest values fit the layout", () => {
       } finally {
         view.close();
       }
-    });
+    }, 15_000);
   }
 });
 

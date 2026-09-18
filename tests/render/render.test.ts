@@ -81,6 +81,12 @@ describe("week grid", () => {
     expect(coloredLines[10]).toBe("\x1b[2m  13h00 active   346 prompts   0 reports   100 decisions   5 sessions at once\x1b[0m");
   });
 
+  test("the totals line uses the singular for exactly one", () => {
+    const one = analyze([transcript([prompt("2026-09-14T13:00:00.000Z", "aaaaaaaa-1111-4111-8111-111111111111")])], { to: "2026-09-14", days: 1 });
+    const totals = renderWeek(one, false).split("\n")[4]!;
+    expect(totals).toMatch(/ active   1 prompt   0 reports   0 decisions   1 session at once$/);
+  });
+
   test("the totals line stays inside 100 columns by compacting large counts", () => {
     // Mutation this pins: dropping formatCount from any of the four counts
     // (prompts, reports, decisions, sessions at once) in the totals line.

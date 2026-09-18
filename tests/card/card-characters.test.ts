@@ -22,6 +22,13 @@ const marathoner = Array.from({ length: 36 }, (_, i) => prompt(at(10 + Math.floo
 const nightOwl = [prompt(at(1, 0), sid("n")), prompt(at(1, 5), sid("n"))];
 
 describe("one character per fixture", () => {
+  test("exactly one session and no switches read in the singular", () => {
+    // One prompt in one session: pace alone gives the Conductor a share; every other share is 0.
+    const c = cardOf([prompt(at(10, 0), sid("a"))]);
+    expect(c.character).toBe("conductor");
+    expect(sentenceText(c.sentence)).toBe("1 session at once, 0 context switches in one hour.");
+  });
+
   test("Conductor: sessions at once and switches in one hour", () => {
     const c = cardOf(conductor);
     expect(c.character).toBe("conductor");
