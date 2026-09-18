@@ -313,7 +313,7 @@ Scenarios:
   warming, 1 heating, 3 fried → 68 / 14 / 4 / 14, and a test that the four
   numbers sum to 100); the three highlights pinned by key, value and caption
   (the fixture's long calm days make it the Marathoner, shares 0.31 / 0.19 /
-  0.81 / 0.23: longestStreak `7h53m`, interrupts `80`, then contextSwitches
+  0.81 / 0.14: longestStreak `7h53m`, interrupts `80`, then contextSwitches
   `54` as the largest remaining norm, 1.2 against peakSessions' 1.0); the
   four shares pinned to two decimals.
 - One small fixture per character, each built so that one share clearly
