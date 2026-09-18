@@ -41,8 +41,10 @@ when a test or CI step comes to catch it.
 - **Privacy contract.** Message text is compared against fixed markers and
   discarded. No text, prompt length, file path or title is kept, written or
   printed. A change to this needs the spec updated first.
-- **Weights and norms live in one constant in `src/score.ts`.** Calibration is
-  one diff there plus a CHANGELOG line.
+- **Index weights and norms live in one constant in `src/score.ts`.** Calibration
+  is one diff there plus a CHANGELOG line. The card's ranking norms
+  (`CARD_NORMS` in `src/card.ts`) order highlights on a picture and never enter
+  the index.
 
 ## Mistakes made here
 
