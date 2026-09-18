@@ -139,8 +139,14 @@ describe("cli", () => {
     const r = await run("week", "--days", "-1");
     expect(r.code).toBe(2);
     expect(r.err.split("\n")[0]).toBe("zapara: --days must be 1..90, got -1");
-    // A real flag in the value position is still a missing value.
+    // A real flag in the value position is still a missing value, and no other
+    // flag takes a negative number: -1 is not a directory, a date or a file name.
     expect((await run("week", "--days", "--json")).err.split("\n")[0]).toBe("zapara: --days needs a value");
+    for (const [flag, cmd] of [["--projects", "week"], ["--to", "week"], ["--out", "card"]] as const) {
+      const bad = await run(cmd, flag, "-1");
+      expect(bad.code).toBe(2);
+      expect(bad.err.split("\n")[0]).toBe(`zapara: ${flag} needs a value`);
+    }
   });
 
   test("a projects directory that cannot be read says so, without a path", async () => {
