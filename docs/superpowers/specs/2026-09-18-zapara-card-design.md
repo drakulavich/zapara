@@ -175,6 +175,7 @@ JetBrains Mono.
 | Spectrum | block at (372, 310), width 768: title `LOAD SPECTRUM · SHARE OF ACTIVE HOURS` (Inter 600 12 px, letter-spacing 2.5 px, `#585d80`), then a 16-px bar with radius 8 made of the four level segments in order calm, warming, heating, fried, widths in percent, 3-px gaps, segments of 0 % omitted; heating and fried segments glow in their own colour; then a legend row (14 px below, Inter 13 px muted): a dot, the level name and its percent in white |
 | Highlights | a row at (372, 420): three panels 245×82 with 16-px gaps, radius 14, 4 % white fill, 1-px 8 % white border, 1-px inner top highlight; value Inter 800 30 px, letter-spacing −1 px, tabular figures, with the unit after it in Inter 600 16 px muted; caption below (8 px gap) Inter 600 12 px, letter-spacing 2 px, uppercase, muted |
 | Brand | at (72, 520): a 10-px dot with a light-accent-to-cyan gradient and glow, then `zapara` in Inter 700 20 px; below it at (72, 552) `github.com/drakulavich/zapara` in JetBrains Mono 13 px `#585d80` |
+| Source line | at (372, 590), Inter 13 px `#585d80`: `Computed locally from your Claude Code transcripts. Nothing leaves your machine.` with `locally` in muted Inter 600 |
 | Tag | right-aligned to x = 1140 at y = 590, Inter 13 px, letter-spacing 2 px, uppercase, `#585d80`: `keep your head cold` |
 
 Level colours: calm `#7ee2a3`, warming `#fbd77a`, heating `#c4a0ff`, fried
