@@ -27,8 +27,8 @@ async function run(...args: string[]): Promise<{ code: number; out: string; err:
 }
 
 describe("cli", () => {
-  test("week --json prints one entry per day with the hour buckets", async () => {
-    const r = await run("week", "--to", "2026-09-14", "--days", "2", "--json");
+  test("--to and --days print one entry per day with the hour buckets", async () => {
+    const r = await run("--to", "2026-09-14", "--days", "2", "--json");
     expect(r.code).toBe(0);
     const days = JSON.parse(r.out);
     expect(days.map((d: { date: string }) => d.date)).toEqual(["2026-09-13", "2026-09-14"]);
@@ -47,8 +47,8 @@ describe("cli", () => {
     expect(b.score.index).toBe(11);
   });
 
-  test("day --json prints one day", async () => {
-    const r = await run("day", "2026-09-14", "--json");
+  test("a date names one day", async () => {
+    const r = await run("2026-09-14", "--json");
     expect(r.code).toBe(0);
     const d = JSON.parse(r.out);
     expect(d.date).toBe("2026-09-14");
@@ -58,39 +58,60 @@ describe("cli", () => {
   });
 
   test("stdout in a pipe is JSON even without --json", async () => {
-    const r = await run("day", "2026-09-14");
+    const r = await run("2026-09-14");
     expect(() => JSON.parse(r.out)).not.toThrow();
   });
 
-  test("day with --explain in a pipe still prints JSON", async () => {
-    const r = await run("day", "2026-09-14", "--explain");
+  test("a day with --explain in a pipe still prints JSON", async () => {
+    const r = await run("2026-09-14", "--explain");
     expect(() => JSON.parse(r.out)).not.toThrow();
   });
 
   test("a window with no data prints empty days and exits 0", async () => {
-    const r = await run("week", "--to", "2026-08-20", "--days", "1", "--json");
+    const r = await run("--to", "2026-08-20", "--days", "1", "--json");
     expect(r.code).toBe(0);
     expect(JSON.parse(r.out)[0].peak).toBeNull();
   });
 
-  test("bad date, bad --days, unknown flag, unknown command and --explain on week exit 2 with one line", async () => {
+  test("a usage error is one line and a hint, exit 2, nothing on stdout", async () => {
     for (const args of [
-      ["day", "2026-13-40"], ["day", "2026-02-30"], ["day", "14.09.2026"],
-      ["week", "--days", "0"], ["week", "--days", "91"], ["week", "--bogus"], ["month"],
-      ["--projects", "--json"], ["week", "--to", "--days", "3"], ["week", "--days"],
-      ["week", "--explain"],
+      ["2026-13-40"], ["2026-02-30"], ["14.09.2026"], ["month"], ["week"], ["day"],
+      ["--days", "0"], ["--days", "91"], ["--bogus"], ["--projects", "--json"], ["--to", "--days", "3"], ["--days"],
+      ["--explain"], ["today", "--days", "3"], ["yesterday", "--to", "2026-09-14"],
+      ["--from", "2026-09-10", "--days", "3"], ["--from", "2026-09-20", "--to", "2026-09-14"], ["--from", "2026-06-01", "--to", "2026-09-14"],
+      ["--to", "tomorrow"], ["--json=1"], ["today", "card"],
     ]) {
       const r = await run(...args);
-      expect(r.code).toBe(2);
-      expect(r.out).toBe("");
-      expect(r.err.split("\n")[0]!.startsWith("zapara: ")).toBe(true);
-      expect(r.err).toContain("usage");
+      expect([args.join(" "), r.code, r.out]).toEqual([args.join(" "), 2, ""]);
+      const lines = r.err.trimEnd().split("\n");
+      expect(lines).toHaveLength(2);
+      expect(lines[0]!.startsWith("zapara: ")).toBe(true);
+      expect(lines[1]).toBe("run 'zapara --help' for usage");
     }
+  });
+
+  test("the window: --days ends today, --to ends there, --from sets the length", async () => {
+    const dates = async (...args: string[]) => JSON.parse((await run(...args, "--json")).out).map((d: { date: string }) => d.date);
+    expect(await dates("--from", "2026-09-13", "--to", "2026-09-14")).toEqual(["2026-09-13", "2026-09-14"]);
+    expect(await dates("--from", "2026-09-14", "--to", "2026-09-14")).toEqual(["2026-09-14"]);
+    expect(await dates("--to", "2026-09-14")).toHaveLength(7);
+    expect(await dates("--days=2", "--to=2026-09-14")).toEqual(["2026-09-13", "2026-09-14"]);
+    const today = new Date().toISOString().slice(0, 10); // TZ=UTC in run()
+    expect((await dates("--days", "1"))[0]).toBe(today);
+    expect((await dates("--from", today)).length).toBe(1);
+  });
+
+  test("today and yesterday name a day, in the local zone", async () => {
+    const utcDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+    expect(JSON.parse((await run("today", "--json")).out).date).toBe(utcDay(0));
+    expect(JSON.parse((await run("yesterday", "--json")).out).date).toBe(utcDay(-1));
+    // --to accepts the same words.
+    expect(JSON.parse((await run("--to", "yesterday", "--days", "1", "--json")).out)[0].date).toBe(utcDay(-1));
   });
 
   test("missing projects directory exits 1 with one line, no path and no stack trace", async () => {
     const missing = join(root, "nope");
-    const p = Bun.spawn(["bun", CLI, "--projects", missing, "week", "--json"], { stdout: "pipe", stderr: "pipe" });
+    const p = Bun.spawn(["bun", CLI, "--projects", missing, "--json"], { stdout: "pipe", stderr: "pipe" });
     const [err, code] = await Promise.all([new Response(p.stderr).text(), p.exited]);
     expect(code).toBe(1);
     expect(err.trim().split("\n")).toHaveLength(1);
@@ -105,16 +126,19 @@ describe("cli", () => {
     // Mutation this pins: dropping the levels line from USAGE (the ranges
     // moved out of the week footer and into --help).
     expect(help.out).toContain("levels: calm 0-29");
+    for (const line of ["zapara today|yesterday|<date>", "zapara card [window]", "--from <date>", "--days <N>"]) expect(help.out).toContain(line);
+    expect(help.out.split("\n").every((l) => l.length <= 80)).toBe(true);
     expect((await run("--version")).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+    expect((await run("-V")).out).toBe((await run("--version")).out);
   });
 
   test("--help and --version are only recognized at a flag position, not as a value", async () => {
-    expect((await run("week", "--help")).code).toBe(0);
+    expect((await run("card", "--help")).code).toBe(0);
     // "--help" here is consumed as --to's value, not treated as the --help flag.
-    const bad = await run("week", "--to", "--help");
+    const bad = await run("--to", "--help");
     expect(bad.code).toBe(2);
     expect(bad.out).toBe("");
-    expect(bad.err).toContain("usage");
+    expect(bad.err).toContain("--to needs a value");
   });
 
   test("a symlink loop under the projects root is skipped, and every other transcript still counts", async () => {
@@ -125,7 +149,7 @@ describe("cli", () => {
         { path: "-Users-me-tangled/b.jsonl", lines: [prompt("2026-09-14T13:05:00.000Z", B)], mtime: "2026-09-14T13:05:00.000Z" },
       ]);
       await symlink(".", join(dir, "-Users-me-tangled/loop"));
-      const p = Bun.spawn(["bun", CLI, "--projects", dir, "day", "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
       expect(err).toBe("");
       expect(code).toBe(0);
@@ -138,12 +162,12 @@ describe("cli", () => {
   test("--days -1 is a bad range, not a missing value", async () => {
     // Code and first stderr line together, so a failure names both.
     const first = async (...args: string[]) => { const r = await run(...args); return [r.code, r.err.split("\n")[0]]; };
-    expect(await first("week", "--days", "-1")).toEqual([2, "zapara: --days must be 1..90, got -1"]);
+    expect(await first("--days", "-1")).toEqual([2, "zapara: --days must be 1..90, got -1"]);
     // A real flag in the value position is still a missing value, and no other
     // flag takes a negative number: -1 is not a directory, a date or a file name.
-    expect(await first("week", "--days", "--json")).toEqual([2, "zapara: --days needs a value"]);
-    for (const [flag, cmd] of [["--projects", "week"], ["--to", "week"], ["--out", "card"]] as const) {
-      expect(await first(cmd, flag, "-1")).toEqual([2, `zapara: ${flag} needs a value`]);
+    expect(await first("--days", "--json")).toEqual([2, "zapara: --days needs a value"]);
+    for (const [flag, cmd] of [["--projects", ""], ["--to", ""], ["--from", ""], ["--out", "card"]] as const) {
+      expect(await first(...(cmd ? [cmd] : []), flag, "-1")).toEqual([2, `zapara: ${flag} needs a value`]);
     }
   });
 
@@ -152,7 +176,7 @@ describe("cli", () => {
     const dir = await mkdtemp(join(tmpdir(), "zapara-cli-noread-"));
     try {
       await chmod(dir, 0o000);
-      const p = Bun.spawn(["bun", CLI, "--projects", dir, "week", "--json"], { stdout: "pipe", stderr: "pipe" });
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "--json"], { stdout: "pipe", stderr: "pipe" });
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
       expect(code).toBe(1);
       expect(out).toBe("");
@@ -174,7 +198,7 @@ describe("cli", () => {
         { path: "-Users-me-proj/secret.jsonl", lines: [prompt("2026-09-14T13:05:00.000Z", B), prompt("2026-09-14T13:06:00.000Z", B)], mtime: "2026-09-14T13:05:00.000Z" },
       ]);
       await chmod(secret, 0o000);
-      const p = Bun.spawn(["bun", CLI, "--projects", dir, "day", "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
       expect(code).toBe(0);
       expect(err).toBe("");

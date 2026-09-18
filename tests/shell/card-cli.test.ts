@@ -88,7 +88,7 @@ describe("zapara card", () => {
       expect(r.code).toBe(2);
       expect(r.out).toBe("");
       expect(r.err.startsWith("zapara: --out ")).toBe(true);
-      expect(r.err).toContain("usage:");
+      expect(r.err).toContain("run 'zapara --help' for usage");
       expect(r.err).not.toContain("\x1b");
       expect(r.err).not.toContain("a\nb");
       expect(await files()).toEqual([]);
@@ -96,7 +96,7 @@ describe("zapara card", () => {
   });
 
   test("--out on week and --explain on card are usage errors", async () => {
-    expect((await run("week", "--out", "x.png")).code).toBe(2);
+    expect((await run("--out", "x.png")).code).toBe(2);
     expect((await run("card", "--explain")).code).toBe(2);
     expect((await run("card", "--days", "91", "--out", "x.html")).code).toBe(2);
   });

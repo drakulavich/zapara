@@ -67,7 +67,7 @@ function parseArgs(argv: string[], now: Date): Args {
 function runCli(a: Args): Day[] {
   const cli = join(import.meta.dir, "../src/index.ts");
   const proc = Bun.spawnSync(
-    ["bun", cli, "week", "--json", "--days", a.days, "--to", a.to, "--projects", a.projects],
+    ["bun", cli, "--json", "--days", a.days, "--to", a.to, "--projects", a.projects],
     { stdout: "pipe", stderr: "pipe" },
   );
   if (proc.exitCode !== 0) {
