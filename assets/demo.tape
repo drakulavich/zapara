@@ -60,7 +60,7 @@ Sleep 1s
 # 2. the hero: a week of hourly load as a heatmap
 Ctrl+L
 Sleep 500ms
-Type "zapara week --to 2026-09-20"
+Type "zapara --to 2026-09-20"
 Sleep 300ms
 Enter
 Sleep 4s
@@ -68,13 +68,13 @@ Sleep 4s
 # 3. one day, hour by hour
 Ctrl+L
 Sleep 500ms
-Type "zapara day 2026-09-14"
+Type "zapara 2026-09-14"
 Sleep 300ms
 Enter
 Sleep 5s
 
 # 4. the same data as JSON, which is what a pipe gets
-Type "zapara day 2026-09-14 --json | head -c 400"
+Type "zapara 2026-09-14 --json | head -c 400"
 Sleep 300ms
 Enter
 Sleep 3s
