@@ -2,6 +2,7 @@
 // peak hour, the load spectrum and three highlights, every value already
 // formatted for the page. Pure: Day[] in, CardData out. Nothing here knows a
 // date, a path or a file, so nothing here can leak one.
+import { formatCount, formatTokens } from "./format.ts";
 import { NORMS, WEIGHTS } from "./score.ts";
 import type { Day, HourBucket, Level, Score } from "./types.ts";
 
@@ -54,20 +55,6 @@ const CAPTIONS: Record<HighlightKey, string> = {
   lateShare: "of hours after midnight",
 };
 
-// Compact formats with a fixed longest form of five characters, so the layout
-// is sized once. Decimals are truncated, not rounded: 9.96M stays "9.9M".
-function ladder(n: number): string {
-  if (n >= 1e12) return "999B+";
-  for (const [unit, size] of [["B", 1e9], ["M", 1e6], ["k", 1e3]] as const) {
-    if (n < size) continue;
-    const v = n / size;
-    if (unit !== "k" && v < 10) return `${(Math.floor(v * 10) / 10).toFixed(1)}${unit}`;
-    return `${Math.floor(v)}${unit}`;
-  }
-  return String(n);
-}
-const formatCount = (n: number): string => (n < 10_000 ? String(n) : ladder(n));
-const formatTokens = (n: number): string => (n < 1000 ? String(n) : ladder(n));
 function formatStreak(min: number): string {
   if (min < 60) return `${min}m`;
   const h = Math.floor(min / 60);

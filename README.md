@@ -48,8 +48,8 @@ Fri 18/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▓  ·
 Sat 19/09    ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     24    1h00
 Sun 20/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
 
-  · none  ░ calm 0-29  ▒ warming 30-59  ▓ heating 60-84  █ fried 85-100
-week: active 13h00, prompts 346, reports 0, decisions 100, max sessions 5
+  ░ calm   ▒ warming   ▓ heating   █ fried
+  13h00 active   346 prompts   0 reports   100 decisions   5 sessions at once
 ```
 
 ```

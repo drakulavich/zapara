@@ -182,8 +182,10 @@ Mon 14/09    ·  ·  ·  ·  ·  ·  ·  ·  ░  ▒  ▒  ▓  ▓  █  █  
 
 Cell glyphs by level: `·` no activity, `░` Calm, `▒` Warming, `▓` Heating, `█`
 Fried. In a TTY the glyphs are colored green / yellow / magenta / red; in a pipe or
-with `--no-color` / `NO_COLOR` they are plain. Below the grid: a legend line and the
-week totals (active time, prompts, reports, decisions, max sessions).
+with `--no-color` / `NO_COLOR` they are plain. Below the grid, dimmed in a TTY: a
+legend line (the four level glyphs and names, no ranges; the ranges are in
+`--help`) and one totals line (active time, prompts, reports, decisions, sessions
+at once; counts past 9 999 print compact, `12k`, `1.2M`).
 
 `day` prints one row per bucket that has activity:
 
