@@ -23,11 +23,11 @@ export type CardData = {
 };
 
 // Tie order: the first of equal shares wins.
-export const CHARACTERS: readonly Character[] = ["conductor", "supervisor", "marathoner", "nightOwl"];
-export const NAMES: Record<Character, string> = {
+const CHARACTERS: readonly Character[] = ["conductor", "supervisor", "marathoner", "nightOwl"];
+const NAMES: Record<Character, string> = {
   conductor: "The Conductor", supervisor: "The Supervisor", marathoner: "The Marathoner", nightOwl: "The Night Owl",
 };
-export const MOTTOS: Record<Character, string> = {
+const MOTTOS: Record<Character, string> = {
   conductor: "You run agents like an orchestra.",
   supervisor: "Nothing ships without your eyes on it.",
   marathoner: "You do not stop while it compiles.",
@@ -66,9 +66,9 @@ function ladder(n: number): string {
   }
   return String(n);
 }
-export const formatCount = (n: number): string => (n < 10_000 ? String(n) : ladder(n));
-export const formatTokens = (n: number): string => (n < 1000 ? String(n) : ladder(n));
-export function formatStreak(min: number): string {
+const formatCount = (n: number): string => (n < 10_000 ? String(n) : ladder(n));
+const formatTokens = (n: number): string => (n < 1000 ? String(n) : ladder(n));
+function formatStreak(min: number): string {
   if (min < 60) return `${min}m`;
   const h = Math.floor(min / 60);
   if (h < 10) return `${h}h${String(min % 60).padStart(2, "0")}m`;
