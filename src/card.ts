@@ -79,17 +79,18 @@ const percent = (part: number, whole: number): number => Math.round((100 * part)
 
 // Whole percents that sum to 100: floors first, then one more to the largest
 // remainders, ties resolved in the given order.
-function largestRemainder(counts: number[], total: number): number[] {
+function spectrumOf(counts: [number, number, number, number], total: number): Spectrum {
   const raw = counts.map((c) => (100 * c) / total);
-  const out = raw.map((r) => Math.floor(r));
-  let left = 100 - out.reduce((a, b) => a + b, 0);
+  const floors = raw.map((r) => Math.floor(r)) as [number, number, number, number];
+  let left = 100 - floors.reduce((a, b) => a + b, 0);
   const byRemainder = raw.map((r, i) => ({ i, rem: r - Math.floor(r) })).sort((a, b) => b.rem - a.rem || a.i - b.i);
   for (const { i } of byRemainder) {
     if (left === 0) break;
-    out[i]! += 1;
+    floors[i]! += 1;
     left -= 1;
   }
-  return out;
+  const [calm, warming, heating, fried] = floors;
+  return { calm, warming, heating, fried };
 }
 
 const strong = (text: string): Segment => ({ text, strong: true });
@@ -134,8 +135,7 @@ export function cardData(days: Day[], w: { days: number }): CardData | null {
   };
 
   const peakBucket = active.reduce((a, b) => (b.score.index > a.score.index ? b : a));
-  const [calmPct, warmingPct, heatingPct, friedPct] = largestRemainder(
-    [count("Calm"), count("Warming"), count("Heating"), count("Fried")], n);
+  const spectrum = spectrumOf([count("Calm"), count("Warming"), count("Heating"), count("Fried")], n);
 
   const values: Record<HighlightKey, string> = {
     peakSessions: formatCount(maxSessions),
@@ -169,7 +169,7 @@ export function cardData(days: Day[], w: { days: number }): CardData | null {
     motto: MOTTOS[character],
     shares,
     peak: { index: peakBucket.score.index, level: peakBucket.score.level },
-    spectrum: { calm: calmPct!, warming: warmingPct!, heating: heatingPct!, fried: friedPct! },
+    spectrum,
     highlights,
   };
 }
