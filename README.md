@@ -63,6 +63,9 @@ hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  stre
   no reports today
 ```
 
+<details>
+<summary><b>Reproduce these pictures from the repository</b></summary>
+
 Two commands in a terminal reproduce them. The fixture's timestamps are UTC and zapara buckets by local time, so pin the zone to get these exact hours:
 
 ```bash
@@ -71,6 +74,8 @@ TZ=UTC bun src/index.ts day 2026-09-14 --projects tests/fixtures/busy-week --exp
 ```
 
 The grid is a fixed 98 columns wide, 100 with its hour header, and does not reflow, so it needs a terminal at least that wide.
+
+</details>
 
 ## Share a card
 
@@ -111,11 +116,35 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 | `--help` | Usage, exit 0. |
 | `--version` | The version from `package.json`, exit 0. |
 
+Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
+
 Output is a text table when stdout is a terminal and JSON otherwise, so `zapara week | cat` prints JSON. There is no flag to force text in a pipe yet.
 
 Exit codes are 0 on success, 1 when the projects directory cannot be read, and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
 
-## How the index works
+## Privacy
+
+zapara reads `~/.claude/projects/**/*.jsonl`, taking only files modified inside the window and skipping subagent transcripts under `subagents/`. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
+
+No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card you ask for, and nothing is installed into Claude Code.
+
+## Limits
+
+- Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge.
+- Only Claude Code transcripts are read. Work in other tools, and time away from the keyboard, is invisible.
+- Files are chosen by modification time. A very old session touched today is read in full, but only its in-window events count.
+- The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
+- The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
+- The 98-column grid does not adapt to a narrow terminal.
+- A pipe always gets JSON, and there is no flag to ask for text instead.
+- The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
+
+## Under the hood
+
+The formula behind the number and the transcript record behind every column, for when the number surprises you.
+
+<details>
+<summary><b>How the index works</b></summary>
 
 Every hour that had activity gets six components normalized into `[0, 1]` and summed with integer weights:
 
@@ -143,9 +172,10 @@ The norms come from two machines, 14 days each, of real transcripts covering 116
 
 Weights and norms live in one exported constant in `src/score.ts`, so a recalibration is one diff there plus a line in `CHANGELOG.md`.
 
-## Signals
+</details>
 
-Every column of the day table, and the transcript record behind it.
+<details>
+<summary><b>What each column of the day table counts</b></summary>
 
 | Column | What it counts |
 |---|---|
@@ -163,22 +193,7 @@ Every column of the day table, and the transcript record behind it.
 
 `bun run stats --days 14` is the tool the norms were set with. It prints the per-hour distribution of each signal over the active hours of a window (n, p50, p75, p90, max, and how many hours were zero), the top hours by reports and by human prompts, and a format-drift line comparing records seen against events the parser recognised. Run it on another machine, or after a Claude Code update, to see whether the norms and the parser still fit. It prints numbers and nothing else.
 
-## Privacy
-
-zapara reads `~/.claude/projects/**/*.jsonl`, taking only files modified inside the window and skipping subagent transcripts under `subagents/`. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
-
-No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card you ask for, and nothing is installed into Claude Code.
-
-## Limits
-
-- Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge.
-- Only Claude Code transcripts are read. Work in other tools, and time away from the keyboard, is invisible.
-- Files are chosen by modification time. A very old session touched today is read in full, but only its in-window events count.
-- The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
-- The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
-- The 98-column grid does not adapt to a narrow terminal.
-- A pipe always gets JSON, and there is no flag to ask for text instead.
-- The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
+</details>
 
 ## Development
 
