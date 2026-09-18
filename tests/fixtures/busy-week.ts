@@ -1,7 +1,7 @@
 // Deterministic 7-day fixture. Monday is the reference day the README shows.
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { assistant, interrupt, mode, plan, prompt, question, reject, writeTree } from "../helpers/transcript.ts";
+import { assistant, assistantText, interrupt, mode, nextRequestId, plan, prompt, question, reject, writeTree } from "../helpers/transcript.ts";
 
 const root = join(import.meta.dir, "busy-week", "projects");
 const sid = (n: number) => `${String(n).repeat(8)}-1111-4111-8111-111111111111`;
@@ -26,12 +26,16 @@ function calm(day: number, n: number, from: number, to: number) {
 // The loop stops while m + 4 < 60 (the widest offset used below, for the reject/
 // question/plan lines) so no event's timestamp ever crosses into the next hour;
 // calm() only ever adds 3 to an m that stops at 50, so it cannot overflow.
+// Each reply carries 1000 output tokens (its own requestId, so none is deduped
+// away), so a storm hour reads 55 x 1000 = 55.0k tokens. Real heavy hours carry
+// 60k-236k; at calm()'s 100 tokens a storm hour would read 5.5k and the reading
+// component would be invisible in the week picture.
 function storm(day: number, from: number, to: number) {
   for (let n = 1; n <= 5; n++) {
     const lines = [mode(sid(n), "auto")];
     for (let h = from; h < to; h++) for (let m = n; m + 4 < 60; m += 5) {
       lines.push(prompt(ts(day, h, m), sid(n)));
-      lines.push(assistant(ts(day, h, m + 2), sid(n)));
+      lines.push(assistantText(ts(day, h, m + 2), sid(n), 1000, nextRequestId()));
       if (m % 15 === n % 15) lines.push(interrupt(ts(day, h, m + 3), sid(n)));
       if (n === 2 && m === 22) lines.push(reject(ts(day, h, m + 4), sid(n)));
       if (n === 3 && m === 33) lines.push(question(ts(day, h, m + 4), sid(n)));

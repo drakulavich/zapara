@@ -39,7 +39,12 @@ describe("cli", () => {
     expect(b.outputTokens).toBe(100); // one assistant() reply at 100 tokens
     expect(b.interrupts).toBe(1);
     expect(b.contextSwitches).toBe(1);
-    expect(b.score.index).toBe(10); // parallel 7.5 + pace 1 + decisions 1 + streak 0.6 (5 min) = 10.1
+    // 2 sessions, 2 prompts, 0 reports, 1 interrupt (so decisions 1), 1 context
+    // switch, 100 output tokens, streak 5 min (13:00 to 13:05), hour 13 not late:
+    // parallel 25*(1/4) = 6.25 + pace 15*(2/20) = 1.5
+    // + supervision 30*(3*1 + 0 + 1)/45 = 2.667 + reading 10*(100/80000) = 0.0125
+    // + streak 10*(5/120) = 0.4167 + late 0 = 10.846 -> 11
+    expect(b.score.index).toBe(11);
   });
 
   test("day --json prints one day", async () => {

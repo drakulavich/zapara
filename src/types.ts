@@ -8,7 +8,7 @@ export type Metrics = {
   activeMin: number; streakMin: number; lateNight: boolean;
 };
 export type Level = "Calm" | "Warming" | "Heating" | "Fried";
-export type Parts = { parallel: number; pace: number; decisions: number; streak: number; late: number }; // weighted points, sum ≈ index
+export type Parts = { parallel: number; pace: number; supervision: number; reading: number; streak: number; late: number }; // weighted points, sum ≈ index
 export type Score = { index: number; level: Level; parts: Parts };
 export type HourBucket = Metrics & { hour: number; score: Score | null };
 export type Totals = { prompts: number; reports: number; outputTokens: number; interrupts: number; rejects: number; questions: number; plans: number; modeSwitches: number; decisions: number; contextSwitches: number; maxSessions: number };

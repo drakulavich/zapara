@@ -43,8 +43,12 @@ describe("week grid", () => {
   test("Friday's warm-up-less storm reads Heating, not Fried, and does not bleed into the next hour", () => {
     const row = lines[5]!;
     const cells = Array.from({ length: 24 }, (_, h) => row[12 + h * 3 + 1]);
-    // parallel 30 + pace 20 + decisions 20 + streak 7 (56 of the 120-minute cap,
-    // no calm warm-up before it) + late 0 = 77, Heating (60-84).
+    // 5 sessions, 55 prompts, 25 decisions, 55 000 output tokens, streak 56 min
+    // (15:01 to 15:57, no calm warm-up before it), not a late hour:
+    // parallel 25 + pace 15 + supervision 30 (3*25 = 75, already past the norm 45)
+    // + reading 10*(55000/80000) = 6.875 + streak 10*(56/120) = 4.667 + late 0
+    // = 81.54 -> 82, Heating (60-84). Monday's storm hours differ only in the
+    // streak, which is at the cap there: 86.875 -> 87, Fried.
     expect(cells[15]).toBe("▓");
     expect(cells[16]).toBe("·");
   });
@@ -68,42 +72,46 @@ describe("day table", () => {
     expect(lines[0]).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
     const row13 = lines.find((l) => l.startsWith("13:00"))!;
     // 5 sessions x 11 prompt/reply pairs each (m = n, n+5, ..., <=55) = 55 prompts and
-    // 55 assistant replies at 100 output tokens apiece = 5500 -> "5.5k"; busy-week has
+    // 55 assistant replies at 1000 output tokens apiece = 55000 -> "55.0k"; busy-week has
     // no inbound agent messages, so rep is 0 at every bucket, this one included.
-    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+55\s+0\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m\s+5\.5k$/);
+    expect(row13).toMatch(/^13:00\s+\d{1,3}\s+Fried\s+5\s+55\s+0\s+\d+\s+1\s+1\s+1\s+2\s+\d+\s+\d+m\s+55\.0k$/);
     expect(lines.some((l) => l.startsWith("03:00"))).toBe(false);
   });
 
-  test("--explain appends the five weighted parts, named and in order, and they add up to the index", () => {
+  test("--explain appends the six weighted parts, named and in order, and they add up to the index", () => {
     const lines = renderDay(monday, { explain: true, color: false }).split("\n");
-    expect(lines[0]!.endsWith("  par  pace   dec  strk  late")).toBe(true);
+    expect(lines[0]!.endsWith("  par  pace   sup  read  strk  late")).toBe(true);
     const row13 = lines.find((l) => l.startsWith("13:00"))!;
     const nums = row13.trim().split(/\s+/);
     const index = Number(nums[1]);
-    const parts = nums.slice(-5).map(Number);
-    // Named by position (par, pace, dec, strk, late), not just their sum: 5
-    // sessions saturate parallel and pace, ~25 decisions/hr saturates dec,
-    // a streak already past the 120-minute cap by 13:00 saturates strk, and
-    // 13:00 isn't a late hour.
-    expect(parts).toEqual([30, 20, 20, 15, 0]);
+    const parts = nums.slice(-6).map(Number);
+    // Named by position (par, pace, sup, read, strk, late), not just their sum:
+    // 5 sessions saturate par, 55 prompts saturate pace, 25 decisions alone put
+    // supervision past its norm (3*25 = 75 > 45), 55 replies x 1000 tokens give
+    // read 10*(55000/80000) = 6.875 -> 6.9, a streak already past the 120-minute
+    // cap by 13:00 saturates strk, and 13:00 isn't a late hour. Index 86.875 -> 87.
+    expect(parts).toEqual([25, 15, 30, 6.9, 10, 0]);
     expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
   });
 
-  test("--explain columns on a row where pace and decisions differ", () => {
+  test("--explain columns on a row where no two parts share a value", () => {
     // Monday 23:00: the late-night calm tail (calm(14, 7, 23, 24), one lone
-    // session). parallel 0 (1 session), pace 20 · min(1, 6/40) = 3, decisions
-    // 0 (no interrupts/rejects/questions/plans/mode-switches), streak
-    // 15 · min(1, 53/120) = 6.625 rounded to 6.6 (streakMin 53, a fresh streak
-    // since the evening session ended over an hour earlier), late 15 (23:00 is
-    // in the late-night set). This row has pace (3) ≠ decisions (0), so an
-    // accessor swap between those two columns fails here even though it would
-    // pass on 13:00's decisions-saturated-at-20 row.
+    // session, 6 prompts and 6 replies of 100 tokens). parallel 0 (1 session),
+    // pace 15 · min(1, 6/20) = 4.5, supervision 0 (no decisions, no reports and
+    // one session means no context switches), reading 10 · (600/80000) = 0.075
+    // rounded to 0.1, streak 10 · min(1, 53/120) = 4.4167 rounded to 4.4
+    // (streakMin 53, a fresh streak since the evening session ended over an hour
+    // earlier), late 10 (23:00 is in the late-night set). Index
+    // 0 + 4.5 + 0 + 0.075 + 4.4167 + 10 = 18.99 -> 19. Every part here holds a
+    // different value, so a swap between any two accessors fails on this row
+    // even though 13:00's saturated row would not notice it.
     const lines = renderDay(monday, { explain: true, color: false }).split("\n");
     const row23 = lines.find((l) => l.startsWith("23:00"))!;
     const nums = row23.trim().split(/\s+/);
     const index = Number(nums[1]);
-    const parts = nums.slice(-5).map(Number);
-    expect(parts).toEqual([0, 3, 0, 6.6, 15]);
+    const parts = nums.slice(-6).map(Number);
+    expect(parts).toEqual([0, 4.5, 0, 0.1, 4.4, 10]);
+    expect(index).toBe(19);
     expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
   });
 });
