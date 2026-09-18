@@ -22,13 +22,28 @@ function version(): string {
   throw new Error("package.json has no version");
 }
 
-const USAGE = `usage: zapara [week] [--days N] [--to YYYY-MM-DD]
-       zapara day [YYYY-MM-DD] [--explain]
-       zapara card [--days N] [--to YYYY-MM-DD] [--out PATH.png|.webp|.html]
-flags: --json  --projects <dir>  --no-color  --help  --version
-levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
+const USAGE = `usage: zapara [window]                 the last 7 days, one cell per hour
+       zapara today|yesterday|<date>   one day, one row per active hour
+       zapara card [window] [--out]    the last 14 days as one picture
 
-type Args = { command: "week" | "day" | "card"; to: string; days: number; date: string | null; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
+window:
+  --days <N>        the last N days, 1..90; with --to, N days ending there
+  --from <date>     first day; --to <date> last day, default today
+                    a date is YYYY-MM-DD, today or yesterday
+
+options:
+  --explain         with a day: the six weighted parts behind each index
+  --out <path>      with card: .png, .webp or .html (default zapara-card.png)
+  --json            the same data as JSON; a pipe gets JSON without asking
+  --projects <dir>  read this directory instead of ~/.claude/projects
+  --no-color        no ANSI colors; NO_COLOR does the same
+  -h, --help  -V, --version
+
+levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
+const HINT = "run 'zapara --help' for usage";
+
+// A grid is the window as one cell per hour; a day is one date as one row per hour.
+type Args = { command: "grid" | "day" | "card"; to: string; days: number; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position (never when a token was consumed as another
@@ -37,63 +52,115 @@ class UsageError extends Error {}
 class HelpRequested extends Error {}
 class VersionRequested extends Error {}
 
+const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+// A usage error quotes the offending value only when it is short, printable ASCII
+// with no path separator: the CLI never prints a filesystem path or an escape,
+// not even one the person typed.
+const quotable = (v: string): boolean => /^[\x21-\x7e]{1,24}$/.test(v) && !/[\/\\]/.test(v);
+const got = (v: string): string => (quotable(v) ? `, got ${v}` : "");
+const named = (v: string): string => (quotable(v) ? ` ${v}` : "");
+
 function validDate(s: string): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  const m = DATE.exec(s);
   if (!m) return false;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
   const dt = new Date(y, mo - 1, d);
   return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
 }
 
+// A date on the command line: YYYY-MM-DD, today or yesterday, in local time.
+function resolveDate(what: string, s: string, now: Date): string {
+  if (s === "today") return localDate(now);
+  if (s === "yesterday") return localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  if (!validDate(s)) throw new UsageError(`${what} must be YYYY-MM-DD, today or yesterday${got(s)}`);
+  return s;
+}
+
+// Calendar days from one date to another, inclusive; UTC arithmetic so a DST day is still one day.
+function spanDays(from: string, to: string): number {
+  const utc = (s: string): number => { const [y = 0, m = 0, d = 0] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((utc(to) - utc(from)) / 86_400_000) + 1;
+}
+
+// The window from its flags: --days ending today or at --to, or --from/--to, both
+// inclusive. --from with --days is one length too many. Checks run in the order
+// a reader meets the flags in --help.
+function windowOf(days: string | null, from: string | null, to: string | null, defaultDays: number, now: Date): { to: string; days: number } {
+  if (from !== null && days !== null) throw new UsageError("--from sets the length; drop --days");
+  if (days !== null && (!/^\d+$/.test(days) || Number(days) < 1 || Number(days) > 90)) throw new UsageError(`--days must be 1..90${got(days)}`);
+  const last = to === null ? localDate(now) : resolveDate("--to", to, now);
+  if (from === null) return { to: last, days: days === null ? defaultDays : Number(days) };
+  const first = resolveDate("--from", from, now);
+  const span = spanDays(first, last);
+  if (span < 1) throw new UsageError(`--from ${first} is after --to ${last}`);
+  if (span > 90) throw new UsageError(`--from ${first} to ${last} is ${span} days; the most is 90`);
+  return { to: last, days: span };
+}
+
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "week", to: localDate(now), days: 7, date: null, explain: false, json: false, out: "zapara-card.png", projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
-  let days: number | null = null;
+  const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: "zapara-card.png", projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  let days: string | null = null;
+  let from: string | null = null;
+  let to: string | null = null;
   let jsonFlag = false;
   let outGiven = false;
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]!;
+    let arg = argv[i]!;
+    // `--days=30` is `--days 30`. A flag that takes no value refuses an inline one.
+    let inline: string | null = null;
+    const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
+    if (eq > 0) { inline = arg.slice(eq + 1); arg = arg.slice(0, eq); }
+    const bare = (): void => { if (inline !== null) throw new UsageError(`unknown flag${named(argv[i]!)}`); };
     // A missing value or one that looks like another flag is a usage error,
     // never treated as this flag's value (e.g. `--projects --json`). Only --days
     // takes a negative number as a value, so `--days -1` reaches the range check.
     const value = (negativeNumberIsValue = false): string => {
+      if (inline !== null) return inline;
       const v = argv[++i];
       if (v === undefined || (v.startsWith("-") && !(negativeNumberIsValue && /^-\d/.test(v)))) throw new UsageError(`${arg} needs a value`);
       return v;
     };
     switch (arg) {
       case "--help":
-      case "-h": throw new HelpRequested();
-      case "--version": throw new VersionRequested();
-      case "--json": jsonFlag = true; break;
-      case "--explain": a.explain = true; break;
-      case "--no-color": a.color = false; break;
+      case "-h": bare(); throw new HelpRequested();
+      case "--version":
+      case "-V": bare(); throw new VersionRequested();
+      case "--json": bare(); jsonFlag = true; break;
+      case "--explain": bare(); a.explain = true; break;
+      case "--no-color": bare(); a.color = false; break;
       case "--projects": a.projects = value(); break;
-      case "--to": a.to = value(); break;
-      case "--days": { const v = value(true); if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 90) throw new UsageError(`--days must be 1..90, got ${v}`); days = Number(v); break; }
+      case "--from": from = value(); break;
+      case "--to": to = value(); break;
+      case "--days": days = value(true); break;
       case "--out": a.out = value(); outGiven = true; break;
       default:
-        if (arg.startsWith("-")) throw new UsageError(`unknown flag ${arg}`);
+        if (arg.startsWith("-")) throw new UsageError(`unknown flag${named(arg)}`);
         positional.push(arg);
     }
   }
-  const [cmd, ...rest] = positional;
-  if (cmd === undefined || cmd === "week") { if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`); a.command = "week"; }
-  else if (cmd === "day") { a.command = "day"; a.date = rest[0] ?? a.to; if (rest.length > 1) throw new UsageError(`unexpected argument ${rest[1]}`); }
-  else if (cmd === "card") { a.command = "card"; if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`); }
-  else throw new UsageError(`unknown command ${cmd}`);
-  // Two weeks make a pattern; a week makes a picture of one week.
-  a.days = days ?? (a.command === "card" ? 14 : 7);
+  if (positional.length > 1) throw new UsageError(`unexpected argument${named(positional[1]!)}`);
+  const [word] = positional;
+  if (word === undefined) a.command = "grid";
+  else if (word === "card") a.command = "card";
+  else if (word === "today" || word === "yesterday" || DATE.test(word)) { a.command = "day"; a.to = resolveDate("date", word, now); a.days = 1; }
+  else throw new UsageError(`unknown command${named(word)} (try today, yesterday, a date or card)`);
+
+  if (a.command === "day") {
+    if (days !== null || from !== null || to !== null) throw new UsageError("--days, --from and --to do not apply to a named day");
+  } else {
+    // Two weeks make a pattern; a week makes a picture of one week.
+    ({ to: a.to, days: a.days } = windowOf(days, from, to, a.command === "card" ? 14 : 7, now));
+  }
   // Tables turn into JSON in a pipe; the card is a file either way, so only an explicit --json switches it.
   a.json = a.command === "card" ? jsonFlag : jsonFlag || !isTTY;
-  if (a.command !== "day" && a.explain) throw new UsageError("--explain applies to day only");
+  if (a.command !== "day" && a.explain) throw new UsageError("--explain applies to a named day only");
   if (a.command !== "card" && outGiven) throw new UsageError("--out applies to card only");
-  // The value is printed back verbatim in `wrote …`, so it must be one plain line:
+  // The value is printed back verbatim in `wrote \u2026`, so it must be one plain line:
   // no control character, and the message never quotes it.
   if (/[\x00-\x1f\x7f]/.test(a.out)) throw new UsageError("--out must not contain control characters");
   if (!/\.(png|webp|html)$/i.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
-  if (!validDate(a.to)) throw new UsageError(`--to must be YYYY-MM-DD, got ${a.to}`);
-  if (a.date !== null && !validDate(a.date)) throw new UsageError(`date must be YYYY-MM-DD, got ${a.date}`);
   return a;
 }
 
@@ -101,9 +168,7 @@ async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const a = parseArgs(argv, new Date(), process.env, process.stdout.isTTY === true);
   if (a.command === "card") return card(a);
-  const days: Day[] = a.command === "day"
-    ? await report({ projects: a.projects, to: a.date!, days: 1 })
-    : await report({ projects: a.projects, to: a.to, days: a.days });
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days });
   const data = a.command === "day" ? days[0] : days;
   if (a.json) console.log(renderJson(data!));
   else if (a.command === "day") console.log(renderDay(days[0]!, { explain: a.explain, color: a.color }));
@@ -139,7 +204,7 @@ if (import.meta.main) {
       catch (err) { console.error(`zapara: ${err instanceof Error ? err.message : String(err)}`); process.exit(1); }
     }
     const msg = e instanceof Error ? e.message : String(e);
-    if (e instanceof UsageError) { console.error(`zapara: ${msg}\n${USAGE}`); process.exit(2); }
+    if (e instanceof UsageError) { console.error(`zapara: ${msg}\n${HINT}`); process.exit(2); }
     console.error(`zapara: ${msg}`);
     process.exit(1);
   });

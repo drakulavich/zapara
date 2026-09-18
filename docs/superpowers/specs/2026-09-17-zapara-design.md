@@ -167,13 +167,21 @@ Runs from TypeScript on Bun, no build step. `bin.zapara` points at `src/index.ts
 with a `#!/usr/bin/env bun` shebang.
 
 ```
-zapara                          # same as `zapara week`
-zapara week [--days 7] [--to YYYY-MM-DD]
-zapara day [YYYY-MM-DD] [--explain]
-common flags: --json  --projects <dir>  --no-color  --help  --version
+zapara [window]                 # the last 7 days, one cell per hour (the grid)
+zapara today|yesterday|<date>   # one day, one row per active hour, [--explain]
+window: --days N | --to <date> | --from <date> --to <date>
+common flags: --json  --projects <dir>  --no-color  -h/--help  -V/--version
 ```
 
-`week` prints one row per day, 24 cells, then `peak` and `active`:
+The window is one of: `--days N` ending today, or ending at `--to <date>`
+when both are given; `--to <date>` alone, 7 days ending there; `--from <date>
+--to <date>`, both inclusive, at most 90 days; `--from` alone runs to today. `--from` with `--days` is an error: the dates set the
+length. A date is `YYYY-MM-DD`, `today` or `yesterday`, in every position,
+including the day's name; `--days`, `--from` and `--to` on a named day are
+errors. `--days=30` is accepted beside `--days 30`. (Until 0.2.0 the grid
+was `week` and the day was `day <date>`.)
+
+The grid prints one row per day, 24 cells, then `peak` and `active`:
 
 ```
             00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active
@@ -187,7 +195,7 @@ legend line (the four level glyphs and names, no ranges; the ranges are in
 `--help`) and one totals line (active time, prompts, reports, decisions, sessions
 at once; counts past 9 999 print compact, `12k`, `1.2M`).
 
-`day` prints one row per bucket that has activity:
+A named day prints one row per bucket that has activity:
 
 ```
 hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok
@@ -203,16 +211,17 @@ columns always show, so two days still line up.
 they read `par 25 pace 15 sup 30 read 9 strk 7.9 late 0`, so the number can be
 traced to its inputs.
 
-`--json` prints the same data as one JSON document: for `week`, an array of days,
+`--json` prints the same data as one JSON document: for the grid, an array of days,
 each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 24
 entries, each with `hour`, every metric, and `score`, which is
-`{ index, level, parts }` or `null` when the bucket has no activity; for `day`,
+`{ index, level, parts }` or `null` when the bucket has no activity; for a day,
 one such day. JSON is also the default when stdout is not a TTY.
 
-Defaults and validation: `day` without a date means today (local). `--to`
-defaults to today. `--days` defaults to 7 and accepts an integer from 1 to 90.
-A date must be `YYYY-MM-DD` and a real calendar date. Any other value, an
-unknown command or an unknown flag prints one line plus usage to stderr, exit 2.
+Defaults and validation: `--to` defaults to today. `--days` defaults to 7 and
+accepts an integer from 1 to 90. A date must be `YYYY-MM-DD` and a real
+calendar date, or the words `today` and `yesterday`. Any other value, an
+unknown command or an unknown flag prints one line plus `run 'zapara --help'
+for usage` to stderr, exit 2.
 
 Errors: a missing or unreadable projects directory prints one line to stderr
 without the path, exit 1. Anything unexpected prints one line to stderr, never
@@ -323,10 +332,11 @@ Scenarios, one directory or builder script each:
   root rejected without printing the path.
 - `empty`: a projects tree with no transcripts in the window (empty grid, exit 0),
   and a missing root (exit 1).
-- `cli`: spawns `bun src/index.ts --projects <fixture>` for `week`, `day`,
-  `--explain`, `--json`, a bad date and an unknown flag; pins the JSON output,
-  exit codes, stderr and the JSON-in-a-pipe default. The rendered text of
-  `week`, `day` and `--explain` is pinned separately, in
+- `cli`: spawns `bun src/index.ts --projects <fixture>` for the grid, a named
+  day, `--explain`, `--json`, every window form, a bad date and an unknown
+  flag; pins the JSON output, exit codes, stderr and the JSON-in-a-pipe
+  default. The rendered text of the grid, a day and `--explain` is pinned
+  separately, in
   `tests/render/render.test.ts` through `report()`, because a spawned process
   never has a TTY.
 

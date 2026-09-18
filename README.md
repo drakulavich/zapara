@@ -20,11 +20,11 @@ Claude Code writes a JSONL transcript for every session under `~/.claude/project
 # Install Bun if you do not have it (zapara needs 1.4 or newer)
 curl -fsSL https://bun.sh/install | bash
 
-# Your week, straight from the registry
+# The last 7 days, straight from the registry
 bunx @drakulavich/zapara@latest
 
-# A day, with the components behind each index
-bunx @drakulavich/zapara@latest day --explain
+# Yesterday, hour by hour, with the components behind each index
+bunx @drakulavich/zapara@latest yesterday --explain
 
 # The card
 bunx @drakulavich/zapara@latest card
@@ -70,8 +70,8 @@ hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  stre
 Two commands in a terminal reproduce them. The fixture's timestamps are UTC and zapara buckets by local time, so pin the zone to get these exact hours:
 
 ```bash
-TZ=UTC bun src/index.ts week --projects tests/fixtures/busy-week --to 2026-09-20 --no-color
-TZ=UTC bun src/index.ts day 2026-09-14 --projects tests/fixtures/busy-week --explain --no-color
+TZ=UTC bun src/index.ts --projects tests/fixtures/busy-week --to 2026-09-20 --no-color
+TZ=UTC bun src/index.ts 2026-09-14 --projects tests/fixtures/busy-week --explain --no-color
 ```
 
 The grid is a fixed 98 columns wide, 100 with its hour header, and does not reflow, so it needs a terminal at least that wide.
@@ -106,28 +106,30 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 
 | Command | What it does |
 |---|---|
-| `zapara` | Same as `zapara week`. |
-| `zapara week` | The last 7 days ending today, in local time. |
-| `zapara week --days 14 --to 2026-09-17` | Any window. `--days` takes an integer from 1 to 90. |
-| `zapara day` | Today, one row per hour that had activity. |
-| `zapara day 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
+| `zapara` | The last 7 days ending today, one cell per hour, in local time. |
+| `zapara --days 30` | The last 30 days. `--days` takes an integer from 1 to 90. |
+| `zapara --from 2026-09-01 --to 2026-09-14` | Any window, both days inclusive, at most 90 days. `--to` alone is 7 days ending there, `--days 30 --to 2026-09-14` is 30 days ending there. |
+| `zapara today` | Today, one row per hour that had activity. `yesterday` likewise. |
+| `zapara 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
 | `zapara card` | The last 14 days as one shareable picture, `zapara-card.png` in the current directory. |
 | `zapara card --days 30 --out me.webp` | Any window from 1 to 90 days; `.png`, `.webp` or `.html` by extension. `--json` prints the card's data instead. |
 
 | Flag | What it does |
 |---|---|
+| `--days <N>`, `--from <date>`, `--to <date>` | The window. A date is `YYYY-MM-DD`, `today` or `yesterday`. `--days=30` works as well as `--days 30`. |
+| `--explain` | With a day: the six weighted parts behind each index. |
 | `--json` | Print the whole window as one JSON document instead of a table. |
 | `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
 | `--out <path>` | Where `card` writes; the extension picks the format. |
 | `--no-color` | Plain glyphs with no ANSI codes. `NO_COLOR` in the environment does the same. |
-| `--help` | Usage, exit 0. |
-| `--version` | The version from `package.json`, exit 0. |
+| `-h`, `--help` | Usage, exit 0. |
+| `-V`, `--version` | The version from `package.json`, exit 0. |
 
 Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
-`week` and `day` print a text table when stdout is a terminal and JSON otherwise, so `zapara week | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON.
+The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON.
 
-Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read (two different messages, neither with a path), and 2 for a usage error such as a bad date or an unknown flag. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read (two different messages, neither with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A window with no data prints an empty grid and exits 0.
 
 ## Privacy
 
@@ -143,7 +145,7 @@ No message text, prompt length, file path or session title is kept, written or p
 - The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
 - The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
 - The 98-column grid does not adapt to a narrow terminal.
-- For `week` and `day` a pipe always gets JSON, and there is no flag to ask for text instead.
+- For the grid and the day a pipe always gets JSON, and there is no flag to ask for text instead.
 - The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
 
 ## Under the hood

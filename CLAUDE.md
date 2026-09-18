@@ -43,7 +43,7 @@ when a test or CI step comes to catch it.
 - **A new test must fail under a one-line mutation** of the behavior it pins.
   Reviews make the mutation to check.
 - **Never print a stack trace.** The CLI prints one line to stderr and exits 1,
-  or one line plus the usage block and exits 2. A bad transcript line, an
+  or one line plus a hint to --help and exits 2. A bad transcript line, an
   unreadable file or a broken directory is skipped, never fatal.
 - **Privacy contract.** Message text is compared against fixed markers and
   discarded. No text, prompt length, file path or title is kept, written or

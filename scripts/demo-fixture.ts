@@ -37,7 +37,7 @@ if (process.argv[2] === undefined) {
 mkdirSync(join(dir, "bin"), { recursive: true });
 
 // The trailing --projects wins whatever the tape types, and the CLI accepts flags in any
-// position, so `zapara day 2026-09-14 --explain` in the recording reads the fixture.
+// position, so `zapara 2026-09-14 --explain` in the recording reads the fixture.
 const wrapper = `#!/bin/bash\nexec bun ${shellQuote(join(root, "src", "index.ts"))} "$@" --projects ${shellQuote(join(root, "tests", "fixtures", "busy-week"))}\n`;
 writeFileSync(join(dir, "bin", "zapara"), wrapper);
 chmodSync(join(dir, "bin", "zapara"), 0o755);

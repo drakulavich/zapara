@@ -31,11 +31,11 @@ signal, no new score, and no new data source.
 ## CLI
 
 ```
-zapara card [--days N] [--to YYYY-MM-DD] [--out PATH] [--json] [--projects DIR]
+zapara card [--days N | --to <date> | --from <date> --to <date>] [--out PATH] [--json] [--projects DIR]
 ```
 
-- `--days` defaults to 14 and accepts 1 to 90, like `week`.
-- `--to` defaults to today, as for `week`.
+- The window flags are the grid's (base spec, CLI), with `--days` defaulting
+  to 14 instead of 7.
 - `--out` defaults to `zapara-card.png` in the current directory. The format
   is the extension: `.png` or `.webp` for the picture, `.html` for the page
   the picture is taken of (written as is, no browser involved, for checking
