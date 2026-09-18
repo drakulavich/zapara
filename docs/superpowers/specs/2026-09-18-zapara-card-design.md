@@ -376,9 +376,9 @@ builders.
 
 README gets a section `## Share a card` after `## What it looks like`: the
 command, the two stdout lines, the card rendered from `busy-week`
-(`assets/card.png`, 2400×1260; `.gitattributes` gains `assets/card.png` so it
-is tracked by LFS like the other media; the same change tracks
-`docs/superpowers/specs/assets/*.webp`), and one line saying the picture
+(`assets/card.webp`, 2400×1260, a plain file like `characters.webp` so clones do
+not spend the LFS bandwidth quota on it; `.gitattributes` tracks
+`docs/superpowers/specs/assets/*.webp` by LFS), and one line saying the picture
 needs macOS or an installed Google Chrome, while `--out card.html` works
 anywhere. CHANGELOG under Unreleased/Added. The demo screencast stays as it
 is.
