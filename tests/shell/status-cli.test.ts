@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmod, lstat, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assistant, prompt, writeTree } from "../helpers/transcript.ts";
@@ -52,6 +52,26 @@ describe("zapara status", () => {
     expect((await stat(statusPath(h))).mode & 0o777).toBe(0o600);
     expect((await stat(dirOf(h))).mode & 0o777).toBe(0o700);
     expect(await tmps(h)).toEqual([]);
+  });
+
+  test("a directory left open by something else comes back to 0700", async () => {
+    const h = await home();
+    await mkdir(dirOf(h), { recursive: true, mode: 0o755 });
+    await chmod(dirOf(h), 0o755);
+    expect((await run(h)).code).toBe(0);
+    expect((await stat(dirOf(h))).mode & 0o777).toBe(0o700);
+    expect((await stat(statusPath(h))).mode & 0o777).toBe(0o600);
+  });
+
+  test("a restrictive umask does not narrow the file or the directory", async () => {
+    const h = await home();
+    // The modes passed to mkdir and open are a request the umask narrows, so a
+    // run under umask 0277 would otherwise leave a 0400 file and a 0400 directory.
+    const p = Bun.spawn(["sh", "-c", 'umask 0277; exec bun "$0" "$@"', CLI, "status", "--projects", projects], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: h } });
+    const [err, code] = await Promise.all([new Response(p.stderr).text(), p.exited]);
+    expect([code, err]).toEqual([0, ""]);
+    expect((await stat(statusPath(h))).mode & 0o777).toBe(0o600);
+    expect((await stat(dirOf(h))).mode & 0o777).toBe(0o700);
   });
 
   test("four runs at once leave one complete line and no temp file", async () => {

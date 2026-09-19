@@ -1,7 +1,7 @@
 // The only module that writes the status file. Shell, not core: it owns the
 // path, the directory, the temporary file, the rename and the modes. The line
 // it is handed comes from the pure `src/status.ts`.
-import { mkdir, open, rename, unlink } from "node:fs/promises";
+import { chmod, mkdir, open, rename, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 const FAILED = "cannot write the status file";
@@ -25,10 +25,20 @@ export async function writeStatus(line: string, env: NodeJS.ProcessEnv): Promise
   const tmp = join(dir, `status.json.${process.pid}.${Math.random().toString(36).slice(2, 10)}.tmp`);
   let created = false;
   try {
+    // The modes below are only a request the umask narrows, and `mkdir` leaves
+    // a directory that already exists exactly as it was, so each mode is set
+    // outright afterwards. `~/.claude` is chmodded only when this run created
+    // it, because it is Claude Code's directory and an existing one keeps the
+    // mode its owner chose; without that a umask like 0277 would leave it
+    // unwritable and the zapara directory could not be created inside it.
+    const claude = join(home, ".claude");
+    if ((await mkdir(claude, { recursive: true, mode: 0o700 })) === claude) await chmod(claude, 0o700);
     await mkdir(dir, { recursive: true, mode: 0o700 });
+    await chmod(dir, 0o700);
     const handle = await open(tmp, "wx", 0o600);
     created = true;
     try { await handle.writeFile(line); } finally { await handle.close(); }
+    await chmod(tmp, 0o600);
     await rename(tmp, join(dir, "status.json"));
   } catch {
     // Only this run's own file, and a failure to remove it changes nothing:
