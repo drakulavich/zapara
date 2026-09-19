@@ -174,7 +174,7 @@ No message text, prompt length, file path or session title is kept, written or p
 
 ## Under the hood
 
-The formula behind the number and the transcript record behind every column, for when the number surprises you.
+The formula behind the number and the transcript record behind every column, for when the number surprises you. For the whole path from a transcript line to the status line, with a diagram, read [How the numbers are made](docs/how-the-numbers-are-made.md).
 
 <details>
 <summary><b>How the index works</b></summary>
