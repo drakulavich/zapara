@@ -20,6 +20,11 @@ const spawn = (home: string, ...args: string[]): Promise<{ code: number; out: st
   return Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]).then(([out, err, code]) => ({ code, out, err }));
 };
 const run = (home: string, ...args: string[]) => spawn(home, "--projects", projects, ...args);
+// The same run, under a umask that would narrow every mode zapara asks for.
+const masked = (home: string): Promise<{ code: number; out: string; err: string }> => {
+  const p = Bun.spawn(["sh", "-c", 'umask 0277; exec bun "$0" "$@"', CLI, "status", "--projects", projects], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
+  return Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]).then(([out, err, code]) => ({ code, out, err }));
+};
 const home = () => mkdtemp(join(tmpdir(), "zapara-status-home-"));
 const dirOf = (h: string) => join(h, ".claude", "zapara");
 const statusPath = (h: string) => join(dirOf(h), "status.json");
@@ -67,11 +72,25 @@ describe("zapara status", () => {
     const h = await home();
     // The modes passed to mkdir and open are a request the umask narrows, so a
     // run under umask 0277 would otherwise leave a 0400 file and a 0400 directory.
-    const p = Bun.spawn(["sh", "-c", 'umask 0277; exec bun "$0" "$@"', CLI, "status", "--projects", projects], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: h } });
-    const [err, code] = await Promise.all([new Response(p.stderr).text(), p.exited]);
-    expect([code, err]).toEqual([0, ""]);
+    const r = await masked(h);
+    expect([r.code, r.err]).toEqual([0, ""]);
     expect((await stat(statusPath(h))).mode & 0o777).toBe(0o600);
     expect((await stat(dirOf(h))).mode & 0o777).toBe(0o700);
+  });
+
+  test("four runs at once under a restrictive umask on a fresh HOME all succeed", async () => {
+    // The four race to create ~/.claude. A run that made that directory too
+    // narrow to enter would strand the others inside it, so this is the
+    // concurrency promise and the umask rule at the same time.
+    const h = await home();
+    const rs = await Promise.all([masked(h), masked(h), masked(h), masked(h)]);
+    expect(rs.map((r) => [r.code, r.err])).toEqual([[0, ""], [0, ""], [0, ""], [0, ""]]);
+    expect((await stat(dirOf(h))).mode & 0o777).toBe(0o700);
+    expect((await stat(statusPath(h))).mode & 0o777).toBe(0o600);
+    const file = await readFile(statusPath(h), "utf8");
+    expect(JSON.parse(file).schema).toBe(1);
+    expect(file.endsWith("\n") && file.split("\n").length === 2).toBe(true);
+    expect(await tmps(h)).toEqual([]);
   });
 
   test("four runs at once leave one complete line and no temp file", async () => {
