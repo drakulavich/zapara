@@ -113,6 +113,7 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 | `zapara 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
 | `zapara card` | The last 14 days as one shareable picture, `zapara-card.png` in the current directory. |
 | `zapara card --days 30 --out me.webp` | Any window from 1 to 90 days; `.png`, `.webp` or `.html` by extension. `--json` prints the card's data instead. |
+| `zapara status` | Writes today's load to `~/.claude/zapara/status.json` for a status line to read, and prints the same line. See [Status line](#status-line). |
 
 | Flag | What it does |
 |---|---|
@@ -127,15 +128,37 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 
 Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
-The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON.
+The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON. `status` always writes its file and prints the same JSON line, piped or not, and `--json` changes nothing there.
 
-Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read (two different messages, neither with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A value flag given twice is a usage error. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read, or when `status` cannot write its file (three different messages, none with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A value flag given twice is a usage error. A window with no data prints an empty grid and exits 0.
+
+## Status line
+
+A status line wants one number every thirty seconds and cannot wait half a second for a transcript scan, so zapara writes the number down and the status line reads it back. `zapara status` computes today exactly as `zapara today` does, writes it as one line of JSON to `~/.claude/zapara/status.json`, and prints the same line. There is one file per user, whatever `--projects` said, created with mode `0600` in a directory with mode `0700`; the write goes to a temporary file and is renamed into place, so a reader sees the old line or the new one and never half of one. The file holds the nine values below and nothing else: no path, no project, no session count, no text.
+
+```json
+{"schema":1,"asOf":"2026-09-19T12:30:38.300Z","date":"2026-09-19","hour":15,"index":36,"level":"Warming","peak":41,"activeMin":555,"streakMin":166}
+```
+
+| Field | Meaning |
+|---|---|
+| `schema` | The shape of this file: `1`. A reader that sees a number it does not know shows nothing. It changes only when a field changes meaning or goes away; adding a field does not bump it. |
+| `asOf` | When the snapshot was taken, ISO 8601 UTC: the `Day.asOf` of the base spec, the `now` of this run. A reader decides staleness from this field, never from the file's mtime. |
+| `date` | The local calendar day the numbers describe, `YYYY-MM-DD`. |
+| `hour` | The local hour that contains `asOf`, `0`..`23`. |
+| `index` | That hour's load index, `0`..`100`, or `null` when the hour has no activity yet. |
+| `level` | That hour's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colors by this field so it never needs the thresholds. |
+| `peak` | The day's peak index so far, or `null` on a day with no activity. |
+| `activeMin` | Active minutes in the day so far; `0` on a day with no activity. |
+| `streakMin` | Minutes of the unbroken streak as of the current hour, `0` when there is none. |
+
+Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon. A reader decodes the file strictly and treats anything that fails validation, and a missing or unreadable file, as no data: it draws nothing and counts the file as stale. When the snapshot is stale or missing it starts `zapara status` as a detached process, does not wait for it, and draws what it has, which is also how the file first comes to exist on a machine that never ran zapara. It starts at most one run per threshold and never one per render, so a file that never validates costs one run per threshold and no more; the whole contract is in [the status file spec](docs/superpowers/specs/2026-09-19-zapara-status-file-design.md), and [pult](https://github.com/drakulavich/pult) is the reader that exists, with a five-minute threshold.
 
 ## Privacy
 
 zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. Selection is by modification time first, and a file whose modification time is older than the window is opened only to read the last timestamp in its final 4 KB; nothing from that tail is kept or printed. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
 
-No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card you ask for, and nothing is installed into Claude Code.
+No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card or the status file you ask for, and nothing is installed into Claude Code.
 
 ## Limits
 
@@ -147,7 +170,7 @@ No message text, prompt length, file path or session title is kept, written or p
 - The 98-column grid does not adapt to a narrow terminal.
 - For the grid and the day a pipe always gets JSON, and there is no flag to ask for text instead.
 - The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
-- A window that includes today is a snapshot: today's entry in the JSON carries `asOf`, the tables end with `as of HH:MM`, and two runs minutes apart differ while Claude Code is still writing. Today's numbers cover everything up to `asOf` and nothing timestamped after it, even if it lands in the same run.
+- A window that includes today is a snapshot: today's entry in the JSON carries `asOf`, the tables end with `as of HH:MM`, and two runs minutes apart differ while Claude Code is still writing. Today's numbers cover everything up to `asOf` and nothing timestamped after it, even if it lands in the same run. `zapara status` writes that snapshot to a file for a status line.
 
 ## Under the hood
 

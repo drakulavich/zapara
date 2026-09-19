@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 - A window that includes today says when the snapshot was taken: `asOf` on today's JSON entry and an `as of HH:MM, this hour is still running` line under the tables.
+- `zapara status` writes today's load to `~/.claude/zapara/status.json` for a status line to read; the file format and the reader's refresh contract are in the spec.
 
 ### Fixed
 - A window or output flag given twice (`--days 3 --days 5`) is a usage error, `--days given twice`, instead of the last value winning silently.

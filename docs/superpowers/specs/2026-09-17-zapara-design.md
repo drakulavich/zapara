@@ -20,9 +20,7 @@ errors may echo the offending argv token.
 
 Non-goals for the MVP: real-time alerts, break nudges, hooks, OpenTelemetry, a
 statusline segment, an HTML dashboard, a config file for weights. The statusline
-integration is planned as a later step where `zapara` writes a small cache file
-that [pult](https://github.com/drakulavich/pult) reads, so pult keeps its
-one-subprocess budget.
+integration is `2026-09-19-zapara-status-file-design.md`.
 
 ## Data source
 
