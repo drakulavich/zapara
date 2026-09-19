@@ -21,7 +21,7 @@ describe("order independence", () => {
   });
 
   test("events out of chronological order inside one file are sorted", () => {
-    const shuffled = transcript([prompt("2026-09-14T13:20:00.000Z", sid(1)), prompt("2026-09-14T13:00:00.000Z", sid(1)), assistant("2026-09-14T13:10:00.000Z", sid(1))]);
+    const shuffled = transcript([prompt("2026-09-14T13:20:00.000Z", sid(1)), prompt("2026-09-14T13:00:00.000Z", sid(1)), prompt("2026-09-14T13:10:00.000Z", sid(1))]);
     const b = analyze([shuffled], W)[0]!.buckets[13]!;
     // sorted: 13:00, 13:10 (gap 10, not > GAP_MS, continues), 13:20 (gap 10, continues).
     // The whole run is one streak from 13:00 to 13:20, so its length is 20.

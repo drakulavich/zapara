@@ -25,7 +25,7 @@ describe("zapara card", () => {
   test("--out x.html writes exactly the cardHtml string and prints the two lines", async () => {
     const r = await run("card", "--to", "2026-09-20", "--out", "./x.html");
     expect(r.code).toBe(0);
-    expect(r.out).toBe("The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.\nwrote ./x.html\n");
+    expect(r.out).toBe("The Marathoner: Longest streak 7h50m without a break, 68% of your hours calm.\nwrote ./x.html\n");
     const expected = cardHtml(cardData(await report({ projects, to: "2026-09-20", days: 14 }), { days: 14 })!, await loadAssets());
     expect(await readFile(join(cwd, "x.html"), "utf8")).toBe(expected);
   });
@@ -46,12 +46,12 @@ describe("zapara card", () => {
     expect(j.from).toBe("2026-09-07");
     expect(j.to).toBe("2026-09-20");
     expect(j.days).toBe(14);
-    expect(j.sentence).toBe("Longest streak 7h53m without a break, 68% of your hours calm.");
+    expect(j.sentence).toBe("Longest streak 7h50m without a break, 68% of your hours calm.");
     expect(j.motto).toBe("You do not stop while it compiles.");
-    expect(j.shares.marathoner).toBe(0.81);
+    expect(j.shares.marathoner).toBe(0.77);
     expect(j.shares.conductor).toBe(0.31);
     expect(j.peak).toEqual({ index: 87, level: "Fried" });
-    expect(j.highlights[0]).toEqual({ key: "longestStreak", value: "7h53m", caption: "longest streak" });
+    expect(j.highlights[0]).toEqual({ key: "longestStreak", value: "7h50m", caption: "longest streak" });
     expect(await files()).toEqual([]);
   });
 

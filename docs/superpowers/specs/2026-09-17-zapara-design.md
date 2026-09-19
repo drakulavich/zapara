@@ -69,7 +69,7 @@ ignored for every kind (defensive; the scan already skips subagent files).
 | `question` | `type == "assistant"`, content array containing a `tool_use` block with `name == "AskUserQuestion"`. One event per block. |
 | `plan_review` | Same as `question` with `name == "ExitPlanMode"`. |
 | `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file. If none has been seen yet, the record is dropped. The first such record in a file sets the session's baseline mode and is not a switch (every session writes its starting mode). Each later record whose `permissionMode` differs from the previous record's is one switch; repeats of the same mode count nothing (Claude Code rewrites the same mode repeatedly). |
-| `activity` | Every `type == "user"` or `type == "assistant"` record with a timestamp, including `isMeta` ones. Used for session liveness, streaks and active minutes. |
+| `activity` | Every `type == "user"` or `type == "assistant"` record with a timestamp, including `isMeta` ones. Used for session liveness (`sessions`) only. |
 
 `prompt`, `report`, `interrupt`, `reject` and `output` records are also `activity`. The
 parser emits both events for them; the deriver never double counts because it
@@ -92,8 +92,9 @@ Ordering: before deriving anything, all events from all files are sorted by
 result.
 
 Look-back: the deriver receives events from `windowStart - LOOKBACK` (3 hours)
-onward. Events before `windowStart` contribute only to `streakMin`; they are
-never bucketed. Because the streak component of the index saturates at 120
+onward. Events before `windowStart` contribute only to `streakMin` and to the
+presence spans that reach into the window; slots and prompts before
+`windowStart` are never bucketed. Because the streak component of the index saturates at 120
 minutes, the index is exact at the window boundary. The displayed `streakMin`
 of a streak that started more than 3 hours before the window is floored at what
 the look-back sees, which is the one documented approximation.
@@ -109,8 +110,8 @@ Per bucket:
 | `interrupts`, `rejects`, `questions`, `plans`, `modeSwitches` | counts of the matching kinds |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches` |
 | `contextSwitches` | over all `prompt` events in the bucket sorted by `ts`, the number of consecutive pairs whose `sessionId` differs |
-| `activeMin` | number of distinct 5-minute slots in the bucket holding at least one `activity` event, times 5 |
-| `streakMin` | length in minutes of the activity streak that contains the last `activity` event of the bucket, measured from the streak's first event (which may lie in the look-back, before the window). A streak breaks on a gap longer than 10 minutes between consecutive `activity` events in the global order, across all sessions. 0 when the bucket has no activity. |
+| `activeMin` | number of distinct 5-minute slots the human's presence covers in the bucket, times 5. Every `prompt` covers its own slot (`floor(ts / 5 min)`); two consecutive prompts of the same presence streak also cover every slot between them, from the earlier prompt's slot to the later one's, inclusive. A slot belongs to the bucket of the local date and hour of the slot's start; a slot starting before `windowStart` is never bucketed. So a prompt at 14:58 and one at 15:04 give bucket 14 five minutes and bucket 15 five minutes; a lone prompt gives 5; a prompt at 10:00 followed by assistant records every minute until 10:30 gives 5. |
+| `streakMin` | length in minutes of the presence streak that contains the last `prompt` of the bucket, measured from that streak's first prompt (which may lie in the look-back, before the window). A presence streak is a run of consecutive `prompt` events in which no two neighbours are more than 10 minutes apart, in the global order, across all sessions; a gap of exactly 10 minutes continues it, 10 minutes and 1 ms breaks it. 0 when the bucket has no prompt. |
 | `lateNight` | bucket hour in {23, 0, 1, 2, 3, 4, 5} |
 
 Per day: `peak` (max index over buckets with activity), `mean` (mean index over
@@ -326,10 +327,14 @@ Scenarios, one directory or builder script each:
 - `hour-edges`: events at `:59:59.999` and `:00:00.000`, and across midnight.
 - `parallel-sessions`: 1, 3 and 5 sessions in one hour; context switches
   between them; a single session yields zero switches.
-- `streak`: activity across sessions with a 9-minute gap (continues) and an
-  11-minute gap (breaks); a streak that starts in the 3-hour look-back before
-  the window (regression for the boundary); a file whose mtime and last
-  record are both before the cutoff, which stays ignored.
+- `streak`: prompts across sessions with a 9-minute gap (continues) and an
+  11-minute gap (breaks); assistant records and inbound reports inside an
+  11-minute gap between prompts do not bridge it; a streak that starts in the
+  3-hour look-back before the window; a file whose mtime and last record are
+  both before the cutoff, which stays ignored.
+- `active minutes`: a lone prompt covers one slot; two prompts 8 minutes apart
+  cover both slots between them; a span across an hour boundary gives each hour
+  its own slots; agent-only minutes cover nothing.
 - `decisions`: interrupts of both marker forms, tool rejections,
   `AskUserQuestion`, `ExitPlanMode`, repeated `permission-mode` records
   collapsing to one switch, a `permission-mode` record before any timestamp

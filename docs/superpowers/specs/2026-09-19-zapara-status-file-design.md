@@ -78,8 +78,8 @@ Content: exactly one line of JSON, no trailing spaces, a newline at the end.
 | `index` | That hour's load index, `0`..`100`, or `null` when the hour has no activity yet. |
 | `level` | That hour's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colours by this field so it never needs the thresholds. |
 | `peak` | The day's peak index so far, or `null` on a day with no activity. |
-| `activeMin` | Active minutes in the day so far; `0` on a day with no activity. |
-| `streakMin` | Minutes of the unbroken streak as of the current hour, `0` when there is none. |
+| `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your prompts and the gaps of at most 10 minutes between them; `0` on a day with no prompt. |
+| `streakMin` | Minutes of the unbroken presence streak as of the current hour: your prompts no more than 10 minutes apart, across sessions; `0` when the hour has none. |
 
 `hour`, `index`, `level` and `streakMin` describe the bucket of the current
 hour; `peak` and `activeMin` describe the day. On a day with no activity the
