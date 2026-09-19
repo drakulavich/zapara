@@ -89,8 +89,10 @@ export function renderDay(day: Day, opts: { explain: boolean; color: boolean }):
     cells.map((c, i) => { const w = columns[i]![1]; if (i === 0) return c.padEnd(w); if (columns[i]![0] === "level") return `  ${c.padEnd(w - 2)}`; return c.padStart(w); }).join("").trimEnd();
 
   const active = day.buckets.filter((b) => b.score !== null);
-  // No active bucket: today's plain behavior, the full header and nothing else.
-  if (active.length === 0) return line(cols, cols.map(([name]) => name));
+  // No active bucket: just the full header, plus the snapshot line if this
+  // quiet day is still open — otherwise a run at 09:00 and one at 18:00 on an
+  // empty today would print the identical line.
+  if (active.length === 0) return [line(cols, cols.map(([name]) => name)), ...snapshotLine(day, opts.color)].join("\n");
 
   const visible = cols.filter(([name, , f]) => !EVENT_COLS.has(name) || active.some((b) => f(b) !== "0"));
   const leftOut = cols.filter((col) => EVENT_COLS.has(col[0]) && !visible.includes(col));
