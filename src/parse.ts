@@ -20,9 +20,14 @@ type Rec = Record<string, unknown>;
 const isObj = (v: unknown): v is Rec => typeof v === "object" && v !== null;
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
+// The text a marker is compared against: the content itself when it is a string,
+// otherwise the first `{type:"text"}` block anywhere in the array. A pasted
+// screenshot puts an `image` block in front of what the person typed, so the
+// text is not always the first block.
 const firstText = (content: unknown): string | null => {
   if (typeof content === "string") return content;
-  if (Array.isArray(content) && isObj(content[0]) && content[0].type === "text") return str(content[0].text);
+  if (!Array.isArray(content)) return null;
+  for (const b of content) if (isObj(b) && b.type === "text") return str(b.text);
   return null;
 };
 

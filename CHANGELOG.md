@@ -5,6 +5,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- A prompt with a pasted screenshot counts again: the image block comes before the typed text, and such prompts were read as no text at all, so a day spent pasting screenshots showed no prompts and no active minutes.
+
 ## [0.3.1] - 2026-09-19
 
 ### Changed

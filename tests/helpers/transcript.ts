@@ -24,6 +24,16 @@ export const prompt = (ts: string, sid: string) =>
 export const promptBlocks = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "text", text: "placeholder prompt" }] } });
 
+// A pasted screenshot: Claude Code puts the image block first and the typed text
+// after it, so a reader that inspects only content[0] finds no text at all.
+const IMAGE = { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } };
+
+export const promptAfterImage = (ts: string, sid: string) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: [IMAGE, { type: "text", text: "placeholder prompt" }] } });
+
+export const interruptAfterImage = (ts: string, sid: string) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: [IMAGE, { type: "text", text: "[Request interrupted by user]" }] } });
+
 export const meta = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", isMeta: true, message: { role: "user", content: [{ type: "text", text: "<system-reminder>placeholder</system-reminder>" }] } });
 
