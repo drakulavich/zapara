@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-19
+
 ### Changed
 - Streak and active minutes count your presence, not the agent's: a streak is your prompts no more than 10 minutes apart across sessions, and active minutes are the five-minute slots those streaks cover. Agent work while you are away no longer keeps a streak alive or fills the day.
 
