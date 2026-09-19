@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- A window that includes today says when the snapshot was taken: `asOf` on today's JSON entry and an `as of HH:MM, this hour is still running` line under the tables.
+
+### Fixed
+- A window or output flag given twice (`--days 3 --days 5`) is a usage error, `--days given twice`, instead of the last value winning silently.
+- A transcript whose modification time is older than the window is still read when the last timestamp in it falls inside the window; before, a restored or synced file was dropped in full without a word.
+
 ## [0.2.0] - 2026-09-18
 
 ### Changed

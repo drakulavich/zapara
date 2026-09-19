@@ -40,9 +40,13 @@ Scan rules:
   Subagent files carry the parent's `sessionId`, every record is `isSidechain: true`,
   and their "user" messages are the parent agent's prompts, not the human's.
 - Skip a file whose mtime is earlier than `windowStart - LOOKBACK` where
-  `LOOKBACK` is 3 hours. A file modified before that cannot contain events the
-  report needs (see the streak look-back below). This keeps a week view from
-  parsing thousands of old files.
+  `LOOKBACK` is 3 hours, unless the last `"timestamp"` in its final 4 KB falls
+  at or after that cutoff. mtime is a hint, not the truth: a transcript synced
+  from another machine, restored by a tool that rewrites times, or written
+  under clock skew can be older by mtime than the records inside it, and the
+  tail read (one small read per old file) recovers it without giving up the
+  "week under 2 s" budget. This keeps a week view from parsing thousands of
+  old files.
 - Return paths sorted lexicographically, so the same tree always yields the same
   file order.
 - A file that cannot be read (permissions, vanished between listing and reading)
@@ -178,8 +182,9 @@ when both are given; `--to <date>` alone, 7 days ending there; `--from <date>
 --to <date>`, both inclusive, at most 90 days; `--from` alone runs to today. `--from` with `--days` is an error: the dates set the
 length. A date is `YYYY-MM-DD`, `today` or `yesterday`, in every position,
 including the day's name; `--days`, `--from` and `--to` on a named day are
-errors. `--days=30` is accepted beside `--days 30`. (Until 0.2.0 the grid
-was `week` and the day was `day <date>`.)
+errors. `--days=30` is accepted beside `--days 30`. A value flag given twice
+is a usage error. (Until 0.2.0 the grid was `week` and the day was `day
+<date>`.)
 
 The grid prints one row per day, 24 cells, then `peak` and `active`:
 
@@ -193,7 +198,10 @@ Fried. In a TTY the glyphs are colored green / yellow / magenta / red; in a pipe
 with `--no-color` / `NO_COLOR` they are plain. Below the grid, dimmed in a TTY: a
 legend line (the four level glyphs and names, no ranges; the ranges are in
 `--help`) and one totals line (active time, prompts, reports, decisions, sessions
-at once; counts past 9 999 print compact, `12k`, `1.2M`).
+at once; counts past 9 999 print compact, `12k`, `1.2M`). When the window
+includes today, one more dimmed line follows: `as of HH:MM, this hour is
+still running`, the local time the report was generated, because the last
+day's transcript is still being appended to.
 
 A named day prints one row per bucket that has activity:
 
@@ -205,7 +213,8 @@ hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw 
 An event column (`rep`, `intr`, `rej`, `quest`, `plan`, `mode`, `ctx-sw`) that
 is 0 in every row is left out, and one line under the table, dimmed in a TTY,
 names what the day had none of (`no reports, rejects today`). The other
-columns always show, so two days still line up.
+columns always show, so two days still line up. If the day is today, the same
+`as of HH:MM, this hour is still running` line follows.
 
 `--explain` adds six columns with each weighted contribution; for the row above
 they read `par 25 pace 15 sup 30 read 9 strk 7.9 late 0`, so the number can be
@@ -215,7 +224,12 @@ traced to its inputs.
 each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 24
 entries, each with `hour`, every metric, and `score`, which is
 `{ index, level, parts }` or `null` when the bucket has no activity; for a day,
-one such day. JSON is also the default when stdout is not a TTY.
+one such day. JSON is also the default when stdout is not a TTY. The day that
+contains the moment the report ran also carries `asOf`, that moment as an ISO
+8601 UTC string; every other day omits the field. That day's own numbers cover
+only events timestamped at or before `asOf`, so a record appended while zapara
+was reading, or one later than the snapshot, is excluded even though it falls
+inside the window.
 
 Defaults and validation: `--to` defaults to today. `--days` defaults to 7 and
 accepts an integer from 1 to 90. A date must be `YYYY-MM-DD` and a real
@@ -253,10 +267,16 @@ core (pure)
 ```
 
 `analyze()` is the core's entry point: it takes transcript contents already in
-memory, in the real JSONL format, plus a window (`{ to, days }`) and returns
-the same `Day[]` the CLI prints. Fixture tests feed it directly with in-memory
-transcripts and get the statistics back without touching the disk; the CLI test
-and the report test cover the shell.
+memory, in the real JSONL format, plus a window (`{ to, days, now? }`) and
+returns the same `Day[]` the CLI prints. `now`, when given, is the moment the
+report is taken; the one returned day whose date contains it gets `asOf` set to
+its ISO 8601 UTC string, marking that day as a snapshot of a transcript still
+being written, and every event timestamped after `now` is excluded from that
+day's buckets and totals, even one inside the window, so the snapshot covers
+everything up to `asOf` and nothing after. Fixture tests feed it directly with
+in-memory transcripts and get the statistics back without touching the disk;
+the CLI test and the report
+test cover the shell.
 
 Rules: the shell may import any core module; core modules never import the
 shell (`render` and `derive` import `score` and `types`; `analyze` imports
@@ -279,7 +299,7 @@ Unit tests are kept to a minimum; the bulk of the suite runs the whole pipeline
 over fixture transcripts and asserts the resulting statistics.
 
 Public seams for tests: `analyze(transcripts, window)` in the core takes in-memory
-transcripts, and `src/report.ts` exports `report({ projects, to, days })`,
+transcripts, and `src/report.ts` exports `report({ projects, to, days, now? })`,
 which runs scan → parse → derive → score and returns `Day[]`, the same structure
 `--json` prints. The CLI is a thin layer over it. Tests call `analyze()`, `report()` or spawn
 the CLI; they never import `parse`, `derive` or `scan` directly. Refactoring the
@@ -310,8 +330,8 @@ Scenarios, one directory or builder script each:
   between them; a single session yields zero switches.
 - `streak`: activity across sessions with a 9-minute gap (continues) and an
   11-minute gap (breaks); a streak that starts in the 3-hour look-back before
-  the window (regression for the boundary); a file with mtime before the
-  cutoff that must be ignored.
+  the window (regression for the boundary); a file whose mtime and last
+  record are both before the cutoff, which stays ignored.
 - `decisions`: interrupts of both marker forms, tool rejections,
   `AskUserQuestion`, `ExitPlanMode`, repeated `permission-mode` records
   collapsing to one switch, a `permission-mode` record before any timestamp
@@ -326,8 +346,11 @@ Scenarios, one directory or builder script each:
   count, `isSidechain` records in a main file, malformed JSON lines, lines
   without `type` or `timestamp`, an empty file, an unreadable file.
 - `report`: through `report()`, not `analyze()` — a `subagents/` tree whose
-  prompts don't count, a same-named file at the root that does, a file just
-  before the mtime cutoff excluded and one exactly at it included, a `.txt`
+  prompts don't count, a same-named file at the root that does, a file
+  chosen by its records rather than its mtime: an old mtime with an
+  in-window last record counts (the restored/synced case) and a file with
+  no in-window record adds nothing; the mtime comparison itself is now a
+  shortcut, not a behaviour, so no test pins its exact boundary; a `.txt`
   file ignored, an unreadable file skipped, and a missing or non-directory
   root rejected without printing the path.
 - `empty`: a projects tree with no transcripts in the window (empty grid, exit 0),

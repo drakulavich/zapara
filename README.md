@@ -129,11 +129,11 @@ Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
 The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON.
 
-Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read (two different messages, neither with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read (two different messages, neither with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A value flag given twice is a usage error. A window with no data prints an empty grid and exits 0.
 
 ## Privacy
 
-zapara reads `~/.claude/projects/**/*.jsonl`, taking only files modified inside the window and skipping subagent transcripts under `subagents/`. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
+zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. Selection is by modification time first, and a file whose modification time is older than the window is opened only to read the last timestamp in its final 4 KB; nothing from that tail is kept or printed. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
 
 No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card you ask for, and nothing is installed into Claude Code.
 
@@ -141,12 +141,13 @@ No message text, prompt length, file path or session title is kept, written or p
 
 - Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge.
 - Only Claude Code transcripts are read. Work in other tools, and time away from the keyboard, is invisible.
-- Files are chosen by modification time. A very old session touched today is read in full, but only its in-window events count.
+- Files are chosen by modification time, and a file whose modification time is older than the window is still read when the last timestamp in it falls inside the window, so a restored or synced transcript is not lost. A very old session touched today is read in full, but only its in-window events count.
 - The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
 - The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
 - The 98-column grid does not adapt to a narrow terminal.
 - For the grid and the day a pipe always gets JSON, and there is no flag to ask for text instead.
 - The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
+- A window that includes today is a snapshot: today's entry in the JSON carries `asOf`, the tables end with `as of HH:MM`, and two runs minutes apart differ while Claude Code is still writing. Today's numbers cover everything up to `asOf` and nothing timestamped after it, even if it lands in the same run.
 
 ## Under the hood
 

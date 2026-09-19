@@ -1,10 +1,10 @@
 import type { Dirent } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { open, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 // Lists transcript files worth reading. Subagent transcripts live under a `subagents`
-// directory and are the parent agent's conversation, not the human's; a file whose mtime
-// is before the cutoff cannot hold events the report needs.
+// directory and are the parent agent's conversation, not the human's; mtime is checked
+// first, and for a file mtime would drop, the last timestamp in its tail decides.
 export async function scan(projects: string, cutoffMs: number): Promise<string[]> {
   // No path in either message: it may be a value the user typed, or the
   // homedir-derived default, and the CLI must never print a filesystem path.
@@ -35,8 +35,32 @@ async function collect(dir: string, entries: Dirent[], cutoffMs: number, out: st
       } catch {}
     } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
       try {
-        if ((await stat(full)).mtimeMs >= cutoffMs) out.push(full);
+        if ((await stat(full)).mtimeMs >= cutoffMs || (await lastTimestampMs(full)) >= cutoffMs) out.push(full);
       } catch {}
     }
+  }
+}
+
+// mtime is a hint, not the truth: a transcript synced from another machine, restored by a
+// tool that rewrites times, or written under clock skew can be older by mtime than the
+// records inside it. For a file mtime would drop, the last "timestamp" in its final 4 KB
+// decides. The tail is matched for that one field and discarded; nothing else is read.
+const TAIL_BYTES = 4096;
+async function lastTimestampMs(path: string): Promise<number> {
+  const fh = await open(path, "r");
+  try {
+    const size = (await fh.stat()).size;
+    const start = Math.max(0, size - TAIL_BYTES);
+    const buf = Buffer.alloc(size - start);
+    await fh.read(buf, 0, buf.length, start);
+    const tail = buf.toString("utf8");
+    let last = -Infinity;
+    for (const m of tail.matchAll(/"timestamp":"([^"]{20,40})"/g)) {
+      const ms = Date.parse(m[1]!);
+      if (!Number.isNaN(ms)) last = ms;
+    }
+    return last;
+  } finally {
+    await fh.close();
   }
 }

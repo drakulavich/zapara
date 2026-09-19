@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assistant, interrupt, prompt, sidechain, writeTree } from "../helpers/transcript.ts";
+import { assistant, interrupt, mode, prompt, sidechain, writeTree } from "../helpers/transcript.ts";
 
 const CLI = join(import.meta.dir, "../../src/index.ts");
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
@@ -195,6 +195,16 @@ describe("cli", () => {
     }
   });
 
+  test("a value flag given twice is a usage error, not the last value winning", async () => {
+    for (const [flag, v] of [["--days", "3"], ["--from", "2026-09-10"], ["--to", "2026-09-14"], ["--projects", root]] as const) {
+      expect(await first(flag, v, flag, v)).toEqual([2, `zapara: ${flag} given twice`]);
+    }
+    expect(await first("card", "--out", "a.png", "--out", "b.png")).toEqual([2, "zapara: --out given twice"]);
+    // A bare flag repeated is harmless.
+    const r = await run("--to", "2026-09-14", "--json", "--json");
+    expect(r.code).toBe(0);
+  });
+
   test("a projects directory that cannot be read says so, without a path", async () => {
     if (process.getuid?.() === 0) return; // root bypasses file permissions
     const dir = await mkdtemp(join(tmpdir(), "zapara-cli-noread-"));
@@ -208,6 +218,49 @@ describe("cli", () => {
       expect(err).not.toContain(dir);
     } finally {
       await chmod(dir, 0o755).catch(() => {});
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a transcript whose mtime is older than the window is still read when its last record is inside it", async () => {
+    // A per-test tree via direct Bun.spawn, not the run() helper: run() already
+    // fixes --projects to the suite root, and a second --projects here would be
+    // a duplicate flag (a usage error), not a way to point at a different tree.
+    const dir = await mkdtemp(join(tmpdir(), "zapara-restored-"));
+    try {
+      await writeTree(dir, [
+        // Restored from a backup: content from 14 Sept, mtime rewritten to 1 Aug.
+        { path: "-Users-me-proj/restored.jsonl", lines: [prompt("2026-09-14T13:10:00.000Z", A), assistant("2026-09-14T13:12:00.000Z", A), mode(A, "default")], mtime: "2026-08-01T00:00:00.000Z" },
+        // Genuinely old: last record in August, mtime in August. Must stay out.
+        { path: "-Users-me-old/old.jsonl", lines: [prompt("2026-08-01T13:00:00.000Z", B)], mtime: "2026-08-01T13:00:00.000Z" },
+      ]);
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+      expect(err).toBe("");
+      expect(code).toBe(0);
+      const day = JSON.parse(out);
+      expect(day.totals.prompts).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("today's JSON carries asOf; a past day's does not", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "zapara-today-"));
+    try {
+      await writeTree(dir, [{ path: "-Users-me-proj/t.jsonl", lines: [prompt(`${utcDay(0)}T00:00:00.000Z`, A)], mtime: `${utcDay(0)}T00:00:00.000Z` }]);
+      const spawn = (...args: string[]) => Bun.spawn(["bun", CLI, "--projects", dir, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const p1 = spawn("today", "--json");
+      const [out1, code1] = await Promise.all([new Response(p1.stdout).text(), p1.exited]);
+      expect(code1).toBe(0);
+      const today = JSON.parse(out1);
+      expect(today.asOf).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      const p2 = spawn("2026-09-14", "--json");
+      const [out2, code2] = await Promise.all([new Response(p2.stdout).text(), p2.exited]);
+      expect(code2).toBe(0);
+      const past = JSON.parse(out2);
+      expect(past.asOf).toBeUndefined();
+    } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });

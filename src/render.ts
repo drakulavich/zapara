@@ -10,6 +10,12 @@ const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const paint = (s: string, level: Level, color: boolean) => (color ? `\x1b[${ANSI[level]}m${s}\x1b[0m` : s);
 const dim = (s: string, color: boolean) => (color ? `\x1b[2m${s}\x1b[0m` : s);
 const hm = (min: number) => `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`;
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+// A window that includes today reads a transcript Claude Code is still appending
+// to; this line marks the snapshot time on the one day still open, so two runs
+// minutes apart are explained rather than silently disagreeing.
+const snapshotLine = (d: Day | undefined, color: boolean): string[] =>
+  d?.asOf ? [dim(`  as of ${hhmm(new Date(d.asOf))}, this hour is still running`, color)] : [];
 const label = (date: string) => {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
   return `${WEEKDAY[new Date(y, m - 1, d).getDay()]} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
@@ -34,7 +40,7 @@ export function renderWeek(days: Day[], color: boolean): string {
   // Counts go through formatCount so a very active window (999 999 999 prompts) still
   // fits inside the grid's 100 columns; hm(active) has no compact form, so it stays as is.
   const totals = dim(`  ${hm(active)} active   ${plural(prompts, "prompt")}   ${plural(reports, "report")}   ${plural(decisions, "decision")}   ${plural(maxSessions, "session")} at once`, color);
-  return [header, ...rows, "", legend, totals].join("\n");
+  return [header, ...rows, "", legend, totals, ...snapshotLine(days[days.length - 1], color)].join("\n");
 }
 
 // Values at or above 1000 are shown as one decimal of a thousand (e.g. "41.2k"); smaller values print as-is.
@@ -83,8 +89,10 @@ export function renderDay(day: Day, opts: { explain: boolean; color: boolean }):
     cells.map((c, i) => { const w = columns[i]![1]; if (i === 0) return c.padEnd(w); if (columns[i]![0] === "level") return `  ${c.padEnd(w - 2)}`; return c.padStart(w); }).join("").trimEnd();
 
   const active = day.buckets.filter((b) => b.score !== null);
-  // No active bucket: today's plain behavior, the full header and nothing else.
-  if (active.length === 0) return line(cols, cols.map(([name]) => name));
+  // No active bucket: just the full header, plus the snapshot line if this
+  // quiet day is still open — otherwise a run at 09:00 and one at 18:00 on an
+  // empty today would print the identical line.
+  if (active.length === 0) return [line(cols, cols.map(([name]) => name)), ...snapshotLine(day, opts.color)].join("\n");
 
   const visible = cols.filter(([name, , f]) => !EVENT_COLS.has(name) || active.some((b) => f(b) !== "0"));
   const leftOut = cols.filter((col) => EVENT_COLS.has(col[0]) && !visible.includes(col));
@@ -102,6 +110,7 @@ export function renderDay(day: Day, opts: { explain: boolean; color: boolean }):
     const note = `  no ${leftOut.map(([name]) => FULL_NAME[name]).join(", ")} today`;
     lines.push(dim(note, opts.color));
   }
+  lines.push(...snapshotLine(day, opts.color));
   return lines.join("\n");
 }
 

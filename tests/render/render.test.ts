@@ -146,6 +146,15 @@ describe("day table", () => {
     expect(text).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
   });
 
+  test("an empty day that is still open ends with the snapshot time", () => {
+    // A quiet today needs "as of" too: otherwise a run at 09:00 and one at
+    // 18:00 on an empty today would print the identical output.
+    const [open] = analyze([], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T09:15:00.000Z") });
+    expect(renderDay(open!, { explain: false, color: false }).split("\n").at(-1)).toBe("  as of 09:15, this hour is still running");
+    const [closed] = analyze([], { to: "2026-09-14", days: 1 });
+    expect(renderDay(closed!, { explain: false, color: false })).not.toContain("as of");
+  });
+
   test("color mode dims the left-out-columns note and nothing else changes", () => {
     // Mutation: forgetting to dim the note, or dimming more than just that line.
     const plainText = renderDay(thursday, { explain: false, color: false });
@@ -196,6 +205,16 @@ describe("day table", () => {
     expect(lines[0]).toBe("hour   index  level    sess  prompts  rep  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok");
     expect(lines.length).toBe(2); // header + one row (13:00), no note
     expect(lines.some((l) => l.startsWith("  no "))).toBe(false);
+  });
+
+  test("a day taken today ends with the snapshot time; a closed day does not", () => {
+    const t = transcript([prompt("2026-09-14T13:00:00.000Z", "aaaaaaaa-1111-4111-8111-111111111111")]);
+    const [day] = analyze([t], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T14:32:00.000Z") });
+    expect(renderDay(day!, { explain: false, color: false }).split("\n").at(-1)).toBe("  as of 14:32, this hour is still running");
+    expect(renderWeek([day!], false).split("\n").at(-1)).toBe("  as of 14:32, this hour is still running");
+    const [closed] = analyze([t], { to: "2026-09-14", days: 1 });
+    expect(renderDay(closed!, { explain: false, color: false })).not.toContain("as of");
+    expect(renderWeek([closed!], false)).not.toContain("as of");
   });
 
   test("--explain appends the six weighted parts, named and in order, and they add up to the index", () => {
