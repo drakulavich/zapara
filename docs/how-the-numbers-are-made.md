@@ -3,9 +3,8 @@
 zapara reads the transcripts Claude Code writes on your machine and turns them
 into one number per hour, the load index, plus a few numbers per day. This page
 walks that path once, from a line in a `.jsonl` file to `load 36` in a status
-line, for someone who opens the repository for the first time. The binding
-definitions live in the specs under `docs/superpowers/specs/`; this page is the
-map, and it links to the territory.
+line. The specs under `docs/superpowers/specs/` are the authority; this page is
+the map.
 
 ```mermaid
 flowchart LR
@@ -22,45 +21,49 @@ flowchart LR
   ST --> PU["pult --zapara<br/>load 36 · streak 2h46 · day 9h15"]
 ```
 
-Everything to the left of `Day` is pure: `analyze()` takes transcript text
-already in memory and a window with an explicit `now`, and returns `Day[]`.
-Only the scan, the CLI, the card's picture step and the status-file writer
-touch the file system or the clock. Nothing is sent anywhere, and no message
-text survives past `parse`.
+The shell is the scan, the CLI, the card's picture step and the status-file
+writer: they touch the file system and the clock. From `parse` to `Day` the
+code is pure: `analyze()` takes transcript text already in memory and a window
+with an explicit `now`, and returns `Day[]`. Nothing is sent anywhere, and no
+message text survives past `parse`.
 
 ## 1. Which files are read
 
 `scan` walks `~/.claude/projects/**/*.jsonl` (or `--projects <dir>`) and skips
-the `subagents/` directories, so a subagent's own transcript never counts. A
-file is opened when its modification time falls inside the window, or, when it
-does not, when the last timestamp in its final 4 KB does: a restored or synced
-file is not dropped just because the file system says it is old. Nothing from
-that tail is kept. The window is the days you asked for plus a 3-hour look-back
-before it, which exists only so that a streak that started before midnight is
-measured from where it really started.
+`subagents/` directories, so a subagent's own transcript never counts. A file
+is read when its modification time falls inside the window, or, when it does
+not, when the last timestamp in its final 4 KB does: a restored or synced file
+is not dropped because the file system calls it old. Nothing from that tail is
+kept.
+
+The window is the days you asked for plus a 3-hour look-back before it. The
+look-back exists for one thing: a presence streak that began before the window
+is measured from where it began, up to three hours back. A streak older than
+that is floored at what the look-back sees, the one documented approximation;
+the index is not affected, because its streak component saturates at 120
+minutes.
 
 ## 2. From records to events
 
 `parse` reads a transcript line by line. Each line is a JSON record with a
-`type`, a `timestamp`, a `sessionId` and a `message`. A record becomes zero or
-more events; a malformed line is skipped, never fatal. Message text is compared
-against a few fixed markers and discarded: an event carries a time, a session
-id, a kind and, for output, a token count. Nothing else.
+`type`, a `timestamp`, a `sessionId` and a `message`; a malformed line is
+skipped, never fatal. A record becomes zero or more events. Message text is
+compared against a few fixed markers and discarded: an event carries a time, a
+session id, a kind and, for output, a token count.
 
 | Event | What it is in the transcript |
 |---|---|
-| `prompt` | A `user` record whose text is neither an interrupt marker nor an agent-message marker, not `isMeta`, not a sidechain. Something the human typed. |
-| `report` | A `user` record whose text starts with an agent-message marker (`Another Claude session sent a message:`, `<teammate-message`, `<cross-session-message`, `<task-notification>`, `[Cross-session`). Something the human has to read and react to, but did not type. |
+| `prompt` | A `user` record, not `isMeta`, not a sidechain, whose text is neither an interrupt marker nor an agent-message marker. Something the human typed. |
+| `report` | A `user` record, not `isMeta`, whose text (a string, or the first text block) starts with an agent-message marker such as `<teammate-message` or `<task-notification>`. Something the human reads and reacts to, but did not type. |
 | `output` | An `assistant` record with a text block and `usage.output_tokens`, counted once per `requestId`. Model output the human reads. |
 | `interrupt` | A `user` text block starting with `[Request interrupted by user`. |
 | `reject` | A `tool_result` saying the user did not want to proceed with that tool use. |
 | `question` | An `AskUserQuestion` tool call in an assistant message. |
 | `plan_review` | An `ExitPlanMode` tool call in an assistant message. |
-| `mode_change` | A `permission-mode` record whose mode differs from the previous one in the same session; the first one is the baseline, repeats count nothing. |
+| `mode_change` | A `permission-mode` record. It has no timestamp, so it takes the time of the last timestamped record before it in the same file, and is dropped if there is none. The first such record in a file is the session's baseline; each later one whose mode differs from the previous is one switch, and repeats count nothing. |
 | `activity` | Every `user` or `assistant` record with a timestamp, `isMeta` included. It says a session is alive, and nothing more. |
 
-The exact rules, verified against real records, are in the design spec's
-"Events" table.
+The exact markers and shapes are in the design spec's "Events" table.
 
 ## 3. Hours and buckets
 
@@ -68,10 +71,10 @@ Time is local. Every event belongs to the bucket named by its local date and
 hour, so a day is 24 buckets `00`..`23`. On a DST fall-back day two wall-clock
 hours share one label and merge; on a spring-forward day one label stays empty.
 
-Before anything is derived, all events from all files are sorted by time, then
-session id, then position. Every "consecutive" below means consecutive in that
-order, across sessions. Events in the look-back before the window update the
-presence streak and nothing else; they are never bucketed.
+All events from all files are sorted by time, then session id, then position,
+before anything is derived. "Consecutive" below means consecutive in that
+order, across sessions. Events in the look-back update the presence streak and
+nothing else; they are never bucketed.
 
 ## 4. What each hour counts
 
@@ -85,7 +88,7 @@ presence streak and nothing else; they are never bucketed.
 | `outputTokens` | Sum of tokens over `output` events. |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches`. |
 | `contextSwitches` | Over the hour's prompts in time order, consecutive pairs from different sessions. |
-| `streakMin` | Length of the presence streak that contains the hour's last prompt, from that streak's first prompt (which may lie in an earlier hour, or in the look-back). |
+| `streakMin` | Length of the presence streak that contains the hour's last prompt, from that streak's first prompt, which may lie in an earlier hour or in the look-back. |
 | `activeMin` | Five times the number of 5-minute slots in the hour covered by presence. |
 | `lateNight` | The hour is one of 23, 0, 1, 2, 3, 4, 5. |
 
@@ -94,9 +97,9 @@ events in which no two neighbours are more than 10 minutes apart. Every prompt
 covers its own 5-minute slot, and two neighbouring prompts of one streak cover
 every slot between them, because the human sat through that gap too. A slot
 belongs to the hour its start falls in. Assistant records and inbound reports
-between two prompts bridge nothing: an agent that works on for a quarter of an
-hour while you are away neither keeps your streak alive nor fills your day.
-This is the rule since 0.3.1; before it, any record counted.
+between two prompts bridge nothing: an agent that works on while you are away
+neither keeps your streak alive nor fills your day. This is the rule since
+0.3.1; before it, any record counted.
 
 ## 5. The index
 
@@ -117,8 +120,8 @@ index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 
 Levels: 0–29 Calm, 30–59 Warming, 60–84 Heating, 85–100 Fried. Without the
 late-night flag the index tops out at 90.
 
-A worked hour, 14:00 to 15:00: 2 sessions, 8 prompts, 2 decisions, 6 reports,
-1 context switch, 30 000 output tokens, a streak of 45 minutes.
+A worked hour: 2 sessions, 8 prompts, 2 decisions, 6 reports, 1 context
+switch, 30 000 output tokens, a streak of 45 minutes, at 14:00.
 
 | Part | Computation | Points |
 |---|---|---|
@@ -130,45 +133,40 @@ A worked hour, 14:00 to 15:00: 2 sessions, 8 prompts, 2 decisions, 6 reports,
 | late | 0 × 10 | 0 |
 | **index** | round(28.42) | **28, Calm** |
 
-The index is rounded once, from the unrounded sum; the parts shown by
-`--explain` are rounded to one decimal for display only, so the parts can add
-up to a number one off from the index and the index is still right. The
-weights are integers so that half-point sums stay exact in floating point.
-Weights, norms and level bounds live in one constant in `src/score.ts`; a
-recalibration is one diff there plus a CHANGELOG line. The norms are the p90 of
-two weeks of real data on two machines, and the parallel-session thresholds
-follow the productivity research the project started from; the design spec's
-"Index" section says which.
+The index is rounded once, from the unrounded sum; the parts that `--explain`
+prints are rounded to one decimal for display, so they can add up to a number
+one off from the index while the index is right. Weights, norms and level
+bounds live in one constant in `src/score.ts`; a recalibration is one diff
+there plus a CHANGELOG line. The norms are the p90 of two weeks of real data
+on two machines; the design spec's "Index" section says why each is what it is.
 
 ## 6. What a day adds up to
 
-A `Day` is its 24 buckets plus:
+A `Day` is its 24 buckets plus `peak` (the highest index), `mean` (the mean
+index over hours with a live session, rounded), both `null` on a day with none;
+`activeMin`, the sum of the hours' active minutes; and `totals`, the sums of
+every count and the largest `sessions` of any hour.
 
-- `peak`, the highest index of the day; `mean`, the mean index over hours that
-  had a live session, rounded; both `null` on a day with none;
-- `activeMin`, the sum of the hours' active minutes;
-- `totals`, the sums of every count and the maximum `sessions` of any hour.
-
-A day that includes now is a snapshot: it carries `asOf`, the moment the run
-started, and counts nothing timestamped after it, even if Claude Code appends
-it during the run. The tables end with `as of HH:MM, this hour is still running`.
+A day that includes now is a snapshot: the run fixes `now` when it starts,
+records it as `asOf`, and counts nothing timestamped after it, even if Claude
+Code appends records while the run reads. The next run makes the next
+snapshot. The tables end with `as of HH:MM, this hour is still running`.
 
 ## 7. Where the numbers go
 
 **The grid** (`zapara`, `--days`, `--from`/`--to`) is one glyph per hour by
-level, seven days by default, with the day's peak, mean and active minutes at
-the end of the row. **The day table** (`zapara today`, a date) is one row per
+level, seven days by default, with the day's peak and active minutes at the
+end of each row. **The day table** (`zapara today`, a date) is one row per
 active hour with the counts above; `--explain` adds the six parts. A pipe gets
-JSON with the same fields.
+JSON with the same fields, `mean` included.
 
 **The card** (`zapara card`) looks at 14 days and names one of four characters
 by which parts of the index carried the window: The Conductor (parallel and
 pace), The Supervisor (supervision and reading), The Marathoner (streak), The
 Night Owl (late). Each share is that character's points as a fraction of the
-maximum it could have had; the highest wins, ties in that order. The three
-highlights (sessions at once, reports read, longest streak, hours after
-midnight, and so on) are ranked against their own norms in `src/card.ts`; those
-norms order a picture and never enter the index. The card spec has the rest.
+most it could have had; the highest wins, ties in that order. The highlights
+are ranked against norms in `src/card.ts` that order a picture and never enter
+the index. The card spec has the rest.
 
 **The status file** (`zapara status`) writes today's current hour to
 `~/.claude/zapara/status.json` as one line of JSON with nine fields:
@@ -179,27 +177,28 @@ norms order a picture and never enter the index. The card spec has the rest.
 
 `hour`, `index`, `level` and `streakMin` are the current hour's; `peak` and
 `activeMin` are the day's. A status line such as [pult](https://github.com/drakulavich/pult)
-reads that file every render and shows `load 36 · streak 2h46 · day 9h15`: the
-index in the colour of its level, the time since your last break of ten minutes,
-and the day's presence so far. When the file is older than five minutes the
-reader starts `zapara status` in the background and reads the fresh file on the
-next render. The status-file spec holds the format and the reader's contract.
+reads that file on every render and shows `load 36 · streak 2h46 · day 9h15`:
+the index in the colour of its level, the time since your last ten-minute
+break, and the day's presence so far. When the file is older than five minutes
+the reader starts `zapara status` in the background and reads the fresh file
+on the next render. The status-file spec holds the format and the reader's
+contract.
 
 ## 8. Things that look like bugs and are not
 
 - **A calm index in a busy-looking hour.** Explicit decisions are rare in auto
-  mode (p90 is 3 per hour), so the index leans on supervision and reading: what
-  a heavy hour costs is reacting to reports, hopping between sessions and
-  reading output. Check `--explain`.
+  mode, so the index leans on supervision and reading: what a heavy hour costs
+  is reacting to reports, hopping between sessions and reading output. Check
+  `--explain`.
 - **A streak of 1 minute after a long day.** The streak is the run you are in
   now, not the day's longest; the longest is on the card. Eleven minutes without
   a prompt of yours start a new one.
 - **Fewer active minutes than the session felt.** Minutes count when you were
-  present, not when an agent was working alone. The day's `sessions` column
-  still shows the agents.
+  present, not when an agent was working alone. The `sess` column still shows
+  the agents.
 - **Yesterday's numbers changed today.** A file restored or synced late is
-  read by its last record, not its modification time; and today's numbers are
-  a snapshot that grows while Claude Code writes.
+  read by its last record, not its modification time; and a later run of a day
+  that was still running makes a later snapshot.
 - **No message text anywhere.** By design: text is compared against fixed
   markers and dropped, and the CLI never prints a path, not even the projects
   root when it cannot open it.
