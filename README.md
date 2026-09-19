@@ -142,7 +142,7 @@ A status line wants one number every thirty seconds and cannot wait half a secon
 
 | Field | Meaning |
 |---|---|
-| `schema` | The shape of this file: `1`. A reader that sees a number it does not know shows nothing. It changes only when a field changes meaning or goes away; adding a field does not bump it. |
+| `schema` | The shape of this file: `1`. A reader that sees a number it does not know shows nothing. It changes only when a field changes meaning or goes away; adding a field does not bump it. A field that keeps its name, unit and range but is measured differently (the presence rule of 2026-09-19 for `activeMin` and `streakMin`) does not bump it either: a reader shows the corrected number, and the change is a CHANGELOG entry. |
 | `asOf` | When the snapshot was taken, ISO 8601 UTC: the `Day.asOf` of the base spec, the `now` of this run. A reader decides staleness from this field, never from the file's mtime. |
 | `date` | The local calendar day the numbers describe, `YYYY-MM-DD`. |
 | `hour` | The local hour that contains `asOf`, `0`..`23`. |
