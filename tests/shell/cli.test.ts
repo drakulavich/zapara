@@ -195,6 +195,16 @@ describe("cli", () => {
     }
   });
 
+  test("a value flag given twice is a usage error, not the last value winning", async () => {
+    for (const [flag, v] of [["--days", "3"], ["--from", "2026-09-10"], ["--to", "2026-09-14"], ["--projects", root]] as const) {
+      expect(await first(flag, v, flag, v)).toEqual([2, `zapara: ${flag} given twice`]);
+    }
+    expect(await first("card", "--out", "a.png", "--out", "b.png")).toEqual([2, "zapara: --out given twice"]);
+    // A bare flag repeated is harmless.
+    const r = await run("--to", "2026-09-14", "--json", "--json");
+    expect(r.code).toBe(0);
+  });
+
   test("a projects directory that cannot be read says so, without a path", async () => {
     if (process.getuid?.() === 0) return; // root bypasses file permissions
     const dir = await mkdtemp(join(tmpdir(), "zapara-cli-noread-"));

@@ -106,6 +106,9 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   let jsonFlag = false;
   let outGiven = false;
   const positional: string[] = [];
+  // A value flag given twice is a usage error, not the last value winning
+  // silently; bare flags (--json, --explain, --no-color) are idempotent and stay untracked.
+  const seen = new Set<string>();
   for (let i = 0; i < argv.length; i++) {
     let arg = argv[i]!;
     // `--days=30` is `--days 30`. A flag that takes no value refuses an inline one.
@@ -117,9 +120,15 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
     // never treated as this flag's value (e.g. `--projects --json`). Only --days
     // takes a negative number as a value, so `--days -1` reaches the range check.
     const value = (negativeNumberIsValue = false): string => {
-      if (inline !== null) return inline;
-      const v = argv[++i];
-      if (v === undefined || (v.startsWith("-") && !(negativeNumberIsValue && /^-\d/.test(v)))) throw new UsageError(`${arg} needs a value`);
+      let v: string;
+      if (inline !== null) v = inline;
+      else {
+        const next = argv[++i];
+        if (next === undefined || (next.startsWith("-") && !(negativeNumberIsValue && /^-\d/.test(next)))) throw new UsageError(`${arg} needs a value`);
+        v = next;
+      }
+      if (seen.has(arg)) throw new UsageError(`${arg} given twice`);
+      seen.add(arg);
       return v;
     };
     switch (arg) {

@@ -178,8 +178,9 @@ when both are given; `--to <date>` alone, 7 days ending there; `--from <date>
 --to <date>`, both inclusive, at most 90 days; `--from` alone runs to today. `--from` with `--days` is an error: the dates set the
 length. A date is `YYYY-MM-DD`, `today` or `yesterday`, in every position,
 including the day's name; `--days`, `--from` and `--to` on a named day are
-errors. `--days=30` is accepted beside `--days 30`. (Until 0.2.0 the grid
-was `week` and the day was `day <date>`.)
+errors. `--days=30` is accepted beside `--days 30`. A value flag given twice
+is a usage error. (Until 0.2.0 the grid was `week` and the day was `day
+<date>`.)
 
 The grid prints one row per day, 24 cells, then `peak` and `active`:
 
