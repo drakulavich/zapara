@@ -237,7 +237,7 @@ bun install
 bun link
 ```
 
-`bun link` registers the clone's `bin` entry, so `zapara` runs this checkout; without it, `bun src/index.ts week` does the same thing.
+`bun link` registers the clone's `bin` entry, so `zapara` runs this checkout; without it, `bun src/index.ts` does the same thing.
 
 ```bash
 bun run check    # tsc --noEmit, then the test suite under TZ=UTC

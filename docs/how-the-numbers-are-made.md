@@ -56,7 +56,7 @@ session id, a kind and, for output, a token count.
 |---|---|
 | `prompt` | A `user` record, not `isMeta`, whose text (a string, or the first text block, which a pasted image can push behind an `image` block) is neither an interrupt marker nor an agent-message marker. Something the human typed. |
 | `report` | A `user` record, not `isMeta`, whose text (a string, or the first text block) starts with an agent-message marker such as `<teammate-message` or `<task-notification>`. Something the human reads and reacts to, but did not type. |
-| `output` | An `assistant` record with a text block and `usage.output_tokens`, counted once per `requestId`. Model output the human reads. |
+| `output` | An `assistant` record with a text block and `usage.output_tokens`, counted once per `requestId` within a file. Model output the human reads. |
 | `interrupt` | A `user` text block starting with `[Request interrupted by user`. |
 | `reject` | A `tool_result` saying the user did not want to proceed with that tool use. |
 | `question` | An `AskUserQuestion` tool call in an assistant message. |
