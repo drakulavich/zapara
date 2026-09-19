@@ -47,13 +47,14 @@ minutes.
 
 `parse` reads a transcript line by line. Each line is a JSON record with a
 `type`, a `timestamp`, a `sessionId` and a `message`; a malformed line is
-skipped, never fatal. A record becomes zero or more events. Message text is
+skipped, never fatal, and a sidechain record (`isSidechain: true`) is ignored for
+every kind. A record becomes zero or more events. Message text is
 compared against a few fixed markers and discarded: an event carries a time, a
 session id, a kind and, for output, a token count.
 
 | Event | What it is in the transcript |
 |---|---|
-| `prompt` | A `user` record, not `isMeta`, not a sidechain, whose text is neither an interrupt marker nor an agent-message marker. Something the human typed. |
+| `prompt` | A `user` record, not `isMeta`, whose text is neither an interrupt marker nor an agent-message marker. Something the human typed. |
 | `report` | A `user` record, not `isMeta`, whose text (a string, or the first text block) starts with an agent-message marker such as `<teammate-message` or `<task-notification>`. Something the human reads and reacts to, but did not type. |
 | `output` | An `assistant` record with a text block and `usage.output_tokens`, counted once per `requestId`. Model output the human reads. |
 | `interrupt` | A `user` text block starting with `[Request interrupted by user`. |
@@ -160,8 +161,9 @@ end of each row. **The day table** (`zapara today`, a date) is one row per
 active hour with the counts above; `--explain` adds the six parts. A pipe gets
 JSON with the same fields, `mean` included.
 
-**The card** (`zapara card`) looks at 14 days and names one of four characters
-by which parts of the index carried the window: The Conductor (parallel and
+**The card** (`zapara card`) takes the grid's window flags, 14 days by default,
+and names one of four characters by which parts of the index carried that
+window: The Conductor (parallel and
 pace), The Supervisor (supervision and reading), The Marathoner (streak), The
 Night Owl (late). Each share is that character's points as a fraction of the
 most it could have had; the highest wins, ties in that order. The highlights
