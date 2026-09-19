@@ -121,7 +121,7 @@ export function derive(events: Event[], w: Window): Day[] {
   const { startMs, endMs, cutoffMs, dates } = windowBounds(w);
   const sorted = events
     .map((e, i) => ({ e, i }))
-    .filter(({ e }) => e.ts >= cutoffMs && e.ts < endMs)
+    .filter(({ e }) => e.ts >= cutoffMs && e.ts < endMs && (!w.now || e.ts <= w.now.getTime()))
     .sort((a, b) => a.e.ts - b.e.ts || (a.e.sessionId < b.e.sessionId ? -1 : a.e.sessionId > b.e.sessionId ? 1 : 0) || a.i - b.i)
     .map(({ e }) => e);
   const acc = foldEvents(sorted, startMs);

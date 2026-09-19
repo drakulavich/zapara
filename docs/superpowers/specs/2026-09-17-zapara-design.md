@@ -226,7 +226,10 @@ entries, each with `hour`, every metric, and `score`, which is
 `{ index, level, parts }` or `null` when the bucket has no activity; for a day,
 one such day. JSON is also the default when stdout is not a TTY. The day that
 contains the moment the report ran also carries `asOf`, that moment as an ISO
-8601 UTC string; every other day omits the field.
+8601 UTC string; every other day omits the field. That day's own numbers cover
+only events timestamped at or before `asOf`, so a record appended while zapara
+was reading, or one later than the snapshot, is excluded even though it falls
+inside the window.
 
 Defaults and validation: `--to` defaults to today. `--days` defaults to 7 and
 accepts an integer from 1 to 90. A date must be `YYYY-MM-DD` and a real
@@ -268,8 +271,11 @@ memory, in the real JSONL format, plus a window (`{ to, days, now? }`) and
 returns the same `Day[]` the CLI prints. `now`, when given, is the moment the
 report is taken; the one returned day whose date contains it gets `asOf` set to
 its ISO 8601 UTC string, marking that day as a snapshot of a transcript still
-being written. Fixture tests feed it directly with in-memory transcripts and
-get the statistics back without touching the disk; the CLI test and the report
+being written, and every event timestamped after `now` is excluded from that
+day's buckets and totals, even one inside the window, so the snapshot covers
+everything up to `asOf` and nothing after. Fixture tests feed it directly with
+in-memory transcripts and get the statistics back without touching the disk;
+the CLI test and the report
 test cover the shell.
 
 Rules: the shell may import any core module; core modules never import the
