@@ -6,6 +6,7 @@ import { assistant, prompt, writeTree } from "../helpers/transcript.ts";
 
 const CLI = join(import.meta.dir, "../../src/index.ts");
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
+const B = "bbbbbbbb-1111-4111-8111-111111111111";
 const utcDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 let projects: string;
 // A throwaway working directory for every run: with HOME empty, bun puts its
@@ -91,6 +92,34 @@ describe("zapara status", () => {
     expect(JSON.parse(file).schema).toBe(1);
     expect(file.endsWith("\n") && file.split("\n").length === 2).toBe(true);
     expect(await tmps(h)).toEqual([]);
+  });
+
+  test("an event after the run's clock is not in the file", async () => {
+    // The same day twice: once from the suite fixture, once from a tree that
+    // adds a session five and six minutes in the future. The snapshot rule says
+    // the two must agree, because events after the run's own clock do not count
+    // yet. In the last six minutes of a UTC day the extra session lands on
+    // tomorrow, so the two agree for that reason instead and the test still
+    // passes; only the mutation goes unnoticed in that window.
+    const tree = await mkdtemp(join(tmpdir(), "zapara-status-future-"));
+    try {
+      const d = utcDay(0);
+      const ahead = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+      await writeTree(tree, [
+        { path: "-Users-me-proj/t.jsonl", lines: [prompt(`${d}T00:00:00.000Z`, A), assistant(`${d}T00:02:00.000Z`, A)], mtime: `${d}T00:02:00.000Z` },
+        { path: "-Users-me-proj/later.jsonl", lines: [prompt(ahead(5), B), assistant(ahead(6), B)], mtime: ahead(6) },
+      ]);
+      const [hc, hf] = [await home(), await home()];
+      const [control, withFuture] = await Promise.all([run(hc), spawn(hf, "--projects", tree)]);
+      expect([control.code, withFuture.code]).toEqual([0, 0]);
+      const load = (line: string) => { const { index, level, peak, activeMin, streakMin } = JSON.parse(line); return { index, level, peak, activeMin, streakMin }; };
+      expect(load(withFuture.out)).toEqual(load(control.out));
+      // The fixture does count when it is behind the clock, so equality above
+      // is the cutoff at work and not two empty days.
+      expect(JSON.parse(control.out).activeMin).toBeGreaterThan(0);
+    } finally {
+      await rm(tree, { recursive: true, force: true });
+    }
   });
 
   test("four runs at once leave one complete line and no temp file", async () => {
