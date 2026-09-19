@@ -46,6 +46,14 @@ export const assistant = (ts: string, sid: string) =>
 export const assistantText = (ts: string, sid: string, tokens: number, requestId: string) =>
   base(ts, sid, { type: "assistant", requestId, message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", usage: { input_tokens: 2, output_tokens: tokens }, content: [{ type: "text", text: "placeholder reply" }] } });
 
+// The same record with `usage.output_tokens` written as a raw JSON literal, for
+// counts JSON.stringify cannot produce: `1e309` (Infinity once parsed), a
+// negative count, a fraction. A corrupt or hand-edited transcript holds these.
+const TOKEN_SLOT = "__output_tokens__";
+export const assistantTokensLiteral = (ts: string, sid: string, literal: string, requestId: string) =>
+  base(ts, sid, { type: "assistant", requestId, message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", usage: { input_tokens: 2, output_tokens: TOKEN_SLOT }, content: [{ type: "text", text: "placeholder reply" }] } })
+    .replace(`"output_tokens":"${TOKEN_SLOT}"`, `"output_tokens":${literal}`);
+
 // An assistant record whose only content block is a tool call: not text the human
 // reads, so it must never contribute output tokens even though usage is present.
 export const assistantToolUseOnly = (ts: string, sid: string, tokens: number, requestId: string) =>

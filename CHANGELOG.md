@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- An output-token count that is not a finite non-negative integer is ignored instead of poisoning the day: a corrupt transcript could put `NaN` in the token column and `null` in the JSON, beside a made-up level.
 - A prompt with a pasted screenshot counts again: the image block comes before the typed text, and such prompts were read as no text at all, so a day spent pasting screenshots showed no prompts and no active minutes.
 
 ## [0.3.1] - 2026-09-19

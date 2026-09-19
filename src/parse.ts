@@ -96,13 +96,18 @@ export function parseTranscript(text: string): Event[] {
       // that has a string requestId, numeric usage.output_tokens and at least one
       // text block. A response holding only tool_use blocks is not text the human
       // reads, so it never triggers this, even on its first (and only) record.
+      // A count only counts when it is one a token count can be: a finite
+      // non-negative integer. `1e309` parses to Infinity and a negative count
+      // to -Infinity, and a day holding both summed to NaN; such a record is
+      // still `activity`, it just carries no tokens.
       const requestId = str(rec.requestId);
       const usage = isObj(rec.message) ? rec.message.usage : undefined;
       const outputTokens = isObj(usage) ? usage.output_tokens : undefined;
+      const tokens = typeof outputTokens === "number" && Number.isSafeInteger(outputTokens) && outputTokens >= 0 ? outputTokens : null;
       const hasText = blocks.some((b) => isObj(b) && b.type === "text");
-      if (requestId !== null && typeof outputTokens === "number" && hasText && !seenRequestIds.has(requestId)) {
+      if (requestId !== null && tokens !== null && hasText && !seenRequestIds.has(requestId)) {
         seenRequestIds.add(requestId);
-        events.push({ ts, sessionId, kind: "output", tokens: outputTokens });
+        events.push({ ts, sessionId, kind: "output", tokens });
       }
     }
   }
