@@ -39,9 +39,21 @@ describe("decisions in one hour", () => {
     expect(b.prompts).toBe(2);
   });
 
-  test("a mode record before any timestamp is dropped", () => {
+  test("a mode switch before the first timestamp lands on the first timestamped record", () => {
+    // Switching the mode before typing anything is how a session often starts.
     const d = analyze([transcript([mode(S, "auto"), mode(S, "plan"), prompt(at("14:00"), S)])], W)[0]!;
-    expect(d.buckets[14]!.modeSwitches).toBe(0);
+    expect(d.buckets[14]!.modeSwitches).toBe(1);
+    expect(d.buckets[14]!.decisions).toBe(1);
+  });
+
+  test("each switch waiting for a timestamp is counted, not just the last", () => {
+    const d = analyze([transcript([mode(S, "auto"), mode(S, "plan"), mode(S, "acceptEdits"), prompt(at("14:00"), S)])], W)[0]!;
+    expect(d.buckets[14]!.modeSwitches).toBe(2);
+  });
+
+  test("a file with no timestamped record at all counts nothing", () => {
+    const d = analyze([transcript([mode(S, "auto"), mode(S, "plan")])], W)[0]!;
+    expect(d.totals.modeSwitches).toBe(0);
   });
 
   test("day totals sum the buckets", () => {

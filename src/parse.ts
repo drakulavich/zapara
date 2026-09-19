@@ -35,6 +35,9 @@ export function parseTranscript(text: string): Event[] {
   const events: Event[] = [];
   let lastTs: number | null = null;
   let lastMode: string | null = null;
+  // Mode switches seen before this file's first timestamped record, waiting for
+  // a time to belong to.
+  let pendingModeChanges = 0;
   // Dedupes `output` events by requestId within this one file: Claude Code
   // writes one record per content block of a response, repeating the same
   // requestId and usage, so only the first qualifying record counts.
@@ -55,10 +58,12 @@ export function parseTranscript(text: string): Event[] {
       if (m === null) continue;
       // The baseline mode is tracked as soon as it is seen, even before any
       // timestamp exists, so a later switch away from it can be detected. A
-      // switch is only ever emitted as an event once a timestamp is known;
-      // a switch that happens before any timestamp is known is dropped.
-      if (lastMode !== null && m !== lastMode && lastTs !== null) {
-        events.push({ ts: lastTs, sessionId, kind: "mode_change" });
+      // switch before any timestamp waits: switching the mode before typing
+      // anything is how a session often starts, and it is attributed to the
+      // first timestamped record that follows. A file with none drops them.
+      if (lastMode !== null && m !== lastMode) {
+        if (lastTs === null) pendingModeChanges++;
+        else events.push({ ts: lastTs, sessionId, kind: "mode_change" });
       }
       lastMode = m;
       continue;
@@ -69,6 +74,7 @@ export function parseTranscript(text: string): Event[] {
     if (Number.isNaN(ts)) continue;
     lastTs = ts;
     events.push({ ts, sessionId, kind: "activity" });
+    for (; pendingModeChanges > 0; pendingModeChanges--) events.push({ ts, sessionId, kind: "mode_change" });
 
     const content = isObj(rec.message) ? rec.message.content : undefined;
     if (type === "user") {

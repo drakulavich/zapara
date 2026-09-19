@@ -61,7 +61,7 @@ session id, a kind and, for output, a token count.
 | `reject` | A `tool_result` saying the user did not want to proceed with that tool use. |
 | `question` | An `AskUserQuestion` tool call in an assistant message. |
 | `plan_review` | An `ExitPlanMode` tool call in an assistant message. |
-| `mode_change` | A `permission-mode` record. It has no timestamp, so it takes the time of the last timestamped record before it in the same file, and is dropped if there is none. The first such record in a file is the session's baseline; each later one whose mode differs from the previous is one switch, and repeats count nothing. |
+| `mode_change` | A `permission-mode` record. It has no timestamp, so it takes the time of the last timestamped record before it in the same file, or, when there is none yet, is attributed to the first timestamped record that follows; it is dropped only if the file has none. The first such record in a file is the session's baseline; each later one whose mode differs from the previous is one switch, and repeats count nothing. |
 | `activity` | Every `user` or `assistant` record with a timestamp, `isMeta` included. It says a session is alive, and nothing more. |
 
 The exact markers and shapes are in the design spec's "Events" table.
