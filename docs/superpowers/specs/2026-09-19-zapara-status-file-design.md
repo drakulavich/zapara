@@ -24,6 +24,11 @@ zapara stays a program that runs and exits. This spec adds no hook, no timer,
 no daemon and no watcher; refreshing is the reader's job, and the contract
 for it is written down below so the two sides agree without sharing code.
 
+Prerequisite: the snapshot change (PR 25, branch `xt-fixes`), which gives
+`Window` an optional `now`, `Day` an optional `asOf`, and makes `derive()`
+drop events after `now`. This spec reuses that plumbing and adds none of
+its own; it cannot be implemented on a `main` that lacks it.
+
 ## CLI
 
 ```
@@ -88,12 +93,21 @@ for them and the file may sit in a directory other tools read.
 ## Writing the file
 
 - The write is atomic: the line goes to a temporary file in the same
-  directory, which is then renamed over `status.json`. A reader sees the old
-  file or the new one, never a partial line. No temporary file survives a
-  successful run; a temporary file left by a crash is overwritten by the next
-  run, not accumulated (the name is fixed: `status.json.tmp`).
+  directory, created exclusively (`wx`, so an existing file or symlink at
+  that name is an error, never followed) under a name unique to this run,
+  `status.json.<pid>.<random>.tmp`, then renamed over `status.json`. A
+  reader sees the old file or the new one, never a partial line.
+- Two runs at once are allowed and harmless: each writes its own temporary
+  file, each rename is atomic, the last rename wins, and both files were
+  complete. Nothing locks; a reader's single-flight rule (below) keeps the
+  number of concurrent runs small, and zapara does not depend on it.
+- The temporary file is removed on every path out of a failed write. One
+  left by a crash is not reused: the next run deletes any
+  `status.json.*.tmp` in the directory older than ten minutes and never
+  opens one.
 - The file is created with mode `0600` (owner read and write). The directory
-  with `0700`.
+  with `0700`. `status.json` itself may be a symlink someone put there;
+  `rename` replaces the link, it does not write through it.
 - On any error before the rename, the existing `status.json` is left as it
   was: a status line keeps showing the last good snapshot with its own
   `asOf`, which is the truthful state.
@@ -105,20 +119,35 @@ for them and the file may sit in a directory other tools read.
 Written here so pult and zapara agree without either reading the other's
 source.
 
-- Read `~/.claude/zapara/status.json`. If it is missing, unreadable, not one
-  JSON object, or `schema` is not `1`, show no segment. A status line already
-  hides sections it has no data for; this is one more.
+- Read `~/.claude/zapara/status.json` and decode it strictly. The file is
+  written by another program and can be replaced by any tool the same user
+  runs, so the reader trusts nothing in it: it is one JSON object; `schema`
+  is `1`; `asOf` parses as an ISO 8601 instant no later than one minute
+  after the reader's own clock; `date` is `YYYY-MM-DD`; `hour` is an integer
+  `0`..`23`; `index` and `peak` are `null` or integers `0`..`100`; `level` is
+  `null` exactly when `index` is, else one of the four names; `activeMin` and
+  `streakMin` are integers `0`..`1440`. Anything else, and a missing or
+  unreadable file, is treated as no data: the segment is not drawn, and the
+  file counts as stale.
 - Draw the current hour's `index`, coloured by `level`; `null` draws nothing.
   Whatever else the reader shows (`peak`, `activeMin` as hours and minutes)
   comes from the same file.
-- Staleness is `now - asOf`. When that exceeds the reader's threshold
-  (pult's is five minutes), the reader runs `zapara status` as a detached
-  process with stdin, stdout and stderr closed, does not wait for it, and
-  draws what it has. The next read picks up the new file. `asOf` moves only
-  when zapara actually ran, so a reader that shows the snapshot's age shows
-  the truth. A reader must not run `zapara status` on every render: the
-  half-second cost and the "kill the in-flight script" rule of Claude Code's
-  status line are exactly what this file exists to avoid.
+- Staleness is `now - asOf`, or no data at all. When the file is stale, the
+  reader runs `zapara status` as a detached process with stdin, stdout and
+  stderr closed, does not wait for it, and draws what it has; the next read
+  picks up the new file. This is how the file comes to exist on a machine
+  that never ran zapara: the first render finds nothing, starts one run, and
+  the render after that has the file. The threshold is the reader's (pult's
+  is five minutes).
+- Single flight: a reader starts at most one run per threshold, whatever the
+  file says in between, and never one per render. That bounds a broken file
+  (one that fails validation forever) to one run per threshold, and it keeps
+  the half-second cost and Claude Code's "kill the in-flight script" rule
+  away from the status line, which is what this file exists for. How the
+  reader remembers its last launch is its own business (pult: a marker file
+  beside the status file, or the launch time in its own cache).
+- `asOf` moves only when zapara actually ran, so a reader that shows the
+  snapshot's age shows the truth.
 - `zapara` is found on the reader's `PATH`; a reader with a
   `bun`-locating wrapper (pult's) can fall back to `bunx @drakulavich/zapara
   status`. When neither is found the reader shows the file it has, or
@@ -167,7 +196,12 @@ Fixture-driven through the public seams, as the base spec requires:
   matches the ISO shape. A second run with an unreadable projects directory:
   exit 1, one line on stderr, no path in it, and the file's content is
   byte-identical to before. `--days 3` with `status`: exit 2 and the usage
-  message. `HOME` empty: exit 1, `cannot write the status file`.
+  message. `HOME` empty: exit 1, `cannot write the status file`. Four runs started at once against the same
+  `HOME`: all exit 0, the file is one complete line, no `*.tmp` remains. A
+  stale `status.json.1.abc.tmp` older than ten minutes (mtime set by the
+  test) is gone after a run, a fresh one is left alone. `status.json`
+  replaced by a symlink to another file in the temp directory: after a run
+  the path is a regular file and the link's target is unchanged.
 - The README's `--help` test (existing) pins the new help line and the
   80-column width.
 
