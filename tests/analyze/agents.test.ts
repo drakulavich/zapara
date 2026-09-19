@@ -21,9 +21,23 @@ describe("inbound agent messages are reports, never prompts", () => {
     expect(b.prompts).toBe(1);
   });
 
-  test("reports are activity: one session, all four records in the same 5-minute slot", () => {
+  test("reports keep the session alive but are not presence", () => {
     expect(b.sessions).toBe(1);
+    // The five active minutes are the 13:03 prompt's own slot. The three reports
+    // before it add nothing: only what the human typed counts as presence.
     expect(b.activeMin).toBe(5);
+  });
+
+  test("an hour of reports and no prompt is a live session with no presence", () => {
+    const b2 = analyze([transcript([
+      teammate(at("09:00"), S),
+      crossSession(at("09:20"), S),
+      taskNotification(at("09:40"), S),
+    ])], W)[0]!.buckets[9]!;
+    expect(b2.sessions).toBe(1);
+    expect(b2.reports).toBe(3);
+    expect(b2.activeMin).toBe(0);
+    expect(b2.streakMin).toBe(0);
   });
 });
 
@@ -110,8 +124,11 @@ describe("day totals sum reports and outputTokens across the day's buckets", () 
 
 describe("reports and output tokens enter the index through supervision and reading", () => {
   // Same session, same single timestamp for every event, so sessions, prompts,
-  // decisions, context switches, activeMin and streakMin are identical between
-  // the two buckets; the only difference is 9 inbound agent reports.
+  // decisions and context switches are identical between the two buckets; the
+  // only difference is 9 inbound agent reports. activeMin and streakMin are
+  // identical too, and now for a stronger reason than a shared timestamp:
+  // presence follows the one prompt both buckets hold, so reports cannot move
+  // either number however many of them arrive or how far apart they land.
   // Both: parallel 0 (1 session), pace 15*(1/20) = 0.75 -> 0.8, reading 0, streak 0, late 0.
   // lonely: supervision 0 -> index round(0.75) = 1.
   // busy: supervision 30*(0 + 9 + 0)/45 = 6.0 -> index round(0.75 + 6) = 7.

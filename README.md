@@ -38,29 +38,29 @@ Both pictures below come from the synthetic fixture in `tests/fixtures/busy-week
 
 ```
             00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active
-Mon 14/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  █  █  █  ·  ·  ·  ·  ·  ░  ░  ·  ░     87    6h00
-Tue 15/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  ░  ▒  ▒  ▒  ░  ·  ·  ·  ·  ·  ·     33    4h00
+Mon 14/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  █  █  █  ·  ·  ·  ·  ·  ░  ░  ·  ░     87    8h50
+Tue 15/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  ░  ▒  ▒  ▒  ░  ·  ·  ·  ·  ·  ·     33    7h55
 Wed 16/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
-Thu 17/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     14    1h00
-Fri 18/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▓  ·  ·  ·  ·  ·  ·  ·  ·     82    1h00
-Sat 19/09    ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     24    1h00
+Thu 17/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     14    1h55
+Fri 18/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▓  ·  ·  ·  ·  ·  ·  ·  ·     81    1h00
+Sat 19/09    ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     24    1h55
 Sun 20/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
 
   ░ calm   ▒ warming   ▓ heating   █ fried
-  13h00 active   346 prompts   0 reports   100 decisions   5 sessions at once
+  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once
 ```
 
 ```
 hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
-09:00      9  Calm        1        6     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
-10:00     14  Calm        1        6     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
-11:00     15  Calm        1        6     0    0      0     0     0       0    173m      600    0   4.5     0   0.1    10     0
-12:00     87  Fried       5       55    20    1      1     1     2      54    237m    55.0k   25    15    30   6.9    10     0
-13:00     87  Fried       5       55    20    1      1     1     2      54    297m    55.0k   25    15    30   6.9    10     0
-14:00     87  Fried       5       55    20    1      1     1     2      54    357m    55.0k   25    15    30   6.9    10     0
-20:00      9  Calm        1        6     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4     0
-21:00     14  Calm        1        6     0    0      0     0     0       0    113m      600    0   4.5     0   0.1   9.4     0
-23:00     19  Calm        1        6     0    0      0     0     0       0     53m      600    0   4.5     0   0.1   4.4    10
+09:00      9  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1   4.2     0
+10:00     14  Calm        1        6     0    0      0     0     0       0    110m      600    0   4.5     0   0.1   9.2     0
+11:00     15  Calm        1        7     0    0      0     0     0       0    179m      600    0   5.3     0   0.1    10     0
+12:00     87  Fried       5       55    20    1      1     1     2      54    235m    55.0k   25    15    30   6.9    10     0
+13:00     87  Fried       5       55    20    1      1     1     2      54    295m    55.0k   25    15    30   6.9    10     0
+14:00     87  Fried       5       55    20    1      1     1     2      54    355m    55.0k   25    15    30   6.9    10     0
+20:00      9  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1   4.2     0
+21:00     14  Calm        1        6     0    0      0     0     0       0    110m      600    0   4.5     0   0.1   9.2     0
+23:00     19  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1   4.2    10
   no reports today
 ```
 
@@ -142,15 +142,15 @@ A status line wants one number every thirty seconds and cannot wait half a secon
 
 | Field | Meaning |
 |---|---|
-| `schema` | The shape of this file: `1`. A reader that sees a number it does not know shows nothing. It changes only when a field changes meaning or goes away; adding a field does not bump it. |
+| `schema` | The shape of this file: `1`. A reader that sees a number it does not know shows nothing. It changes only when a field changes meaning or goes away; adding a field does not bump it. A field that keeps its name, unit and range but is measured differently (the presence rule of 2026-09-19 for `activeMin` and `streakMin`) does not bump it either: a reader shows the corrected number, and the change is a CHANGELOG entry. |
 | `asOf` | When the snapshot was taken, ISO 8601 UTC: the `Day.asOf` of the base spec, the `now` of this run. A reader decides staleness from this field, never from the file's mtime. |
 | `date` | The local calendar day the numbers describe, `YYYY-MM-DD`. |
 | `hour` | The local hour that contains `asOf`, `0`..`23`. |
 | `index` | That hour's load index, `0`..`100`, or `null` when the hour has no activity yet. |
 | `level` | That hour's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colors by this field so it never needs the thresholds. |
 | `peak` | The day's peak index so far, or `null` on a day with no activity. |
-| `activeMin` | Active minutes in the day so far; `0` on a day with no activity. |
-| `streakMin` | Minutes of the unbroken streak as of the current hour, `0` when there is none. |
+| `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your prompts and the gaps of at most 10 minutes between them; `0` on a day with no prompt. |
+| `streakMin` | Minutes of the unbroken presence streak as of the current hour: your prompts no more than 10 minutes apart, across sessions; `0` when the hour has none. |
 
 Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon. A reader decodes the file strictly and treats anything that fails validation, and a missing or unreadable file, as no data: it draws nothing and counts the file as stale. When the snapshot is stale or missing it starts `zapara status` as a detached process, does not wait for it, and draws what it has, which is also how the file first comes to exist on a machine that never ran zapara. It starts at most one run per threshold and never one per render, so a file that never validates costs one run per threshold and no more; the whole contract is in [the status file spec](docs/superpowers/specs/2026-09-19-zapara-status-file-design.md), and [pult](https://github.com/drakulavich/pult) is the reader that exists, with a five-minute threshold.
 
@@ -221,7 +221,7 @@ Weights and norms live in one exported constant in `src/score.ts`, so a recalibr
 | `plan` | `ExitPlanMode` tool calls in an assistant message, one per block. |
 | `mode` | Permission-mode switches. A `permission-mode` record whose mode differs from the previous one; the first record of a session sets the baseline and repeats of the same mode count nothing. |
 | `ctx-sw` | Context switches. Over the hour's prompts in time order, the number of consecutive pairs that came from different sessions. |
-| `streak` | Minutes since the current activity streak began, which may reach back before the hour. A gap longer than 10 minutes between records breaks the streak. |
+| `streak` | Minutes since the current presence streak began: your prompts no more than 10 minutes apart, across sessions, which may reach back before the hour. Agent activity between two prompts does not bridge a gap. |
 | `out-tok` | Assistant output tokens, summed once per request and only for requests that produced a text block. Claude Code repeats the same usage on each content block of a response, and a request holding only tool calls is not text anyone reads. |
 
 `bun run stats --days 14` is the tool the norms were set with. It prints the per-hour distribution of each signal over the active hours of a window (n, p50, p75, p90, max, and how many hours were zero), the top hours by reports and by human prompts, and a format-drift line comparing records seen against events the parser recognised. Run it on another machine, or after a Claude Code update, to see whether the norms and the parser still fit. It prints numbers and nothing else.

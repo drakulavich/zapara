@@ -71,15 +71,15 @@ Content: exactly one line of JSON, no trailing spaces, a newline at the end.
 
 | Field | Meaning |
 |---|---|
-| `schema` | The shape of this file: `1`. A reader that sees a number it does not know shows nothing. It changes only when a field changes meaning or goes away; adding a field does not bump it. |
+| `schema` | The shape of this file: `1`. A reader that sees a number it does not know shows nothing. It changes only when a field changes meaning or goes away; adding a field does not bump it. A field that keeps its name, unit and range but is measured differently (the presence rule of 2026-09-19 for `activeMin` and `streakMin`) does not bump it either: a reader shows the corrected number, and the change is a CHANGELOG entry. |
 | `asOf` | When the snapshot was taken, ISO 8601 UTC: the `Day.asOf` of the base spec, the `now` of this run. A reader decides staleness from this field, never from the file's mtime. |
 | `date` | The local calendar day the numbers describe, `YYYY-MM-DD`. |
 | `hour` | The local hour that contains `asOf`, `0`..`23`. |
 | `index` | That hour's load index, `0`..`100`, or `null` when the hour has no activity yet. |
 | `level` | That hour's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colours by this field so it never needs the thresholds. |
 | `peak` | The day's peak index so far, or `null` on a day with no activity. |
-| `activeMin` | Active minutes in the day so far; `0` on a day with no activity. |
-| `streakMin` | Minutes of the unbroken streak as of the current hour, `0` when there is none. |
+| `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your prompts and the gaps of at most 10 minutes between them; `0` on a day with no prompt. |
+| `streakMin` | Minutes of the unbroken presence streak as of the current hour: your prompts no more than 10 minutes apart, across sessions; `0` when the hour has none. |
 
 `hour`, `index`, `level` and `streakMin` describe the bucket of the current
 hour; `peak` and `activeMin` describe the day. On a day with no activity the
