@@ -98,12 +98,12 @@ describe("cli", () => {
     expect(await line("--from", "2026-09-20", "--to", "2026-09-14")).toBe("zapara: --from 2026-09-20 is after --to 2026-09-14");
     expect(await line("--from", "2026-06-01", "--to", "2026-09-14")).toBe("zapara: --from 2026-06-01 to 2026-09-14 is 106 days; the most is 90");
     expect(await line("today", "--days", "3")).toBe("zapara: --days, --from and --to do not apply to a named day");
-    expect(await line("week")).toBe("zapara: unknown command week (try today, yesterday, a date or card)");
+    expect(await line("week")).toBe("zapara: unknown command week (try today, yesterday, a date, card or status)");
   });
 
   test("a usage error never echoes a path or an escape, only a short plain value", async () => {
     const line = async (...args: string[]) => (await first(...args))[1];
-    expect(await line(join(root, "secret"))).toBe("zapara: unknown command (try today, yesterday, a date or card)");
+    expect(await line(join(root, "secret"))).toBe("zapara: unknown command (try today, yesterday, a date, card or status)");
     expect(await line("--to", "/Users/someone/2026-09-14")).toBe("zapara: --to must be YYYY-MM-DD, today or yesterday");
     expect(await line("--days", "\x1b[31m7")).toBe("zapara: --days must be 1..90");
     expect(await line("--bogus\n")).toBe("zapara: unknown flag");
@@ -151,7 +151,7 @@ describe("cli", () => {
     // Mutation this pins: dropping the levels line from USAGE (the ranges
     // moved out of the week footer and into --help).
     expect(help.out).toContain("levels: calm 0-29");
-    for (const line of ["zapara today|yesterday|<date>", "zapara card [window]", "--from <date>", "--days <N>"]) expect(help.out).toContain(line);
+    for (const line of ["zapara today|yesterday|<date>", "zapara card [window]", "zapara status", "--from <date>", "--days <N>"]) expect(help.out).toContain(line);
     expect(help.out.split("\n").every((l) => l.length <= 80)).toBe(true);
     expect((await run("--version")).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
     expect((await run("-V")).out).toBe((await run("--version")).out);
