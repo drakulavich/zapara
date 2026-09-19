@@ -9,6 +9,8 @@ import { localDate } from "./derive.ts";
 import { loadAssets, renderCard } from "./image.ts";
 import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
+import { renderStatus, statusOf } from "./status.ts";
+import { writeStatus } from "./statusfile.ts";
 import type { Day } from "./types.ts";
 
 // Read lazily, only when --version is actually handled, so a broken install
@@ -25,6 +27,7 @@ function version(): string {
 const USAGE = `usage: zapara [window]                 the last 7 days, one cell per hour
        zapara today|yesterday|<date>   one day, one row per active hour
        zapara card [window] [--out]    the last 14 days as one picture
+       zapara status                   write today's load for a status line
 
 window:
   --days <N>        the last N days, 1..90; with --to, N days ending there
@@ -42,8 +45,9 @@ options:
 levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
 const HINT = "run 'zapara --help' for usage";
 
-// A grid is the window as one cell per hour; a day is one date as one row per hour.
-type Args = { command: "grid" | "day" | "card"; to: string; days: number; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
+// A grid is the window as one cell per hour; a day is one date as one row per
+// hour; status is today, written to the status file for a status line to read.
+type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position (never when a token was consumed as another
@@ -153,11 +157,13 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   const [word] = positional;
   if (word === undefined) a.command = "grid";
   else if (word === "card") a.command = "card";
+  else if (word === "status") { a.command = "status"; a.to = localDate(now); a.days = 1; }
   else if (word === "today" || word === "yesterday" || DATE.test(word)) { a.command = "day"; a.to = resolveDate("date", word, now); a.days = 1; }
-  else throw new UsageError(`unknown command${named(word)} (try today, yesterday, a date or card)`);
+  else throw new UsageError(`unknown command${named(word)} (try today, yesterday, a date, card or status)`);
 
-  if (a.command === "day") {
-    if (days !== null || from !== null || to !== null) throw new UsageError("--days, --from and --to do not apply to a named day");
+  // Both commands fix their own window: a named day is the date given, status is today.
+  if (a.command === "day" || a.command === "status") {
+    if (days !== null || from !== null || to !== null) throw new UsageError(`--days, --from and --to do not apply to ${a.command === "day" ? "a named day" : "status"}`);
   } else {
     // Two weeks make a pattern; a week makes a picture of one week.
     ({ to: a.to, days: a.days } = windowOf(days, from, to, a.command === "card" ? 14 : 7, now));
@@ -178,11 +184,23 @@ async function main(): Promise<number> {
   const now = new Date();
   const a = parseArgs(argv, now, process.env, process.stdout.isTTY === true);
   if (a.command === "card") return card(a);
+  if (a.command === "status") return status(a, now);
   const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now });
   const data = a.command === "day" ? days[0] : days;
   if (a.json) console.log(renderJson(data!));
   else if (a.command === "day") console.log(renderDay(days[0]!, { explain: a.explain, color: a.color }));
   else console.log(renderWeek(days, a.color));
+  return 0;
+}
+
+// Today's load, written to the status file and then printed. The write comes
+// first so that a run whose write failed prints its one-line error and nothing
+// else: a caller never reads a line that was not saved for the status line.
+async function status(a: Args, now: Date): Promise<number> {
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now });
+  const line = renderStatus(statusOf(days[0]!, now));
+  await writeStatus(line, process.env);
+  process.stdout.write(line);
   return 0;
 }
 
