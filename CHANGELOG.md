@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- `card --out` into a directory that does not exist or refuses the write says `cannot write the card: check the --out directory` instead of printing the full path back in a file-system error.
 - A permission-mode switch made before the first message of a session counts: it is attributed to the first timestamped record that follows, instead of vanishing.
 - A transcript whose modification time is outside the window is read when its last record is a big one: the rescue that looks for the last timestamp reads 64 KB from the end instead of 4 KB, so a day that ended on a large tool result is no longer dropped in full.
 - An output-token count that is not a finite non-negative integer is ignored instead of poisoning the day: a corrupt transcript could put `NaN` in the token column and `null` in the JSON, beside a made-up level.

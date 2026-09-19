@@ -23,6 +23,7 @@ export async function loadAssets(): Promise<CardAssets> {
 
 const BACKEND = process.platform === "darwin" ? "webkit" : "chrome";
 const ENGINE_LINE = "card needs a browser engine: install Google Chrome, or write --out card.html";
+const WRITE_LINE = "cannot write the card: check the --out directory";
 const WIDTH = 2400;
 const HEIGHT = 1260;
 const READY = 'document.fonts.ready.then(() => document.fonts.status === "loaded" && Array.from(document.images).every((i) => i.complete))';
@@ -32,12 +33,13 @@ const READY = 'document.fonts.ready.then(() => document.fonts.status === "loaded
 // poll, screenshot, resize, encode), raced against a single timer; the view is
 // closed on every path. Any engine failure (constructor, navigate, evaluate,
 // screenshot) is mapped to one line that never quotes the engine's own text; the
-// timeout error passes through unchanged. `writeFile` failures are the one
-// exception, left unmapped, so they keep reporting the user's own `--out` string.
+// timeout error passes through unchanged. A failed write (missing directory, no
+// permission, a directory in the way, a read-only file system) becomes one line
+// that names no path, because the node error quotes the whole path.
 export async function renderCard(html: string, out: string, timeoutMs = 15_000): Promise<void> {
   const lower = out.toLowerCase();
   if (lower.endsWith(".html")) {
-    await writeFile(out, html);
+    await write(out, html);
     return;
   }
   let bytes: Uint8Array;
@@ -66,5 +68,15 @@ export async function renderCard(html: string, out: string, timeoutMs = 15_000):
   } finally {
     clearTimeout(timer!);
   }
-  await writeFile(out, bytes);
+  await write(out, bytes);
+}
+
+// The only place the card is written. Every failure is the same one line: the
+// error node raises quotes the path in full, and the CLI never prints one.
+async function write(out: string, data: string | Uint8Array): Promise<void> {
+  try {
+    await writeFile(out, data);
+  } catch {
+    throw new Error(WRITE_LINE);
+  }
 }
