@@ -141,7 +141,7 @@ No message text, prompt length, file path or session title is kept, written or p
 
 - Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge.
 - Only Claude Code transcripts are read. Work in other tools, and time away from the keyboard, is invisible.
-- Files are chosen by modification time. A very old session touched today is read in full, but only its in-window events count.
+- Files are chosen by modification time, and a file whose modification time is older than the window is still read when the last timestamp in it falls inside the window, so a restored or synced transcript is not lost. A very old session touched today is read in full, but only its in-window events count.
 - The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
 - The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
 - The 98-column grid does not adapt to a narrow terminal.

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assistant, interrupt, prompt, sidechain, writeTree } from "../helpers/transcript.ts";
+import { assistant, interrupt, mode, prompt, sidechain, writeTree } from "../helpers/transcript.ts";
 
 const CLI = join(import.meta.dir, "../../src/index.ts");
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
@@ -218,6 +218,29 @@ describe("cli", () => {
       expect(err).not.toContain(dir);
     } finally {
       await chmod(dir, 0o755).catch(() => {});
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a transcript whose mtime is older than the window is still read when its last record is inside it", async () => {
+    // A per-test tree via direct Bun.spawn, not the run() helper: run() already
+    // fixes --projects to the suite root, and a second --projects here would be
+    // a duplicate flag (a usage error), not a way to point at a different tree.
+    const dir = await mkdtemp(join(tmpdir(), "zapara-restored-"));
+    try {
+      await writeTree(dir, [
+        // Restored from a backup: content from 14 Sept, mtime rewritten to 1 Aug.
+        { path: "-Users-me-proj/restored.jsonl", lines: [prompt("2026-09-14T13:10:00.000Z", A), assistant("2026-09-14T13:12:00.000Z", A), mode(A, "default")], mtime: "2026-08-01T00:00:00.000Z" },
+        // Genuinely old: last record in August, mtime in August. Must stay out.
+        { path: "-Users-me-old/old.jsonl", lines: [prompt("2026-08-01T13:00:00.000Z", B)], mtime: "2026-08-01T13:00:00.000Z" },
+      ]);
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+      expect(err).toBe("");
+      expect(code).toBe(0);
+      const day = JSON.parse(out);
+      expect(day.totals.prompts).toBe(1);
+    } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });

@@ -40,9 +40,13 @@ Scan rules:
   Subagent files carry the parent's `sessionId`, every record is `isSidechain: true`,
   and their "user" messages are the parent agent's prompts, not the human's.
 - Skip a file whose mtime is earlier than `windowStart - LOOKBACK` where
-  `LOOKBACK` is 3 hours. A file modified before that cannot contain events the
-  report needs (see the streak look-back below). This keeps a week view from
-  parsing thousands of old files.
+  `LOOKBACK` is 3 hours, unless the last `"timestamp"` in its final 4 KB falls
+  at or after that cutoff. mtime is a hint, not the truth: a transcript synced
+  from another machine, restored by a tool that rewrites times, or written
+  under clock skew can be older by mtime than the records inside it, and the
+  tail read (one small read per old file) recovers it without giving up the
+  "week under 2 s" budget. This keeps a week view from parsing thousands of
+  old files.
 - Return paths sorted lexicographically, so the same tree always yields the same
   file order.
 - A file that cannot be read (permissions, vanished between listing and reading)

@@ -44,7 +44,10 @@ describe("report", () => {
   test("a file just before the cutoff is ignored; one exactly at the cutoff counts", async () => {
     await withTempDir(async (dir) => {
       await writeTree(dir, [
-        { path: "proj/before.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A)], mtime: "2026-09-13T20:59:59.000Z" },
+        // Genuinely old, not just old by mtime: the content's own timestamp is
+        // also before the cutoff, so the mtime-tail fallback agrees with mtime
+        // and this file stays out.
+        { path: "proj/before.jsonl", lines: [prompt("2026-09-13T20:59:00.000Z", A)], mtime: "2026-09-13T20:59:59.000Z" },
         { path: "proj/at.jsonl", lines: [prompt("2026-09-14T14:00:00.000Z", B)], mtime: "2026-09-13T21:00:00.000Z" },
       ]);
       const days = await report({ projects: dir, to: "2026-09-14", days: 1 });
