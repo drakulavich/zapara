@@ -337,8 +337,11 @@ Scenarios, one directory or builder script each:
   its own slots; agent-only minutes cover nothing.
 - `decisions`: interrupts of both marker forms, tool rejections,
   `AskUserQuestion`, `ExitPlanMode`, repeated `permission-mode` records
-  collapsing to one switch, a `permission-mode` record before any timestamp
-  dropped.
+  collapsing to one switch, and `permission-mode` switches made before any
+  timestamp attributed to the first timestamped record that follows: a
+  baseline record and one differing record before the first prompt give that
+  hour 1 switch, a baseline and two further differing records give 2, and a
+  switch is dropped only when the file holds no timestamped record at all.
 - `agents`: inbound agent messages of every marker form count as `reports` and
   activity, never as prompts; a human prompt in the same hour still counts as one
   prompt; `output` tokens are summed once per `requestId` although the fixture
