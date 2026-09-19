@@ -102,9 +102,12 @@ for them and the file may sit in a directory other tools read.
   complete. Nothing locks; a reader's single-flight rule (below) keeps the
   number of concurrent runs small, and zapara does not depend on it.
 - The temporary file is removed on every path out of a failed write. One
-  left by a crash is not reused: the next run deletes any
-  `status.json.*.tmp` in the directory older than ten minutes and never
-  opens one.
+  left by a crash (a kill between create and rename) stays where it is:
+  zapara never opens, reuses or deletes a temporary file it did not create
+  in this run, because from the outside a crashed run and a slow one look
+  the same, and deleting a slow run's file would break the promise above.
+  Such a leftover is a few hundred bytes with a name no later run picks, and
+  a person may delete it by hand.
 - The file is created with mode `0600` (owner read and write). The directory
   with `0700`. `status.json` itself may be a symlink someone put there;
   `rename` replaces the link, it does not write through it.
@@ -198,10 +201,10 @@ Fixture-driven through the public seams, as the base spec requires:
   byte-identical to before. `--days 3` with `status`: exit 2 and the usage
   message. `HOME` empty: exit 1, `cannot write the status file`. Four runs started at once against the same
   `HOME`: all exit 0, the file is one complete line, no `*.tmp` remains. A
-  stale `status.json.1.abc.tmp` older than ten minutes (mtime set by the
-  test) is gone after a run, a fresh one is left alone. `status.json`
-  replaced by a symlink to another file in the temp directory: after a run
-  the path is a regular file and the link's target is unchanged.
+  foreign `status.json.1.abc.tmp` placed in the directory before a run is
+  still there, unchanged, after it. `status.json` replaced by a symlink to
+  another file in the temp directory: after a run the path is a regular file
+  and the link's target is unchanged.
 - The README's `--help` test (existing) pins the new help line and the
   80-column width.
 
