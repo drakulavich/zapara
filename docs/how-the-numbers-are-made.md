@@ -32,7 +32,7 @@ message text survives past `parse`.
 `scan` walks `~/.claude/projects/**/*.jsonl` (or `--projects <dir>`) and skips
 `subagents/` directories, so a subagent's own transcript never counts. A file
 is read when its modification time falls inside the window, or, when it does
-not, when the last timestamp in its final 4 KB does: a restored or synced file
+not, when the last timestamp in its final 64 KB does: a restored or synced file
 is not dropped because the file system calls it old. Nothing from that tail is
 kept.
 

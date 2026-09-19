@@ -65,6 +65,12 @@ export const interrupt = (ts: string, sid: string, forTool = false) =>
 export const reject = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: true, content: "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed." }] }, toolUseResult: "The user doesn't want to proceed with this tool use." });
 
+// A tool_result of the size a real file read or grep output reaches. As the last
+// record of a file it pushes that record's own `timestamp` field far from the
+// end, where the tail rescue for an out-of-window mtime has to find it.
+export const bigToolResult = (ts: string, sid: string, bytes: number) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: false, content: "R".repeat(bytes) }] } });
+
 export const toolResult = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: false, content: "ok" }] } });
 

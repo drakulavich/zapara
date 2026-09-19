@@ -38,7 +38,7 @@ Scan rules:
   Subagent files carry the parent's `sessionId`, every record is `isSidechain: true`,
   and their "user" messages are the parent agent's prompts, not the human's.
 - Skip a file whose mtime is earlier than `windowStart - LOOKBACK` where
-  `LOOKBACK` is 3 hours, unless the last `"timestamp"` in its final 4 KB falls
+  `LOOKBACK` is 3 hours, unless the last `"timestamp"` in its final 64 KB falls
   at or after that cutoff. mtime is a hint, not the truth: a transcript synced
   from another machine, restored by a tool that rewrites times, or written
   under clock skew can be older by mtime than the records inside it, and the

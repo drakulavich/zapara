@@ -3,7 +3,7 @@ import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { report } from "../../src/report.ts";
-import { prompt, writeTree } from "../helpers/transcript.ts";
+import { bigToolResult, prompt, writeTree } from "../helpers/transcript.ts";
 
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-1111-4111-8111-111111111111";
@@ -52,6 +52,19 @@ describe("report", () => {
       ]);
       const days = await report({ projects: dir, to: "2026-09-14", days: 1 });
       expect(days[0]!.totals.prompts).toBe(1); // only restored.jsonl; old.jsonl has no in-window record
+    });
+  });
+
+  test("an old mtime is still rescued when the last record is a 12 KB tool result", async () => {
+    await withTempDir(async (dir) => {
+      await writeTree(dir, [
+        // Synced from another machine, and the conversation ended on a big file
+        // read: the last record's own timestamp sits 12 KB from the end of the
+        // file, far past the first few kilobytes.
+        { path: "proj/bigtail.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A), bigToolResult("2026-09-14T13:05:00.000Z", A, 12_000)], mtime: "2026-08-01T00:00:00.000Z" },
+      ]);
+      const days = await report({ projects: dir, to: "2026-09-14", days: 1 });
+      expect(days[0]!.totals.prompts).toBe(1);
     });
   });
 
