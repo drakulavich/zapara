@@ -315,8 +315,8 @@ Scenarios, one directory or builder script each:
   between them; a single session yields zero switches.
 - `streak`: activity across sessions with a 9-minute gap (continues) and an
   11-minute gap (breaks); a streak that starts in the 3-hour look-back before
-  the window (regression for the boundary); a file with mtime before the
-  cutoff that must be ignored.
+  the window (regression for the boundary); a file whose mtime and last
+  record are both before the cutoff, which stays ignored.
 - `decisions`: interrupts of both marker forms, tool rejections,
   `AskUserQuestion`, `ExitPlanMode`, repeated `permission-mode` records
   collapsing to one switch, a `permission-mode` record before any timestamp
@@ -331,8 +331,11 @@ Scenarios, one directory or builder script each:
   count, `isSidechain` records in a main file, malformed JSON lines, lines
   without `type` or `timestamp`, an empty file, an unreadable file.
 - `report`: through `report()`, not `analyze()` — a `subagents/` tree whose
-  prompts don't count, a same-named file at the root that does, a file just
-  before the mtime cutoff excluded and one exactly at it included, a `.txt`
+  prompts don't count, a same-named file at the root that does, a file
+  chosen by its records rather than its mtime: an old mtime with an
+  in-window last record counts (the restored/synced case) and a file with
+  no in-window record adds nothing; the mtime comparison itself is now a
+  shortcut, not a behaviour, so no test pins its exact boundary; a `.txt`
   file ignored, an unreadable file skipped, and a missing or non-directory
   root rejected without printing the path.
 - `empty`: a projects tree with no transcripts in the window (empty grid, exit 0),

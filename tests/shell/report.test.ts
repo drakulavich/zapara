@@ -41,17 +41,17 @@ describe("report", () => {
     });
   });
 
-  test("a file just before the cutoff is ignored; one exactly at the cutoff counts", async () => {
+  test("a file is chosen by its records, not its mtime: an old mtime with an in-window record counts, a file with no in-window record adds nothing", async () => {
     await withTempDir(async (dir) => {
       await writeTree(dir, [
-        // Genuinely old, not just old by mtime: the content's own timestamp is
-        // also before the cutoff, so the mtime-tail fallback agrees with mtime
-        // and this file stays out.
-        { path: "proj/before.jsonl", lines: [prompt("2026-09-13T20:59:00.000Z", A)], mtime: "2026-09-13T20:59:59.000Z" },
-        { path: "proj/at.jsonl", lines: [prompt("2026-09-14T14:00:00.000Z", B)], mtime: "2026-09-13T21:00:00.000Z" },
+        // Restored or synced: mtime says August, but the last record is inside
+        // the window, so the tail check keeps it.
+        { path: "proj/restored.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A)], mtime: "2026-08-01T00:00:00.000Z" },
+        // Genuinely old: mtime and the only record both before the window.
+        { path: "proj/old.jsonl", lines: [prompt("2026-08-01T13:00:00.000Z", B)], mtime: "2026-08-01T00:00:00.000Z" },
       ]);
       const days = await report({ projects: dir, to: "2026-09-14", days: 1 });
-      expect(days[0]!.totals.prompts).toBe(1); // only at.jsonl; before.jsonl is one second too old to be scanned
+      expect(days[0]!.totals.prompts).toBe(1); // only restored.jsonl; old.jsonl has no in-window record
     });
   });
 

@@ -133,7 +133,7 @@ Exit codes are 0 on success, 1 when the projects directory is missing or cannot 
 
 ## Privacy
 
-zapara reads `~/.claude/projects/**/*.jsonl`, taking only files modified inside the window and skipping subagent transcripts under `subagents/`. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
+zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. Selection is by modification time first, and a file whose modification time is older than the window is opened only to read the last timestamp in its final 4 KB; nothing from that tail is kept or printed. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
 
 No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card you ask for, and nothing is installed into Claude Code.
 
