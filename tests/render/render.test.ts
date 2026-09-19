@@ -198,6 +198,16 @@ describe("day table", () => {
     expect(lines.some((l) => l.startsWith("  no "))).toBe(false);
   });
 
+  test("a day taken today ends with the snapshot time; a closed day does not", () => {
+    const t = transcript([prompt("2026-09-14T13:00:00.000Z", "aaaaaaaa-1111-4111-8111-111111111111")]);
+    const [day] = analyze([t], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T14:32:00.000Z") });
+    expect(renderDay(day!, { explain: false, color: false }).split("\n").at(-1)).toBe("  as of 14:32, this hour is still running");
+    expect(renderWeek([day!], false).split("\n").at(-1)).toBe("  as of 14:32, this hour is still running");
+    const [closed] = analyze([t], { to: "2026-09-14", days: 1 });
+    expect(renderDay(closed!, { explain: false, color: false })).not.toContain("as of");
+    expect(renderWeek([closed!], false)).not.toContain("as of");
+  });
+
   test("--explain appends the six weighted parts, named and in order, and they add up to the index", () => {
     const lines = renderDay(monday, { explain: true, color: false }).split("\n");
     expect(lines[0]!.endsWith("  par  pace   sup  read  strk  late")).toBe(true);

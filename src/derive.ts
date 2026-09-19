@@ -125,5 +125,10 @@ export function derive(events: Event[], w: Window): Day[] {
     .sort((a, b) => a.e.ts - b.e.ts || (a.e.sessionId < b.e.sessionId ? -1 : a.e.sessionId > b.e.sessionId ? 1 : 0) || a.i - b.i)
     .map(({ e }) => e);
   const acc = foldEvents(sorted, startMs);
-  return dates.map((date) => buildDay(date, acc));
+  const days = dates.map((date) => buildDay(date, acc));
+  if (w.now) {
+    const today = localDate(w.now);
+    for (const d of days) if (d.date === today) d.asOf = w.now.toISOString();
+  }
+  return days;
 }

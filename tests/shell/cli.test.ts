@@ -245,6 +245,26 @@ describe("cli", () => {
     }
   });
 
+  test("today's JSON carries asOf; a past day's does not", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "zapara-today-"));
+    try {
+      await writeTree(dir, [{ path: "-Users-me-proj/t.jsonl", lines: [prompt(`${utcDay(0)}T00:00:00.000Z`, A)], mtime: `${utcDay(0)}T00:00:00.000Z` }]);
+      const spawn = (...args: string[]) => Bun.spawn(["bun", CLI, "--projects", dir, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const p1 = spawn("today", "--json");
+      const [out1, code1] = await Promise.all([new Response(p1.stdout).text(), p1.exited]);
+      expect(code1).toBe(0);
+      const today = JSON.parse(out1);
+      expect(today.asOf).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      const p2 = spawn("2026-09-14", "--json");
+      const [out2, code2] = await Promise.all([new Response(p2.stdout).text(), p2.exited]);
+      expect(code2).toBe(0);
+      const past = JSON.parse(out2);
+      expect(past.asOf).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("an unreadable transcript file is skipped, not fatal", async () => {
     if (process.getuid?.() === 0) return; // root bypasses file permissions; chmod 0o000 would have no effect
     const dir = await mkdtemp(join(tmpdir(), "zapara-cli-unreadable-"));
