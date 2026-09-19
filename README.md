@@ -134,7 +134,7 @@ Exit codes are 0 on success, 1 when the projects directory is missing or cannot 
 
 ## Status line
 
-A status line wants one number every thirty seconds and cannot wait half a second for a transcript scan, so zapara writes the number down and the status line reads it back. `zapara status` computes today exactly as `zapara today` does, writes it as one line of JSON to `~/.claude/zapara/status.json`, and prints the same line. There is one file per user, whatever `--projects` said, created with mode `0600` in a directory with mode `0700`; the write goes to a temporary file and is renamed into place, so a reader sees the old line or the new one and never half of one. The file holds the nine values below and nothing else: no path, no project, no session count, no text.
+A status line wants one number every thirty seconds and cannot wait half a second for a transcript scan, so zapara writes the number down and the status line reads it back. `zapara status` computes today exactly as `zapara today` does, writes it as one line of JSON to `~/.claude/zapara/status.json`, and prints the same line. Only `--projects` applies to it; the window flags, `--explain` and `--out` are usage errors, and `--json` changes nothing because the output is already JSON. There is one file per user, whatever `--projects` said, created with mode `0600` in a directory with mode `0700`; the write goes to a temporary file and is renamed into place, so a reader sees the old line or the new one and never half of one. The file holds the nine values below and nothing else: no path, no project, no session count, no text.
 
 ```json
 {"schema":1,"asOf":"2026-09-19T12:30:38.300Z","date":"2026-09-19","hour":15,"index":36,"level":"Warming","peak":41,"activeMin":555,"streakMin":166}
