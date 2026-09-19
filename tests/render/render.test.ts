@@ -22,15 +22,16 @@ describe("week grid", () => {
     expect(lines[8]).toBe("");
     expect(lines[9]).toBe("  ░ calm   ▒ warming   ▓ heating   █ fried");
     // Hand-computed from the generator's day-by-day schedule (see busy-week.ts):
-    // prompts 201 (Mon) + 66 (Tue) + 12 (Thu) + 55 (Fri) + 12 (Sat) = 346;
-    // reports 0, since busy-week has no inbound agent-message lines;
-    // decisions 75 (Mon storm) + 25 (Fri storm) = 100;
+    // prompts 202 (Mon) + 67 (Tue) + 12 (Thu) + 55 (Fri) + 12 (Sat) = 348, the
+    // two extras being the stillThere() prompts that carry a presence streak
+    // where a reply used to; reports 0, since busy-week has no inbound
+    // agent-message lines; decisions 75 (Mon storm) + 25 (Fri storm) = 100;
     // max sessions is the Mon/Fri storm's 5.
     // Active minutes are the slots presence covers, so each run fills the gaps
-    // between its prompts: Mon 8h45 (9:00-11:50, 12:00-14:55, 20:00-21:50,
-    // 23:00-23:50), Tue 7h55 (10:00-17:50), Thu 1h55, Fri 1h00 (15:00-15:55),
-    // Sat 1h55 = 21h30.
-    expect(lines[10]).toBe("  21h30 active   346 prompts   0 reports   100 decisions   5 sessions at once");
+    // between its prompts: Mon 8h50 (9:00-14:55 unbroken, 20:00-21:50,
+    // 23:00-23:50), Tue 7h55 (10:00-17:53), Thu 1h55, Fri 1h00 (15:01-15:55),
+    // Sat 1h55 = 21h35.
+    expect(lines[10]).toBe("  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once");
   });
 
   test("Monday reads calm morning, fried storm, quiet evening, late tail", () => {
@@ -38,10 +39,10 @@ describe("week grid", () => {
     const cells = Array.from({ length: 24 }, (_, h) => row[12 + h * 3 + 1]);
     expect(cells.slice(0, 9).join("")).toBe("·········");
     expect(cells[9]).toBe("░");
-    // The storm's first prompt is at 12:01, eleven minutes after the calm
-    // morning's last at 11:50, so presence breaks there: hour 12 opens on a
-    // 54-minute streak (index 81, Heating) and only warms into Fried after it.
-    expect(cells[12]).toBe("▓");
+    // The stillThere() prompt at 11:59 carries presence from the calm morning
+    // into the storm (9 minutes, then 2 to the storm's first prompt at 12:01),
+    // so hour 12 already opens past the 120-minute cap: index 87, Fried.
+    expect(cells[12]).toBe("█");
     expect(cells[13]).toBe("█");
     expect(cells[14]).toBe("█");
     // Storm(14, 12, 15) stops before 15:00 (see the m + 4 < 60 loop bound in
@@ -85,7 +86,7 @@ describe("week grid", () => {
     expect(coloredLines[9]).toMatch(/^\x1b\[2m/);
     expect(coloredLines[9]).toMatch(/\x1b\[0m$/);
     expect(coloredLines[9]).toContain("\x1b[32m░\x1b[0m\x1b[2m");
-    expect(coloredLines[10]).toBe("\x1b[2m  21h30 active   346 prompts   0 reports   100 decisions   5 sessions at once\x1b[0m");
+    expect(coloredLines[10]).toBe("\x1b[2m  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once\x1b[0m");
   });
 
   test("the totals line uses the singular for exactly one", () => {
@@ -115,7 +116,7 @@ describe("week grid", () => {
     expect(hugeLines[10]!.length).toBeLessThanOrEqual(100);
     // Values under 10 000 (busy-week's) are unaffected by the compact format.
     expect(lines[9]).toBe("  ░ calm   ▒ warming   ▓ heating   █ fried");
-    expect(lines[10]).toBe("  21h30 active   346 prompts   0 reports   100 decisions   5 sessions at once");
+    expect(lines[10]).toBe("  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once");
   });
 });
 
@@ -234,10 +235,10 @@ describe("day table", () => {
     // Named by position (par, pace, sup, read, strk, late), not just their sum:
     // 5 sessions saturate par, 55 prompts saturate pace, 25 decisions alone put
     // supervision past its norm (3*25 = 75 > 45), 55 replies x 1000 tokens give
-    // read 10*(55000/80000) = 6.875 -> 6.9, presence has run from the storm's
-    // first prompt at 12:01 to 13:55, so strk is 10*(114/120) = 9.5 rather than
-    // the cap, and 13:00 isn't a late hour. Index 86.375 -> 86.
-    expect(parts).toEqual([25, 15, 30, 6.9, 9.5, 0]);
+    // read 10*(55000/80000) = 6.875 -> 6.9, presence has run unbroken from 9:00
+    // to 13:55 (295 minutes) so strk is at the 120-minute cap, and 13:00 isn't
+    // a late hour. Index 86.875 -> 87.
+    expect(parts).toEqual([25, 15, 30, 6.9, 10, 0]);
     expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
   });
 

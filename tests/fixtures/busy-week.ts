@@ -45,10 +45,19 @@ function storm(day: number, from: number, to: number) {
   }
 }
 
+// One prompt on its own, in a file of its own, to hold a presence streak open.
+// Presence is prompts: a streak continues only across a gap of at most 10
+// minutes between two *prompts*, and the reply that closes a calm exchange is
+// not presence. Called last so the two extra prompts cannot shift the uuids and
+// request ids of every file built above them.
+function stillThere(day: number, n: number, h: number, m: number) {
+  files.push({ path: path(day, n, `still-${h}-${m}`), lines: [prompt(ts(day, h, m), sid(n))], mtime: ts(day, h, m) });
+}
+
 await rm(root, { recursive: true, force: true });
 // Mon 14: calm morning, storm 12-15 with no gap after it (streak at cap → index 85, Fried), calm evening, late-night tail
 calm(14, 1, 9, 12); storm(14, 12, 15); calm(14, 6, 20, 22); calm(14, 7, 23, 24);
-// Tue 15: two sessions 10-18
+// Tue 15: two sessions 10-18, the window's longest run
 calm(15, 1, 10, 18); calm(15, 2, 14, 17);
 // Wed 16: nothing
 // Thu 17: one calm session 11-13
@@ -58,5 +67,11 @@ storm(18, 15, 16);
 // Sat 19: late night only 0-2
 calm(19, 1, 0, 2);
 // Sun 20: nothing
+// Monday 11:59 hands the calm morning to the storm: 11:50 to 11:59 is 9 minutes
+// and 11:59 to the storm's first prompt at 12:01 is 2, so presence runs unbroken
+// from 9:00 and hour 12 opens at the streak cap, Fried. Tuesday 17:53 ends the
+// window's longest run on a prompt rather than on the reply that used to close
+// it, keeping that run 10:00 to 17:53.
+stillThere(14, 1, 11, 59); stillThere(15, 1, 17, 53);
 await writeTree(root, files);
 console.log(`wrote ${files.length} transcripts under ${root}`);

@@ -13,12 +13,12 @@ const html = cardHtml(card, assets);
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
 
 // Regenerate with: bun scripts/card-golden.ts
-const GOLDEN = "2b62f06fe87a46a8ae3c6dfb4b694ef38274486cef53cfc27bb6af4ac16e8473";
+const GOLDEN = "31b580dce3be3a5c24622b8da70f07d454c9ce7354ebfdcf4d4bced751d15979";
 
 describe("card page for busy-week", () => {
   test("name and sentence appear once, the motto follows the sentence", () => {
     expect(count(html, "The Marathoner")).toBe(1);
-    expect(count(html, "Longest streak <b>7h50m</b> without a break, <b>68%</b> of your hours calm. You do not stop while it compiles.")).toBe(1);
+    expect(count(html, "Longest streak <b>7h53m</b> without a break, <b>68%</b> of your hours calm. You do not stop while it compiles.")).toBe(1);
   });
 
   test("the window label and the peak pill", () => {
@@ -28,13 +28,13 @@ describe("card page for busy-week", () => {
 
   test("the spectrum bar has four segments with the pinned widths, in level order", () => {
     const segments = [...html.matchAll(/<div class="(calm|warm|heat|fried)" style="width:(\d+)%"><\/div>/g)].map((m) => `${m[1]} ${m[2]}%`);
-    expect(segments).toEqual(["calm 68%", "warm 14%", "heat 9%", "fried 9%"]);
+    expect(segments).toEqual(["calm 68%", "warm 14%", "heat 4%", "fried 14%"]);
   });
 
   test("three highlight panels in the pinned order", () => {
     const keys = [...html.matchAll(/<div class="stat" data-key="(\w+)">/g)].map((m) => m[1]);
     expect(keys).toEqual(["longestStreak", "interrupts", "contextSwitches"]);
-    expect(html).toContain('<div class="v">7h50m</div><div class="c mono">longest streak</div>');
+    expect(html).toContain('<div class="v">7h53m</div><div class="c mono">longest streak</div>');
   });
 
   test("the character box carries the marathoner's class", () => {
