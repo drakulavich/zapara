@@ -1,4 +1,4 @@
-export type EventKind = "prompt" | "report" | "output" | "interrupt" | "reject" | "question" | "plan_review" | "mode_change" | "activity";
+export type EventKind = "prompt" | "report" | "output" | "interrupt" | "reject" | "answer" | "question" | "plan_review" | "mode_change" | "activity";
 export type Event = { ts: number; sessionId: string; kind: EventKind; tokens?: number };
 export type Transcript = { path: string; text: string };
 export type Window = { to: string; days: number; now?: Date }; // to = "YYYY-MM-DD" local

@@ -33,7 +33,7 @@ const emptyMetrics = (): Metrics => ({
 // Presence is every action the human takes: what they typed, and the three ways
 // they answer or stop the agent. Agent records (`activity`, `report`, `output`)
 // and the agent's own asks (`question`, `plan_review`) are never presence.
-const PRESENCE: ReadonlySet<EventKind> = new Set<EventKind>(["prompt", "interrupt", "reject"]);
+const PRESENCE: ReadonlySet<EventKind> = new Set<EventKind>(["prompt", "interrupt", "reject", "answer"]);
 
 type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; lastPresence: { ts: number; streakStart: number } | null };
 

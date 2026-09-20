@@ -66,12 +66,13 @@ ignored for every kind (defensive; the scan already skips subagent files).
 | `output` | `type == "assistant"` with a string `requestId`, a `message.usage.output_tokens` that is a finite non-negative integer (anything else, such as `1e309` or a negative count, carries no tokens and is only `activity`), and at least one `{type:"text"}` content block. One event per distinct `requestId` per file (the first record seen), carrying `tokens`. Claude Code writes one record per content block of a response and repeats the same `usage` on each, so the count is per request, not per record; requests that hold only tool calls are not text the human reads. |
 | `interrupt` | `type == "user"`, content array with a text block whose text starts with `[Request interrupted by user`. Covers both `[Request interrupted by user]` and `[Request interrupted by user for tool use]`. Not counted as a prompt. |
 | `reject` | `type == "user"`, content array containing a `tool_result` block whose content (string, or first text block) starts with `The user doesn't want to proceed with this tool use`. |
+| `answer` | `type == "user"`, content array containing a `tool_result` block whose `tool_use_id` matches the `id` of an `AskUserQuestion` or `ExitPlanMode` `tool_use` seen earlier in the same file. The parser keeps the ids of those two tools and no others, because every other `tool_result` is the machine reporting back, while these two carry the option the human picked or their verdict on a plan. One event per matching block, in addition to `activity` and, when the text starts with the rejection marker, `reject`. An answer is presence and nothing more: not a prompt, not a decision, not a report. |
 | `question` | `type == "assistant"`, content array containing a `tool_use` block with `name == "AskUserQuestion"`. One event per block. |
 | `plan_review` | Same as `question` with `name == "ExitPlanMode"`. |
 | `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file, or, when none has been seen yet, the `ts` of the first timestamped record that follows in the same file (one event per waiting switch). A switch is dropped only when the file holds no timestamped record at all. The first such record in a file sets the session's baseline mode and is not a switch (every session writes its starting mode). Each later record whose `permissionMode` differs from the previous record's is one switch; repeats of the same mode count nothing (Claude Code rewrites the same mode repeatedly). |
 | `activity` | Every `type == "user"` or `type == "assistant"` record with a timestamp, including `isMeta` ones. Used for session liveness (`sessions`) only. |
 
-`prompt`, `report`, `interrupt`, `reject` and `output` records are also `activity`. The
+`prompt`, `report`, `interrupt`, `reject`, `answer` and `output` records are also `activity`. The
 parser emits both events for them; the deriver never double counts because it
 reads kinds separately.
 
@@ -99,10 +100,10 @@ minutes, the index is exact at the window boundary. The displayed `streakMin`
 of a streak that started more than 3 hours before the window is floored at what
 the look-back sees, which is the one documented approximation.
 
-Presence: a presence event is one the human performed — `prompt`, `interrupt`
-or `reject`. Records the agent wrote (`activity`, `report`, `output`) and the
-agent's own asks (`question`, `plan_review`) are never presence: an agent that
-works on while the human is away must not keep a streak alive or fill a day.
+Presence: a presence event is one the human performed — `prompt`, `interrupt`,
+`reject` or `answer`. Records the agent wrote (`activity`, `report`, `output`)
+and the agent's own asks (`question`, `plan_review`) are never presence: an agent
+that works on while the human is away must not keep a streak alive or fill a day.
 A presence streak is a run of consecutive presence events in which no two
 neighbours are more than 10 minutes apart, in the global order, across all
 sessions; a gap of exactly 10 minutes continues it, 10 minutes and 1 ms breaks

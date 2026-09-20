@@ -59,6 +59,7 @@ session id, a kind and, for output, a token count.
 | `output` | An `assistant` record with a text block and `usage.output_tokens`, counted once per `requestId` within a file. Model output the human reads. |
 | `interrupt` | A `user` text block starting with `[Request interrupted by user`. |
 | `reject` | A `tool_result` saying the user did not want to proceed with that tool use. |
+| `answer` | A `tool_result` answering an `AskUserQuestion` or `ExitPlanMode` call made earlier in the same file, matched by the tool call's id. The option you picked, or your verdict on a plan. Presence and nothing else: it is not a prompt and not a decision. |
 | `question` | An `AskUserQuestion` tool call in an assistant message. |
 | `plan_review` | An `ExitPlanMode` tool call in an assistant message. |
 | `mode_change` | A `permission-mode` record. It has no timestamp, so it takes the time of the last timestamped record before it in the same file, or, when there is none yet, is attributed to the first timestamped record that follows; it is dropped only if the file has none. The first such record in a file is the session's baseline; each later one whose mode differs from the previous is one switch, and repeats count nothing. |
@@ -94,14 +95,16 @@ nothing else; they are never bucketed.
 | `lateNight` | The hour is one of 23, 0, 1, 2, 3, 4, 5. |
 
 Presence is the human's, and it is every action you take, not only what you
-typed: a `prompt`, an `interrupt`, a tool `reject`. A presence streak is a run
+typed: a `prompt`, an `interrupt`, a tool `reject`, an `answer` to a question
+or a plan. A presence streak is a run
 of consecutive presence events in which no two neighbours are more than 10
 minutes apart. Every presence event covers its own 5-minute slot, and two
 neighbouring events of one streak cover every slot between them, because the
 human sat through that gap too. A slot belongs to the hour its start falls in.
 Assistant records and inbound reports bridge nothing: an agent that works on
-while you are away neither keeps your streak alive nor fills your day. Presence
-has been the human's since 0.3.1; before it, any record counted.
+while you are away neither keeps your streak alive nor fills your day, and its
+question counts only once you have answered it. Presence has been the human's
+since 0.3.1; before it, any record counted.
 
 ## 5. The index
 

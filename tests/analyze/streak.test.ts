@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { analyze } from "../../src/analyze.ts";
-import { assistant, interrupt, prompt, reject, teammate, transcript } from "../helpers/transcript.ts";
+import { assistant, interrupt, prompt, question, reject, teammate, toolResult, toolUse, transcript } from "../helpers/transcript.ts";
 
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-1111-4111-8111-111111111111";
@@ -168,5 +168,42 @@ describe("presence is every human action", () => {
       prompt(at("10:24"), A),
     ])], W)[0]!.buckets[10]!;
     expect([b.prompts, b.interrupts, b.rejects, b.decisions]).toEqual([2, 1, 1, 2]);
+  });
+});
+
+describe("answering the agent is presence", () => {
+  const at = (hhmm: string) => `2026-09-14T${hhmm}:00.000Z`;
+  const Q = "toolu_question_1";
+  // The agent asks at 10:02, the human picks an option at 10:05, and types the
+  // next prompt 8 minutes after that. Nothing here is more than 10 minutes from
+  // the action before it, so the hour holds one streak.
+  const answered = [prompt(at("10:00"), A), question(at("10:02"), A, Q), toolResult(at("10:05"), A, Q), prompt(at("10:13"), A)];
+
+  test("the answer bridges the gap the question opened", () => {
+    const b = analyze([transcript(answered)], W)[0]!.buckets[10]!;
+    expect(b.streakMin).toBe(13);
+    expect(b.activeMin).toBe(15);   // slots 10:00, 10:05, 10:10
+  });
+
+  test("without the answer the same hour holds two streaks of nothing", () => {
+    const b = analyze([transcript([answered[0]!, answered[1]!, answered[3]!])], W)[0]!.buckets[10]!;
+    expect(b.streakMin).toBe(0);
+    expect(b.activeMin).toBe(10);   // slots 10:00 and 10:10, the gap uncovered
+  });
+
+  test("the result of an ordinary tool is the machine reporting back, not presence", () => {
+    const b = analyze([transcript([
+      prompt(at("10:00"), A),
+      toolUse(at("10:02"), A, "Bash", "toolu_bash_1"),
+      toolResult(at("10:05"), A, "toolu_bash_1"),
+      prompt(at("10:13"), A),
+    ])], W)[0]!.buckets[10]!;
+    expect(b.streakMin).toBe(0);
+    expect(b.activeMin).toBe(10);
+  });
+
+  test("an answer is presence only: not a prompt, not a decision, not a report", () => {
+    const b = analyze([transcript(answered)], W)[0]!.buckets[10]!;
+    expect([b.prompts, b.reports, b.questions, b.decisions]).toEqual([2, 0, 1, 1]);
   });
 });
