@@ -100,3 +100,39 @@ describe("status: the streak is live, not the hour's", () => {
     expect(day.presence).toBeNull();
   });
 });
+
+describe("status: a streak that began yesterday", () => {
+  const A = "aaaaaaaa-1111-4111-8111-111111111111";
+  // Just past midnight the day being reported holds nothing yet, and the action
+  // that keeps the streak alive is in the look-back, before the window starts.
+  const statusAt = (lines: string[], iso: string) => {
+    const now = new Date(iso);
+    return statusOf(analyze([transcript(lines)], { to: "2026-09-14", days: 1, now })[0]!, now);
+  };
+  const lateAction = [prompt("2026-09-13T23:58:00.000Z", A)];
+
+  test("five minutes after midnight the streak is still running", () => {
+    expect(statusAt(lateAction, "2026-09-14T00:03:00.000Z").streakMin).toBe(5);
+  });
+
+  test("twelve minutes after it the streak is over", () => {
+    expect(statusAt(lateAction, "2026-09-14T00:10:00.000Z").streakMin).toBe(0);
+  });
+
+  test("the streak is measured from where it began, not from midnight", () => {
+    const run = [prompt("2026-09-13T23:50:00.000Z", A), prompt("2026-09-13T23:58:00.000Z", A)];
+    expect(statusAt(run, "2026-09-14T00:03:00.000Z").streakMin).toBe(13);
+    const day = analyze([transcript(run)], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T00:03:00.000Z") })[0]!;
+    expect(day.presence).toEqual({ lastAt: "2026-09-13T23:58:00.000Z", streakStartAt: "2026-09-13T23:50:00.000Z" });
+  });
+
+  test("yesterday's action counts for nothing else", () => {
+    const day = analyze([transcript(lateAction)], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T00:03:00.000Z") })[0]!;
+    expect([day.activeMin, day.totals.prompts, day.buckets[0]!.streakMin, day.peak]).toEqual([0, 0, 0, null]);
+  });
+
+  test("an action of the day's own wins over the one carried in", () => {
+    const day = analyze([transcript([...lateAction, prompt("2026-09-14T00:05:00.000Z", A)])], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T00:07:00.000Z") })[0]!;
+    expect(day.presence).toEqual({ lastAt: "2026-09-14T00:05:00.000Z", streakStartAt: "2026-09-13T23:58:00.000Z" });
+  });
+});

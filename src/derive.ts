@@ -49,7 +49,7 @@ type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSe
 // Presence events before startMs update presence only: they are never counted in
 // a bucket, and neither are the slots they cover before startMs, but a span from
 // such an event into the window still covers the window's first slots.
-function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
+function foldEvents(sorted: Event[], startMs: number): { acc: Map<string, Acc>; carried: { ts: number; streakStart: number } | null } {
   const acc = new Map<string, Acc>(); // key "date|hour"
   const key = (ts: number): string => {
     const d = new Date(ts);
@@ -63,6 +63,7 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
 
   let prevPresenceTs: number | null = null;
   let streakStart = 0; // always set by the first presence event, which starts a streak
+  let carried: { ts: number; streakStart: number } | null = null;
   for (const e of sorted) {
     if (PRESENCE.has(e.kind)) {
       const slot = Math.floor(e.ts / SLOT_MS);
@@ -77,6 +78,10 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
         if (slotStart >= startMs) get(key(slotStart)).slots.add(s); // a slot belongs to the bucket of its start
       }
       prevPresenceTs = e.ts;
+      // The last human action before the window opens, kept for the first day:
+      // a person still at the keyboard at 23:58 is still in that streak at
+      // 00:03, and the day they are looking at holds nothing yet.
+      if (e.ts < startMs) carried = { ts: e.ts, streakStart };
     }
     if (e.ts < startMs) continue; // look-back: presence bookkeeping only
     const a = get(key(e.ts));
@@ -106,7 +111,7 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
       case "mode_change": a.m.modeSwitches++; break;
     }
   }
-  return acc;
+  return { acc, carried };
 }
 
 // Builds one Day's 24 hour buckets from the accumulated counts, scores each,
@@ -158,8 +163,16 @@ export function derive(events: Event[], w: Window): Day[] {
     .filter(({ e }) => e.ts >= cutoffMs && e.ts < endMs && (!w.now || e.ts <= w.now.getTime()))
     .sort((a, b) => a.e.ts - b.e.ts || (a.e.sessionId < b.e.sessionId ? -1 : a.e.sessionId > b.e.sessionId ? 1 : 0) || a.i - b.i)
     .map(({ e }) => e);
-  const acc = foldEvents(sorted, startMs);
+  const { acc, carried } = foldEvents(sorted, startMs);
   const days = dates.map((date) => buildDay(date, acc));
+  // Only the first day can be preceded by the look-back, and only a day with no
+  // action of its own needs it: the streak that was running when the window
+  // opened is still the one the person is in. It reaches `presence` and nothing
+  // else — no bucket, no total, no active minute belongs to a day before this one.
+  const first = days[0];
+  if (first && first.presence === null && carried) {
+    first.presence = { lastAt: new Date(carried.ts).toISOString(), streakStartAt: new Date(carried.streakStart).toISOString() };
+  }
   if (w.now) {
     const today = localDate(w.now);
     for (const d of days) if (d.date === today) d.asOf = w.now.toISOString();
