@@ -5,7 +5,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Presence counts every human action, not only prompts: an interrupt, a tool rejection and an answer to a question or a plan hold a streak open and fill active minutes the same way a prompt does. They remain decisions where they already were; nothing is counted twice.
+- An hour's streak is the longest streak seen in it, not the one it happened to end on. A single prompt after a break no longer erases the run the hour held, nor the streak points of that hour's index.
+- The status file's streak is live: it counts from the first action of the streak you are in up to `asOf`, and resets to `0` once you have been away for more than ten minutes. Before, it was the current hour's bucket, so it fell to zero at every hour boundary.
+- `Day.presence` in `--json`: the day's last human action and the start of the streak it belongs to, as instants, or `null` on a day with no action of yours.
+
 ### Fixed
+- The card's longest streak is no longer under-reported: a run that ended in an hour where another began used to be measured only up to the end of the hour before.
+- The status line's streak no longer drops to zero at each hour boundary.
 - `card --out` into a directory that does not exist or refuses the write says `cannot write the card: check the --out directory` instead of printing the full path back in a file-system error.
 - A permission-mode switch made before the first message of a session counts: it is attributed to the first timestamped record that follows, instead of vanishing.
 - A transcript whose modification time is outside the window is read when its last record is a big one: the rescue that looks for the last timestamp reads 64 KB from the end instead of 4 KB, so a day that ended on a large tool result is no longer dropped in full.

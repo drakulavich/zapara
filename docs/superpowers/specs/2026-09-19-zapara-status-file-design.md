@@ -194,6 +194,9 @@ Fixture-driven through the public seams, as the base spec requires:
   newline, field order as in the table. Each assertion fails under a
   one-line mutation (a wrong bucket picked, a field dropped, the newline
   lost).
+- The live streak, in the same file: a run ending at 10:58 read with `now` at
+  11:03 gives `streakMin` 63 while the 11:00 bucket's own is 0, and the same
+  run read at 11:09 gives 0. Dropping the ten-minute check fails the second.
 - `tests/shell/status-cli.test.ts`: the CLI with `HOME` pointing at a temp
   directory and `--projects` at a fixture tree with activity today
   (`utcDay(0)`): exit 0, stdout is one JSON line equal to the file's content,
