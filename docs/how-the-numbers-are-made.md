@@ -89,18 +89,19 @@ nothing else; they are never bucketed.
 | `outputTokens` | Sum of tokens over `output` events. |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches`. |
 | `contextSwitches` | Over the hour's prompts in time order, consecutive pairs from different sessions. |
-| `streakMin` | Length of the presence streak that contains the hour's last prompt, from that streak's first prompt, which may lie in an earlier hour or in the look-back. |
+| `streakMin` | Length of the presence streak that contains the hour's last presence event, from that streak's first event, which may lie in an earlier hour or in the look-back. |
 | `activeMin` | Five times the number of 5-minute slots in the hour covered by presence. |
 | `lateNight` | The hour is one of 23, 0, 1, 2, 3, 4, 5. |
 
-Presence is the human's. A presence streak is a run of consecutive `prompt`
-events in which no two neighbours are more than 10 minutes apart. Every prompt
-covers its own 5-minute slot, and two neighbouring prompts of one streak cover
-every slot between them, because the human sat through that gap too. A slot
-belongs to the hour its start falls in. Assistant records and inbound reports
-between two prompts bridge nothing: an agent that works on while you are away
-neither keeps your streak alive nor fills your day. This is the rule since
-0.3.1; before it, any record counted.
+Presence is the human's, and it is every action you take, not only what you
+typed: a `prompt`, an `interrupt`, a tool `reject`. A presence streak is a run
+of consecutive presence events in which no two neighbours are more than 10
+minutes apart. Every presence event covers its own 5-minute slot, and two
+neighbouring events of one streak cover every slot between them, because the
+human sat through that gap too. A slot belongs to the hour its start falls in.
+Assistant records and inbound reports bridge nothing: an agent that works on
+while you are away neither keeps your streak alive nor fills your day. Presence
+has been the human's since 0.3.1; before it, any record counted.
 
 ## 5. The index
 

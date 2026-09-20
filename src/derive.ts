@@ -1,5 +1,5 @@
 import { score } from "./score.ts";
-import type { Day, Event, HourBucket, Metrics, Totals, Window } from "./types.ts";
+import type { Day, Event, EventKind, HourBucket, Metrics, Totals, Window } from "./types.ts";
 
 export const LOOKBACK_MS = 3 * 60 * 60 * 1000;
 export const GAP_MS = 10 * 60 * 1000;
@@ -30,20 +30,25 @@ const emptyMetrics = (): Metrics => ({
   decisions: 0, contextSwitches: 0, activeMin: 0, streakMin: 0, lateNight: false,
 });
 
-type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; lastPrompt: { ts: number; streakStart: number } | null };
+// Presence is every action the human takes: what they typed, and the three ways
+// they answer or stop the agent. Agent records (`activity`, `report`, `output`)
+// and the agent's own asks (`question`, `plan_review`) are never presence.
+const PRESENCE: ReadonlySet<EventKind> = new Set<EventKind>(["prompt", "interrupt", "reject"]);
+
+type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; lastPresence: { ts: number; streakStart: number } | null };
 
 // Walks the sorted, look-back-filtered events once, keyed by "date|hour",
 // tracking the running presence streak (which may start before startMs) and
 // accumulating each bucket's raw counts.
 //
 // Presence is the human's: both the streak and the covered slots are built from
-// `prompt` events alone, because both answer "is it time to rest?". Agents that
-// work on while the human is away must not keep a streak alive or fill the day,
-// so `activity` is left with session liveness and nothing else.
+// the PRESENCE kinds alone, because both answer "is it time to rest?". Agents
+// that work on while the human is away must not keep a streak alive or fill the
+// day, so `activity` is left with session liveness and nothing else.
 //
-// Prompts before startMs update presence only: they are never counted in a
-// bucket, and neither are the slots they cover before startMs, but a span from
-// such a prompt into the window still covers the window's first slots.
+// Presence events before startMs update presence only: they are never counted in
+// a bucket, and neither are the slots they cover before startMs, but a span from
+// such an event into the window still covers the window's first slots.
 function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
   const acc = new Map<string, Acc>(); // key "date|hour"
   const key = (ts: number): string => {
@@ -52,29 +57,30 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
   };
   const get = (k: string): Acc => {
     let a = acc.get(k);
-    if (!a) { a = { m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, lastPrompt: null }; acc.set(k, a); }
+    if (!a) { a = { m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, lastPresence: null }; acc.set(k, a); }
     return a;
   };
 
-  let prevPromptTs: number | null = null;
-  let streakStart = 0; // always set by the first prompt, which starts a streak
+  let prevPresenceTs: number | null = null;
+  let streakStart = 0; // always set by the first presence event, which starts a streak
   for (const e of sorted) {
-    if (e.kind === "prompt") {
+    if (PRESENCE.has(e.kind)) {
       const slot = Math.floor(e.ts / SLOT_MS);
-      // A prompt covers its own slot. Inside a streak the human sat through the
-      // gap too, so the pair also covers every slot between them; a prompt that
-      // starts a streak covers nothing behind it.
+      // A presence event covers its own slot. Inside a streak the human sat
+      // through the gap too, so the pair also covers every slot between them; an
+      // event that starts a streak covers nothing behind it.
       let from = slot;
-      if (prevPromptTs !== null && e.ts - prevPromptTs <= GAP_MS) from = Math.floor(prevPromptTs / SLOT_MS);
+      if (prevPresenceTs !== null && e.ts - prevPresenceTs <= GAP_MS) from = Math.floor(prevPresenceTs / SLOT_MS);
       else streakStart = e.ts;
       for (let s = from; s <= slot; s++) {
         const slotStart = s * SLOT_MS;
         if (slotStart >= startMs) get(key(slotStart)).slots.add(s); // a slot belongs to the bucket of its start
       }
-      prevPromptTs = e.ts;
+      prevPresenceTs = e.ts;
     }
     if (e.ts < startMs) continue; // look-back: presence bookkeeping only
     const a = get(key(e.ts));
+    if (PRESENCE.has(e.kind)) a.lastPresence = { ts: e.ts, streakStart };
     switch (e.kind) {
       case "activity":
         a.sessions.add(e.sessionId);
@@ -83,7 +89,6 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
         a.m.prompts++;
         if (a.lastPromptSession !== null && a.lastPromptSession !== e.sessionId) a.m.contextSwitches++;
         a.lastPromptSession = e.sessionId;
-        a.lastPrompt = { ts: e.ts, streakStart };
         break;
       case "report": a.m.reports++; break;
       case "output": a.m.outputTokens += e.tokens ?? 0; break;
@@ -107,7 +112,7 @@ function buildDay(date: string, acc: Map<string, Acc>): Day {
     if (a) {
       m.sessions = a.sessions.size;
       m.activeMin = a.slots.size * 5;
-      m.streakMin = a.lastPrompt ? Math.round((a.lastPrompt.ts - a.lastPrompt.streakStart) / 60000) : 0;
+      m.streakMin = a.lastPresence ? Math.round((a.lastPresence.ts - a.lastPresence.streakStart) / 60000) : 0;
     }
     m.decisions = m.interrupts + m.rejects + m.questions + m.plans + m.modeSwitches;
     // lateNight is a property of the hour label, so it is set on every bucket,

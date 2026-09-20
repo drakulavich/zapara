@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { analyze } from "../../src/analyze.ts";
-import { assistant, prompt, teammate, transcript } from "../helpers/transcript.ts";
+import { assistant, interrupt, prompt, reject, teammate, transcript } from "../helpers/transcript.ts";
 
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-1111-4111-8111-111111111111";
@@ -140,5 +140,33 @@ describe("active minutes", () => {
     expect(d.buckets[0]!.streakMin).toBe(36);  // measured from 23:35, in the look-back
     expect(d.buckets[0]!.activeMin).toBe(15);  // slots 00:00, 00:05, 00:10; 23:50 and 23:55 are outside
     expect(d.activeMin).toBe(15);
+  });
+});
+
+describe("presence is every human action", () => {
+  const at = (hhmm: string) => `2026-09-14T${hhmm}:00.000Z`;
+
+  test("an interrupt and a rejection hold the streak open between two prompts", () => {
+    const d = analyze([transcript([
+      prompt(at("10:00"), A),
+      interrupt(at("10:08"), A),   // 8 minutes: presence, the streak continues
+      reject(at("10:16"), A),      // 8 more: presence again
+      prompt(at("10:24"), A),
+    ])], W)[0]!;
+    const b = d.buckets[10]!;
+    // Without the interrupt and the rejection the two prompts are 24 minutes
+    // apart and the hour holds two streaks of nothing.
+    expect(b.streakMin).toBe(24);
+    expect(b.activeMin).toBe(25);   // slots 10:00, 10:05, 10:10, 10:15, 10:20
+  });
+
+  test("a human action is presence and still a decision", () => {
+    const b = analyze([transcript([
+      prompt(at("10:00"), A),
+      interrupt(at("10:08"), A),
+      reject(at("10:16"), A),
+      prompt(at("10:24"), A),
+    ])], W)[0]!.buckets[10]!;
+    expect([b.prompts, b.interrupts, b.rejects, b.decisions]).toEqual([2, 1, 1, 2]);
   });
 });

@@ -93,11 +93,20 @@ result.
 
 Look-back: the deriver receives events from `windowStart - LOOKBACK` (3 hours)
 onward. Events before `windowStart` contribute only to `streakMin` and to the
-presence spans that reach into the window; slots and prompts before
+presence spans that reach into the window; slots and events before
 `windowStart` are never bucketed. Because the streak component of the index saturates at 120
 minutes, the index is exact at the window boundary. The displayed `streakMin`
 of a streak that started more than 3 hours before the window is floored at what
 the look-back sees, which is the one documented approximation.
+
+Presence: a presence event is one the human performed — `prompt`, `interrupt`
+or `reject`. Records the agent wrote (`activity`, `report`, `output`) and the
+agent's own asks (`question`, `plan_review`) are never presence: an agent that
+works on while the human is away must not keep a streak alive or fill a day.
+A presence streak is a run of consecutive presence events in which no two
+neighbours are more than 10 minutes apart, in the global order, across all
+sessions; a gap of exactly 10 minutes continues it, 10 minutes and 1 ms breaks
+it.
 
 Per bucket:
 
@@ -110,8 +119,8 @@ Per bucket:
 | `interrupts`, `rejects`, `questions`, `plans`, `modeSwitches` | counts of the matching kinds |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches` |
 | `contextSwitches` | over all `prompt` events in the bucket sorted by `ts`, the number of consecutive pairs whose `sessionId` differs |
-| `activeMin` | number of distinct 5-minute slots the human's presence covers in the bucket, times 5. Every `prompt` covers its own slot (`floor(ts / 5 min)`); two consecutive prompts of the same presence streak also cover every slot between them, from the earlier prompt's slot to the later one's, inclusive. A slot belongs to the bucket of the local date and hour of the slot's start; a slot starting before `windowStart` is never bucketed. So a prompt at 14:58 and one at 15:04 give bucket 14 five minutes and bucket 15 five minutes; a lone prompt gives 5; a prompt at 10:00 followed by assistant records every minute until 10:30 gives 5. |
-| `streakMin` | length in minutes of the presence streak that contains the last `prompt` of the bucket, measured from that streak's first prompt (which may lie in the look-back, before the window). A presence streak is a run of consecutive `prompt` events in which no two neighbours are more than 10 minutes apart, in the global order, across all sessions; a gap of exactly 10 minutes continues it, 10 minutes and 1 ms breaks it. 0 when the bucket has no prompt. |
+| `activeMin` | number of distinct 5-minute slots the human's presence covers in the bucket, times 5. Every presence event covers its own slot (`floor(ts / 5 min)`); two consecutive presence events of the same streak also cover every slot between them, from the earlier one's slot to the later one's, inclusive. A slot belongs to the bucket of the local date and hour of the slot's start; a slot starting before `windowStart` is never bucketed. So a prompt at 14:58 and one at 15:04 give bucket 14 five minutes and bucket 15 five minutes; a lone prompt gives 5; a prompt at 10:00 followed by assistant records every minute until 10:30 gives 5. |
+| `streakMin` | length in minutes of the presence streak that contains the last presence event of the bucket, measured from that streak's first event (which may lie in the look-back, before the window). 0 when the bucket has no presence event. |
 | `lateNight` | bucket hour in {23, 0, 1, 2, 3, 4, 5} |
 
 Per day: `peak` (max index over buckets with activity), `mean` (mean index over
@@ -329,9 +338,10 @@ Scenarios, one directory or builder script each:
   between them; a single session yields zero switches.
 - `streak`: prompts across sessions with a 9-minute gap (continues) and an
   11-minute gap (breaks); assistant records and inbound reports inside an
-  11-minute gap between prompts do not bridge it; a streak that starts in the
-  3-hour look-back before the window; a file whose mtime and last record are
-  both before the cutoff, which stays ignored.
+  11-minute gap between prompts do not bridge it, while an interrupt or a tool
+  rejection between them does, being presence itself; a streak that starts in
+  the 3-hour look-back before the window; a file whose mtime and last record
+  are both before the cutoff, which stays ignored.
 - `active minutes`: a lone prompt covers one slot; two prompts 8 minutes apart
   cover both slots between them; a span across an hour boundary gives each hour
   its own slots; agent-only minutes cover nothing.
