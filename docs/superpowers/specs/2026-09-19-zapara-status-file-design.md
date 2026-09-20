@@ -78,11 +78,14 @@ Content: exactly one line of JSON, no trailing spaces, a newline at the end.
 | `index` | That hour's load index, `0`..`100`, or `null` when the hour has no activity yet. |
 | `level` | That hour's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colours by this field so it never needs the thresholds. |
 | `peak` | The day's peak index so far, or `null` on a day with no activity. |
-| `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your prompts and the gaps of at most 10 minutes between them; `0` on a day with no prompt. |
-| `streakMin` | Minutes of the unbroken presence streak as of the current hour: your prompts no more than 10 minutes apart, across sessions; `0` when the hour has none. |
+| `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your actions and the gaps of at most 10 minutes between them; `0` on a day with no action of yours. |
+| `streakMin` | Minutes of your live presence streak as of `asOf`: from the streak's first human action to `asOf`, when your last action is no more than 10 minutes before `asOf`; `0` once you have been away longer. Not the hour's bucket. |
 
-`hour`, `index`, `level` and `streakMin` describe the bucket of the current
-hour; `peak` and `activeMin` describe the day. On a day with no activity the
+`hour`, `index` and `level` describe the bucket of the current hour; `peak`
+and `activeMin` describe the day; `streakMin` describes now, and is the one
+field that keeps growing while you sit there. It is computed from the day's
+`presence` (`lastAt`, `streakStartAt`) against `asOf`, so it does not reset at
+an hour boundary and does not wait for your next action to grow. On a day with no activity the
 file is still written, with the `null`s and zeros above, so a reader can tell
 "nothing yet today" from "zapara never ran".
 
@@ -97,10 +100,11 @@ for them and the file may sit in a directory other tools read.
   that name is an error, never followed) under a name unique to this run,
   `status.json.<pid>.<random>.tmp`, then renamed over `status.json`. A
   reader sees the old file or the new one, never a partial line.
-- Two runs at once are allowed and harmless: each writes its own temporary
-  file, each rename is atomic, the last rename wins, and both files were
-  complete. Nothing locks; a reader's single-flight rule (below) keeps the
-  number of concurrent runs small, and zapara does not depend on it.
+- A reader may start a run on every stale render; nothing coordinates readers,
+  and concurrent runs are harmless because the file is written atomically.
+  Each run writes its own temporary file, each rename is atomic, the last
+  rename wins, and both files were complete. Renders are seconds apart and a
+  run is under a second, so runs do not pile up.
 - The temporary file is removed on every path out of a failed write. One
   left by a crash (a kill between create and rename) stays where it is:
   zapara never opens, reuses or deletes a temporary file it did not create
@@ -125,11 +129,13 @@ source.
 - Read `~/.claude/zapara/status.json` and decode it strictly. The file is
   written by another program and can be replaced by any tool the same user
   runs, so the reader trusts nothing in it: it is one JSON object; `schema`
-  is `1`; `asOf` parses as an ISO 8601 instant no later than one minute
-  after the reader's own clock; `date` is `YYYY-MM-DD`; `hour` is an integer
+  is `1`; `asOf` parses as an ISO 8601 instant no later than 60 seconds after
+  the reader's own clock, an allowance for the skew between two clocks and for
+  a file written a moment ago; `date` is `YYYY-MM-DD`; `hour` is an integer
   `0`..`23`; `index` and `peak` are `null` or integers `0`..`100`; `level` is
   `null` exactly when `index` is, else one of the four names; `activeMin` and
-  `streakMin` are integers `0`..`1440`. Anything else, and a missing or
+  `streakMin` are integers `0`..`1500`, the ceiling being a DST fall-back day
+  of 25 hours. Anything else, and a missing or
   unreadable file, is treated as no data: the segment is not drawn, and the
   file counts as stale.
 - Draw the current hour's `index`, coloured by `level`; `null` draws nothing.
@@ -142,13 +148,10 @@ source.
   that never ran zapara: the first render finds nothing, starts one run, and
   the render after that has the file. The threshold is the reader's (pult's
   is five minutes).
-- Single flight: a reader starts at most one run per threshold, whatever the
-  file says in between, and never one per render. That bounds a broken file
-  (one that fails validation forever) to one run per threshold, and it keeps
-  the half-second cost and Claude Code's "kill the in-flight script" rule
-  away from the status line, which is what this file exists for. How the
-  reader remembers its last launch is its own business (pult: a marker file
-  beside the status file, or the launch time in its own cache).
+- A reader may start a run on every stale render; nothing coordinates readers,
+  and concurrent runs are harmless because the file is written atomically.
+  Renders are seconds apart and a run is under a second, so runs do not pile
+  up.
 - `asOf` moves only when zapara actually ran, so a reader that shows the
   snapshot's age shows the truth.
 - `zapara` is found on the reader's `PATH`; a reader with a
@@ -191,6 +194,9 @@ Fixture-driven through the public seams, as the base spec requires:
   newline, field order as in the table. Each assertion fails under a
   one-line mutation (a wrong bucket picked, a field dropped, the newline
   lost).
+- The live streak, in the same file: a run ending at 10:58 read with `now` at
+  11:03 gives `streakMin` 63 while the 11:00 bucket's own is 0, and the same
+  run read at 11:09 gives 0. Dropping the ten-minute check fails the second.
 - `tests/shell/status-cli.test.ts`: the CLI with `HOME` pointing at a temp
   directory and `--projects` at a fixture tree with activity today
   (`utcDay(0)`): exit 0, stdout is one JSON line equal to the file's content,

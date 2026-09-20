@@ -66,12 +66,13 @@ ignored for every kind (defensive; the scan already skips subagent files).
 | `output` | `type == "assistant"` with a string `requestId`, a `message.usage.output_tokens` that is a finite non-negative integer (anything else, such as `1e309` or a negative count, carries no tokens and is only `activity`), and at least one `{type:"text"}` content block. One event per distinct `requestId` per file (the first record seen), carrying `tokens`. Claude Code writes one record per content block of a response and repeats the same `usage` on each, so the count is per request, not per record; requests that hold only tool calls are not text the human reads. |
 | `interrupt` | `type == "user"`, content array with a text block whose text starts with `[Request interrupted by user`. Covers both `[Request interrupted by user]` and `[Request interrupted by user for tool use]`. Not counted as a prompt. |
 | `reject` | `type == "user"`, content array containing a `tool_result` block whose content (string, or first text block) starts with `The user doesn't want to proceed with this tool use`. |
+| `answer` | `type == "user"`, content array containing a `tool_result` block whose `tool_use_id` matches the `id` of an `AskUserQuestion` or `ExitPlanMode` `tool_use` seen earlier in the same file. The parser keeps the ids of those two tools and no others, because every other `tool_result` is the machine reporting back, while these two carry the option the human picked or their verdict on a plan. One event per matching block, in addition to `activity` and, when the text starts with the rejection marker, `reject`. An answer is presence and nothing more: not a prompt, not a decision, not a report. |
 | `question` | `type == "assistant"`, content array containing a `tool_use` block with `name == "AskUserQuestion"`. One event per block. |
 | `plan_review` | Same as `question` with `name == "ExitPlanMode"`. |
 | `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file, or, when none has been seen yet, the `ts` of the first timestamped record that follows in the same file (one event per waiting switch). A switch is dropped only when the file holds no timestamped record at all. The first such record in a file sets the session's baseline mode and is not a switch (every session writes its starting mode). Each later record whose `permissionMode` differs from the previous record's is one switch; repeats of the same mode count nothing (Claude Code rewrites the same mode repeatedly). |
 | `activity` | Every `type == "user"` or `type == "assistant"` record with a timestamp, including `isMeta` ones. Used for session liveness (`sessions`) only. |
 
-`prompt`, `report`, `interrupt`, `reject` and `output` records are also `activity`. The
+`prompt`, `report`, `interrupt`, `reject`, `answer` and `output` records are also `activity`. The
 parser emits both events for them; the deriver never double counts because it
 reads kinds separately.
 
@@ -84,7 +85,9 @@ repo records each drift when it happens.
 Time is local. A day is the 24 local hour labels `00`..`23`; an event belongs to
 the bucket named by its local date and hour. On a DST fall-back day two wall-clock
 hours share one label and merge into one bucket; on a spring-forward day one label
-stays empty. A week view is `--days` days ending on `--to` (default today).
+stays empty. So a merged bucket can hold up to 120 active minutes and such a day
+up to 1500, which is the ceiling a reader of either number should allow. A week
+view is `--days` days ending on `--to` (default today).
 
 Ordering: before deriving anything, all events from all files are sorted by
 `ts`, then `sessionId`, then their position in the parsed input. Every
@@ -93,11 +96,20 @@ result.
 
 Look-back: the deriver receives events from `windowStart - LOOKBACK` (3 hours)
 onward. Events before `windowStart` contribute only to `streakMin` and to the
-presence spans that reach into the window; slots and prompts before
+presence spans that reach into the window; slots and events before
 `windowStart` are never bucketed. Because the streak component of the index saturates at 120
 minutes, the index is exact at the window boundary. The displayed `streakMin`
 of a streak that started more than 3 hours before the window is floored at what
 the look-back sees, which is the one documented approximation.
+
+Presence: a presence event is one the human performed — `prompt`, `interrupt`,
+`reject` or `answer`. Records the agent wrote (`activity`, `report`, `output`)
+and the agent's own asks (`question`, `plan_review`) are never presence: an agent
+that works on while the human is away must not keep a streak alive or fill a day.
+A presence streak is a run of consecutive presence events in which no two
+neighbours are more than 10 minutes apart, in the global order, across all
+sessions; a gap of exactly 10 minutes continues it, 10 minutes and 1 ms breaks
+it.
 
 Per bucket:
 
@@ -110,13 +122,25 @@ Per bucket:
 | `interrupts`, `rejects`, `questions`, `plans`, `modeSwitches` | counts of the matching kinds |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches` |
 | `contextSwitches` | over all `prompt` events in the bucket sorted by `ts`, the number of consecutive pairs whose `sessionId` differs |
-| `activeMin` | number of distinct 5-minute slots the human's presence covers in the bucket, times 5. Every `prompt` covers its own slot (`floor(ts / 5 min)`); two consecutive prompts of the same presence streak also cover every slot between them, from the earlier prompt's slot to the later one's, inclusive. A slot belongs to the bucket of the local date and hour of the slot's start; a slot starting before `windowStart` is never bucketed. So a prompt at 14:58 and one at 15:04 give bucket 14 five minutes and bucket 15 five minutes; a lone prompt gives 5; a prompt at 10:00 followed by assistant records every minute until 10:30 gives 5. |
-| `streakMin` | length in minutes of the presence streak that contains the last `prompt` of the bucket, measured from that streak's first prompt (which may lie in the look-back, before the window). A presence streak is a run of consecutive `prompt` events in which no two neighbours are more than 10 minutes apart, in the global order, across all sessions; a gap of exactly 10 minutes continues it, 10 minutes and 1 ms breaks it. 0 when the bucket has no prompt. |
+| `activeMin` | number of distinct 5-minute slots the human's presence covers in the bucket, times 5. Every presence event covers its own slot (`floor(ts / 5 min)`); two consecutive presence events of the same streak also cover every slot between them, from the earlier one's slot to the later one's, inclusive. A slot belongs to the bucket of the local date and hour of the slot's start; a slot starting before `windowStart` is never bucketed. So a prompt at 14:58 and one at 15:04 give bucket 14 five minutes and bucket 15 five minutes; a lone prompt gives 5; a prompt at 10:00 followed by assistant records every minute until 10:30 gives 5. |
+| `streakMin` | the longest presence streak the bucket saw: the maximum, over the bucket's presence events, of the time from that event's streak's first event (which may lie in the look-back, before the window) to the event itself. 0 when the bucket has no presence event. The maximum, not the last event's streak, because a single action after a break would otherwise erase the run the hour actually held. A streak is longest at its last event, and that event lies in exactly one bucket, so the maximum over buckets is the run's true length: that is what makes the card's "longest streak" exact. |
 | `lateNight` | bucket hour in {23, 0, 1, 2, 3, 4, 5} |
 
 Per day: `peak` (max index over buckets with activity), `mean` (mean index over
 buckets with activity, rounded), `activeMin` (sum), and the sums of every count
 including `reports` and `outputTokens`.
+
+`presence` is the day's last presence event and the start of the streak that
+event belongs to, as `{ lastAt, streakStartAt }` in ISO 8601 UTC, or `null` on
+a day with no presence event. `streakStartAt` may fall on an earlier day or in
+the look-back. Both are instants, not counts, so a reader with a clock can
+measure the streak against its own `now`: that is what the status file does,
+and it is why a live streak needs no bucket. The first day of the window takes
+the last presence event of the look-back as its `presence` when it has none of
+its own, so a report run minutes after midnight still knows the streak that
+was running; that event reaches this field alone, never a bucket, a total or
+an active minute. `presence` appears in `--json` like every other field of a
+`Day`.
 
 `reports`, `outputTokens` and `contextSwitches` enter the index through its
 supervision and reading components (see Index).
@@ -220,10 +244,17 @@ they read `par 25 pace 15 sup 30 read 9 strk 7.9 late 0`, so the number can be
 traced to its inputs.
 
 `--json` prints the same data as one JSON document: for the grid, an array of days,
-each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 24
-entries, each with `hour`, every metric, and `score`, which is
+each with `date`, `peak`, `mean`, `activeMin`, `presence`, totals and a `buckets`
+array of 24 entries, each with `hour`, every metric, and `score`, which is
 `{ index, level, parts }` or `null` when the bucket has no activity; for a day,
-one such day. JSON is also the default when stdout is not a TTY. The day that
+one such day. `presence` is `{ lastAt, streakStartAt }`, two ISO 8601 UTC
+instants: the day's last presence event and the first event of the streak it
+belongs to. It is `null` on a day with no presence event, and `streakStartAt`
+may fall on an earlier day or in the look-back. The first day of the window
+carries the last presence event of the look-back when it has none of its own,
+so a window that opens minutes after a person stopped typing still knows the
+streak they are in; nothing else about that event enters the window.
+JSON is also the default when stdout is not a TTY. The day that
 contains the moment the report ran also carries `asOf`, that moment as an ISO
 8601 UTC string; every other day omits the field. That day's own numbers cover
 only events timestamped at or before `asOf`, so a record appended while zapara
@@ -329,9 +360,10 @@ Scenarios, one directory or builder script each:
   between them; a single session yields zero switches.
 - `streak`: prompts across sessions with a 9-minute gap (continues) and an
   11-minute gap (breaks); assistant records and inbound reports inside an
-  11-minute gap between prompts do not bridge it; a streak that starts in the
-  3-hour look-back before the window; a file whose mtime and last record are
-  both before the cutoff, which stays ignored.
+  11-minute gap between prompts do not bridge it, while an interrupt or a tool
+  rejection between them does, being presence itself; a streak that starts in
+  the 3-hour look-back before the window; a file whose mtime and last record
+  are both before the cutoff, which stays ignored.
 - `active minutes`: a lone prompt covers one slot; two prompts 8 minutes apart
   cover both slots between them; a span across an hour boundary gives each hour
   its own slots; agent-only minutes cover nothing.

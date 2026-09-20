@@ -98,7 +98,10 @@ only for a window of lone single-event hours) the tie rule gives Conductor.
 
 Where `maxSessions` and `maxContextSwitches` are the window maxima over
 buckets, `reports`, `outputTokens` and `interrupts` are window sums, `streak`
-is the maximum `streakMin` over buckets, `activeHours` is the count of
+is the maximum `streakMin` over buckets, which is the window's longest
+presence streak exactly: each bucket reports the longest streak it saw, a
+streak is longest at its last event, and that event falls in one bucket.
+`activeHours` is the count of
 active buckets (used only as a divisor, never shown), `lateShare` is the
 share of active buckets with `lateNight` in whole percent, `calmShare` the
 share of active buckets at Calm, `days` the `--days` value. `CardData`

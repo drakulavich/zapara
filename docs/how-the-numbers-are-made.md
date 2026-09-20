@@ -59,6 +59,7 @@ session id, a kind and, for output, a token count.
 | `output` | An `assistant` record with a text block and `usage.output_tokens`, counted once per `requestId` within a file. Model output the human reads. |
 | `interrupt` | A `user` text block starting with `[Request interrupted by user`. |
 | `reject` | A `tool_result` saying the user did not want to proceed with that tool use. |
+| `answer` | A `tool_result` answering an `AskUserQuestion` or `ExitPlanMode` call made earlier in the same file, matched by the tool call's id. The option you picked, or your verdict on a plan. Presence and nothing else: it is not a prompt and not a decision. |
 | `question` | An `AskUserQuestion` tool call in an assistant message. |
 | `plan_review` | An `ExitPlanMode` tool call in an assistant message. |
 | `mode_change` | A `permission-mode` record. It has no timestamp, so it takes the time of the last timestamped record before it in the same file, or, when there is none yet, is attributed to the first timestamped record that follows; it is dropped only if the file has none. The first such record in a file is the session's baseline; each later one whose mode differs from the previous is one switch, and repeats count nothing. |
@@ -71,6 +72,8 @@ The exact markers and shapes are in the design spec's "Events" table.
 Time is local. Every event belongs to the bucket named by its local date and
 hour, so a day is 24 buckets `00`..`23`. On a DST fall-back day two wall-clock
 hours share one label and merge; on a spring-forward day one label stays empty.
+A merged bucket can therefore hold up to 120 active minutes, and such a day up
+to 1500.
 
 All events from all files are sorted by time, then session id, then position,
 before anything is derived. "Consecutive" below means consecutive in that
@@ -89,18 +92,21 @@ nothing else; they are never bucketed.
 | `outputTokens` | Sum of tokens over `output` events. |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches`. |
 | `contextSwitches` | Over the hour's prompts in time order, consecutive pairs from different sessions. |
-| `streakMin` | Length of the presence streak that contains the hour's last prompt, from that streak's first prompt, which may lie in an earlier hour or in the look-back. |
+| `streakMin` | The longest presence streak the hour saw, measured from that streak's first event, which may lie in an earlier hour or in the look-back. One action after a break does not erase the run the hour held. |
 | `activeMin` | Five times the number of 5-minute slots in the hour covered by presence. |
 | `lateNight` | The hour is one of 23, 0, 1, 2, 3, 4, 5. |
 
-Presence is the human's. A presence streak is a run of consecutive `prompt`
-events in which no two neighbours are more than 10 minutes apart. Every prompt
-covers its own 5-minute slot, and two neighbouring prompts of one streak cover
-every slot between them, because the human sat through that gap too. A slot
-belongs to the hour its start falls in. Assistant records and inbound reports
-between two prompts bridge nothing: an agent that works on while you are away
-neither keeps your streak alive nor fills your day. This is the rule since
-0.3.1; before it, any record counted.
+Presence is the human's, and it is every action you take, not only what you
+typed: a `prompt`, an `interrupt`, a tool `reject`, an `answer` to a question
+or a plan. A presence streak is a run
+of consecutive presence events in which no two neighbours are more than 10
+minutes apart. Every presence event covers its own 5-minute slot, and two
+neighbouring events of one streak cover every slot between them, because the
+human sat through that gap too. A slot belongs to the hour its start falls in.
+Assistant records and inbound reports bridge nothing: an agent that works on
+while you are away neither keeps your streak alive nor fills your day, and its
+question counts only once you have answered it. Presence has been the human's
+since 0.3.1; before it, any record counted.
 
 ## 5. The index
 
@@ -148,6 +154,15 @@ index over hours with a live session, rounded), both `null` on a day with none;
 `activeMin`, the sum of the hours' active minutes; and `totals`, the sums of
 every count and the largest `sessions` of any hour.
 
+It also carries `presence`, two instants in ISO 8601 UTC: `lastAt`, your last
+action of the day, and `streakStartAt`, the first action of the streak that one
+belongs to, which may fall on an earlier day. It is `null` on a day where you
+did nothing. These are what let a reader with a clock measure the streak you
+are in right now, which is how the status file gets its live number, and the
+first day of a window borrows the last action before it when it has none of its
+own, so a run just after midnight still knows you are there. Both appear in
+`--json`.
+
 A day that includes now is a snapshot: the run fixes `now` when it starts,
 records it as `asOf`, and counts nothing timestamped after it, even if Claude
 Code appends records while the run reads. The next run makes the next
@@ -177,8 +192,12 @@ the index. The card spec has the rest.
 {"schema":1,"asOf":"2026-09-19T12:30:38.300Z","date":"2026-09-19","hour":15,"index":36,"level":"Warming","peak":41,"activeMin":555,"streakMin":166}
 ```
 
-`hour`, `index`, `level` and `streakMin` are the current hour's; `peak` and
-`activeMin` are the day's. A status line such as [pult](https://github.com/drakulavich/pult)
+`hour`, `index` and `level` are the current hour's; `peak` and `activeMin` are
+the day's; `streakMin` is live, measured from the first action of the streak
+you are in to `asOf`, and it is `0` once you have been away more than ten
+minutes. It does not reset at an hour boundary and it grows while you sit
+there, which is what a status line needs and what a bucket cannot give.
+A status line such as [pult](https://github.com/drakulavich/pult)
 reads that file on every render and shows `load 36 · streak 2h46 · day 9h15`:
 the index in the colour of its level, the time since your last ten-minute
 break, and the day's presence so far. When the file is older than five minutes
@@ -192,9 +211,10 @@ contract.
   mode, so the index leans on supervision and reading: what a heavy hour costs
   is reacting to reports, hopping between sessions and reading output. Check
   `--explain`.
-- **A streak of 1 minute after a long day.** The streak is the run you are in
-  now, not the day's longest; the longest is on the card. Eleven minutes without
-  a prompt of yours start a new one.
+- **A short streak in the table after a long day.** Each row shows the longest
+  run that hour held, not the day's longest; the day's longest is on the card,
+  and the one you are in right now is in the status file. Eleven minutes
+  without an action of yours start a new run.
 - **Fewer active minutes than the session felt.** Minutes count when you were
   present, not when an agent was working alone. The `sess` column still shows
   the agents.

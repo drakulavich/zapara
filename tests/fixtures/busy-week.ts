@@ -46,8 +46,8 @@ function storm(day: number, from: number, to: number) {
 }
 
 // One prompt on its own, in a file of its own, to hold a presence streak open.
-// Presence is prompts: a streak continues only across a gap of at most 10
-// minutes between two *prompts*, and the reply that closes a calm exchange is
+// Presence is the human's: a streak continues only across a gap of at most 10
+// minutes between two of their own actions, and the reply that closes a calm exchange is
 // not presence. Called last so the two extra prompts cannot shift the uuids and
 // request ids of every file built above them.
 function stillThere(day: number, n: number, h: number, m: number) {

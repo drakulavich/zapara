@@ -71,14 +71,16 @@ export const reject = (ts: string, sid: string) =>
 export const bigToolResult = (ts: string, sid: string, bytes: number) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: false, content: "R".repeat(bytes) }] } });
 
-export const toolResult = (ts: string, sid: string) =>
-  base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: false, content: "ok" }] } });
+// `id` pairs a result with the tool call it answers, the way Claude Code does.
+// The default keeps the many tests that never look at the pairing unchanged.
+export const toolResult = (ts: string, sid: string, id = "toolu_placeholder") =>
+  base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, is_error: false, content: "ok" }] } });
 
-const toolUse = (ts: string, sid: string, name: string) =>
-  base(ts, sid, { type: "assistant", requestId: "req_placeholder", message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", content: [{ type: "tool_use", id: "toolu_placeholder", name, input: {} }] } });
+export const toolUse = (ts: string, sid: string, name: string, id = "toolu_placeholder") =>
+  base(ts, sid, { type: "assistant", requestId: "req_placeholder", message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", content: [{ type: "tool_use", id, name, input: {} }] } });
 
-export const question = (ts: string, sid: string) => toolUse(ts, sid, "AskUserQuestion");
-export const plan = (ts: string, sid: string) => toolUse(ts, sid, "ExitPlanMode");
+export const question = (ts: string, sid: string, id?: string) => toolUse(ts, sid, "AskUserQuestion", id);
+export const plan = (ts: string, sid: string, id?: string) => toolUse(ts, sid, "ExitPlanMode", id);
 
 export const mode = (sid: string, m: string) => JSON.stringify({ type: "permission-mode", permissionMode: m, sessionId: sid });
 

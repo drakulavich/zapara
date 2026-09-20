@@ -42,6 +42,10 @@ export function parseTranscript(text: string): Event[] {
   // writes one record per content block of a response, repeating the same
   // requestId and usage, so only the first qualifying record counts.
   const seenRequestIds = new Set<string>();
+  // `tool_use` ids of the two tools whose result the human writes: the option
+  // they picked, or their verdict on a plan. Every other `tool_result` is the
+  // machine reporting back, so the pairing is what tells the two apart.
+  const askedIds = new Set<string>();
 
   for (const line of text.split("\n")) {
     if (line.trim() === "") continue;
@@ -83,6 +87,8 @@ export function parseTranscript(text: string): Event[] {
         if (!isObj(b) || b.type !== "tool_result") continue;
         const t = firstText(b.content);
         if (t !== null && t.startsWith(REJECT_PREFIX)) events.push({ ts, sessionId, kind: "reject" });
+        const toolUseId = str(b.tool_use_id);
+        if (toolUseId !== null && askedIds.has(toolUseId)) events.push({ ts, sessionId, kind: "answer" });
       }
       const head = firstText(content);
       if (head === null) continue;
@@ -95,8 +101,10 @@ export function parseTranscript(text: string): Event[] {
       const blocks = Array.isArray(content) ? content : [];
       for (const b of blocks) {
         if (!isObj(b) || b.type !== "tool_use") continue;
-        if (b.name === QUESTION_TOOL) events.push({ ts, sessionId, kind: "question" });
-        else if (b.name === PLAN_TOOL) events.push({ ts, sessionId, kind: "plan_review" });
+        if (b.name !== QUESTION_TOOL && b.name !== PLAN_TOOL) continue;
+        events.push({ ts, sessionId, kind: b.name === QUESTION_TOOL ? "question" : "plan_review" });
+        const id = str(b.id);
+        if (id !== null) askedIds.add(id);
       }
       // `output`: one event per distinct requestId per file, the first record seen
       // that has a string requestId, numeric usage.output_tokens and at least one

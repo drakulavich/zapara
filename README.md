@@ -149,10 +149,10 @@ A status line wants one number every thirty seconds and cannot wait half a secon
 | `index` | That hour's load index, `0`..`100`, or `null` when the hour has no activity yet. |
 | `level` | That hour's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colors by this field so it never needs the thresholds. |
 | `peak` | The day's peak index so far, or `null` on a day with no activity. |
-| `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your prompts and the gaps of at most 10 minutes between them; `0` on a day with no prompt. |
-| `streakMin` | Minutes of the unbroken presence streak as of the current hour: your prompts no more than 10 minutes apart, across sessions; `0` when the hour has none. |
+| `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your actions and the gaps of at most 10 minutes between them; `0` on a day with no action of yours. |
+| `streakMin` | Minutes of your live presence streak as of `asOf`: from the streak's first action to `asOf`, when your last action is no more than 10 minutes before `asOf`; `0` once you have been away longer. It keeps growing while you sit there, and it does not reset at an hour boundary. |
 
-Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon. A reader decodes the file strictly and treats anything that fails validation, and a missing or unreadable file, as no data: it draws nothing and counts the file as stale. When the snapshot is stale or missing it starts `zapara status` as a detached process, does not wait for it, and draws what it has, which is also how the file first comes to exist on a machine that never ran zapara. It starts at most one run per threshold and never one per render, so a file that never validates costs one run per threshold and no more; the whole contract is in [the status file spec](docs/superpowers/specs/2026-09-19-zapara-status-file-design.md), and [pult](https://github.com/drakulavich/pult) is the reader that exists, with a five-minute threshold.
+Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon. A reader decodes the file strictly and treats anything that fails validation, and a missing or unreadable file, as no data: it draws nothing and counts the file as stale. When the snapshot is stale or missing it starts `zapara status` as a detached process, does not wait for it, and draws what it has, which is also how the file first comes to exist on a machine that never ran zapara. A reader may start a run on every stale render: nothing coordinates readers, concurrent runs are harmless because the file is written atomically, and renders are seconds apart while a run is under a second. The whole contract is in [the status file spec](docs/superpowers/specs/2026-09-19-zapara-status-file-design.md), and [pult](https://github.com/drakulavich/pult) is the reader that exists, with a five-minute threshold.
 
 ## Privacy
 
@@ -162,7 +162,7 @@ No message text, prompt length, file path or session title is kept, written or p
 
 ## Limits
 
-- Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge.
+- Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge, so that bucket can hold up to 120 active minutes and the day up to 1500.
 - Only Claude Code transcripts are read. Work in other tools, and time away from the keyboard, is invisible.
 - Files are chosen by modification time, and a file whose modification time is older than the window is still read when the last timestamp in it falls inside the window, so a restored or synced transcript is not lost. A very old session touched today is read in full, but only its in-window events count.
 - The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
@@ -221,7 +221,7 @@ Weights and norms live in one exported constant in `src/score.ts`, so a recalibr
 | `plan` | `ExitPlanMode` tool calls in an assistant message, one per block. |
 | `mode` | Permission-mode switches. A `permission-mode` record whose mode differs from the previous one; the first record of a session sets the baseline and repeats of the same mode count nothing. |
 | `ctx-sw` | Context switches. Over the hour's prompts in time order, the number of consecutive pairs that came from different sessions. |
-| `streak` | Minutes since the current presence streak began: your prompts no more than 10 minutes apart, across sessions, which may reach back before the hour. Agent activity between two prompts does not bridge a gap. |
+| `streak` | Minutes of the longest presence streak the hour saw. Presence is every action you take: a prompt, an interrupt, a tool rejection, an answer to a question or a plan. A streak is a run of them no more than 10 minutes apart, across sessions, and it may reach back before the hour. Agent activity between two of your actions does not bridge a gap. |
 | `out-tok` | Assistant output tokens, summed once per request and only for requests that produced a text block. Claude Code repeats the same usage on each content block of a response, and a request holding only tool calls is not text anyone reads. |
 
 `bun run stats --days 14` is the tool the norms were set with. It prints the per-hour distribution of each signal over the active hours of a window (n, p50, p75, p90, max, and how many hours were zero), the top hours by reports and by human prompts, and a format-drift line comparing records seen against events the parser recognised. Run it on another machine, or after a Claude Code update, to see whether the norms and the parser still fit. It prints numbers and nothing else.
