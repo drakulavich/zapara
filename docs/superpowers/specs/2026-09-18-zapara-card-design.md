@@ -55,6 +55,11 @@ zapara card [--days N | --to <date> | --from <date> --to <date>] [--out PATH] [-
   (see Rendering), stderr gets one line, `card needs a browser engine:
   install Google Chrome, or write --out card.html`, exit 1. A render that
   does not finish within 15 seconds is `render timed out`, exit 1.
+- When the file cannot be written (the directory does not exist, is not
+  writable, is not a directory, or the file system is read-only), stderr
+  gets one line, `cannot write the card: check the --out directory`, exit 1.
+  The message names no path: the error the file system raises quotes the
+  whole path, and the CLI never prints one.
 - Colors and TTY detection do not apply: the card is the same everywhere.
 
 Privacy amendment to the base spec: `card` is the one command that writes a
@@ -277,7 +282,9 @@ src/image.ts     loadAssets() → Promise<CardAssets>      reads assets/fonts an
 
 `loadAssets` reads the five files relative to `import.meta.dir`; a missing
 or unreadable one is `assets missing: reinstall zapara` on stderr, exit 1,
-with no path. `renderCard` writes the HTML as is when `out` ends in `.html`.
+with no path. `renderCard` writes the HTML as is when `out` ends in `.html`. Every write
+goes through one helper that maps any failure to the `cannot write the card`
+line above, so no path reaches stderr.
 Otherwise it opens `new Bun.WebView({ width: 2400, height: 1260 })`,
 navigates to a `data:text/html;charset=utf-8` URL of the page, waits until
 `document.fonts.status` is `loaded` and every `<img>` reports `complete`

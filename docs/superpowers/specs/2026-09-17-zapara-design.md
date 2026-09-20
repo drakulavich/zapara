@@ -38,7 +38,7 @@ Scan rules:
   Subagent files carry the parent's `sessionId`, every record is `isSidechain: true`,
   and their "user" messages are the parent agent's prompts, not the human's.
 - Skip a file whose mtime is earlier than `windowStart - LOOKBACK` where
-  `LOOKBACK` is 3 hours, unless the last `"timestamp"` in its final 4 KB falls
+  `LOOKBACK` is 3 hours, unless the last `"timestamp"` in its final 64 KB falls
   at or after that cutoff. mtime is a hint, not the truth: a transcript synced
   from another machine, restored by a tool that rewrites times, or written
   under clock skew can be older by mtime than the records inside it, and the
@@ -61,14 +61,14 @@ ignored for every kind (defensive; the scan already skips subagent files).
 
 | kind | rule |
 |---|---|
-| `prompt` | `type == "user"`, `isMeta` not true, and the message content is a string, or an array whose first block is `{type:"text"}`, whose text is neither an interrupt marker nor an agent-message marker. A prompt is something the human typed. |
+| `prompt` | `type == "user"`, `isMeta` not true, and the message content is a string, or an array containing a `{type:"text"}` block; the first text block is the one compared against the markers, and its text is neither an interrupt marker nor an agent-message marker. A pasted image is written as an `image` block in front of the typed text, so the text block is not always the first block. A prompt is something the human typed. |
 | `report` | `type == "user"`, `isMeta` not true, content string or first text block starting with an agent-message marker: `Another Claude session sent a message:`, `<teammate-message`, `<cross-session-message`, `<task-notification>` or `[Cross-session`. These are messages from subagents, other sessions and background tasks that the human has to read and react to. Not a prompt. |
-| `output` | `type == "assistant"` with a string `requestId`, a numeric `message.usage.output_tokens`, and at least one `{type:"text"}` content block. One event per distinct `requestId` per file (the first record seen), carrying `tokens`. Claude Code writes one record per content block of a response and repeats the same `usage` on each, so the count is per request, not per record; requests that hold only tool calls are not text the human reads. |
+| `output` | `type == "assistant"` with a string `requestId`, a `message.usage.output_tokens` that is a finite non-negative integer (anything else, such as `1e309` or a negative count, carries no tokens and is only `activity`), and at least one `{type:"text"}` content block. One event per distinct `requestId` per file (the first record seen), carrying `tokens`. Claude Code writes one record per content block of a response and repeats the same `usage` on each, so the count is per request, not per record; requests that hold only tool calls are not text the human reads. |
 | `interrupt` | `type == "user"`, content array with a text block whose text starts with `[Request interrupted by user`. Covers both `[Request interrupted by user]` and `[Request interrupted by user for tool use]`. Not counted as a prompt. |
 | `reject` | `type == "user"`, content array containing a `tool_result` block whose content (string, or first text block) starts with `The user doesn't want to proceed with this tool use`. |
 | `question` | `type == "assistant"`, content array containing a `tool_use` block with `name == "AskUserQuestion"`. One event per block. |
 | `plan_review` | Same as `question` with `name == "ExitPlanMode"`. |
-| `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file. If none has been seen yet, the record is dropped. The first such record in a file sets the session's baseline mode and is not a switch (every session writes its starting mode). Each later record whose `permissionMode` differs from the previous record's is one switch; repeats of the same mode count nothing (Claude Code rewrites the same mode repeatedly). |
+| `mode_change` | `type == "permission-mode"`. Has no timestamp: it takes the `ts` of the last timestamped record seen earlier in the same file, or, when none has been seen yet, the `ts` of the first timestamped record that follows in the same file (one event per waiting switch). A switch is dropped only when the file holds no timestamped record at all. The first such record in a file sets the session's baseline mode and is not a switch (every session writes its starting mode). Each later record whose `permissionMode` differs from the previous record's is one switch; repeats of the same mode count nothing (Claude Code rewrites the same mode repeatedly). |
 | `activity` | Every `type == "user"` or `type == "assistant"` record with a timestamp, including `isMeta` ones. Used for session liveness (`sessions`) only. |
 
 `prompt`, `report`, `interrupt`, `reject` and `output` records are also `activity`. The
@@ -337,8 +337,11 @@ Scenarios, one directory or builder script each:
   its own slots; agent-only minutes cover nothing.
 - `decisions`: interrupts of both marker forms, tool rejections,
   `AskUserQuestion`, `ExitPlanMode`, repeated `permission-mode` records
-  collapsing to one switch, a `permission-mode` record before any timestamp
-  dropped.
+  collapsing to one switch, and `permission-mode` switches made before any
+  timestamp attributed to the first timestamped record that follows: a
+  baseline record and one differing record before the first prompt give that
+  hour 1 switch, a baseline and two further differing records give 2, and a
+  switch is dropped only when the file holds no timestamped record at all.
 - `agents`: inbound agent messages of every marker form count as `reports` and
   activity, never as prompts; a human prompt in the same hour still counts as one
   prompt; `output` tokens are summed once per `requestId` although the fixture

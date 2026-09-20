@@ -130,7 +130,7 @@ Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
 The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON. `status` always writes its file and prints the same JSON line, piped or not, and `--json` changes nothing there.
 
-Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read, or when `status` cannot write its file (three different messages, none with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A value flag given twice is a usage error. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read, when `status` cannot write its file, or when `card` cannot write its picture (four different messages, none with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A value flag given twice is a usage error. A window with no data prints an empty grid and exits 0.
 
 ## Status line
 
@@ -156,7 +156,7 @@ Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon.
 
 ## Privacy
 
-zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. Selection is by modification time first, and a file whose modification time is older than the window is opened only to read the last timestamp in its final 4 KB; nothing from that tail is kept or printed. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
+zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. Selection is by modification time first, and a file whose modification time is older than the window is opened only to read the last timestamp in its final 64 KB; nothing from that tail is kept or printed. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
 
 No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card or the status file you ask for, and nothing is installed into Claude Code.
 
@@ -237,7 +237,7 @@ bun install
 bun link
 ```
 
-`bun link` registers the clone's `bin` entry, so `zapara` runs this checkout; without it, `bun src/index.ts week` does the same thing.
+`bun link` registers the clone's `bin` entry, so `zapara` runs this checkout; without it, `bun src/index.ts` does the same thing.
 
 ```bash
 bun run check    # tsc --noEmit, then the test suite under TZ=UTC

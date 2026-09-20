@@ -20,9 +20,14 @@ type Rec = Record<string, unknown>;
 const isObj = (v: unknown): v is Rec => typeof v === "object" && v !== null;
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
+// The text a marker is compared against: the content itself when it is a string,
+// otherwise the first `{type:"text"}` block anywhere in the array. A pasted
+// screenshot puts an `image` block in front of what the person typed, so the
+// text is not always the first block.
 const firstText = (content: unknown): string | null => {
   if (typeof content === "string") return content;
-  if (Array.isArray(content) && isObj(content[0]) && content[0].type === "text") return str(content[0].text);
+  if (!Array.isArray(content)) return null;
+  for (const b of content) if (isObj(b) && b.type === "text") return str(b.text);
   return null;
 };
 
@@ -30,6 +35,9 @@ export function parseTranscript(text: string): Event[] {
   const events: Event[] = [];
   let lastTs: number | null = null;
   let lastMode: string | null = null;
+  // Mode switches seen before this file's first timestamped record, waiting for
+  // a time to belong to.
+  let pendingModeChanges = 0;
   // Dedupes `output` events by requestId within this one file: Claude Code
   // writes one record per content block of a response, repeating the same
   // requestId and usage, so only the first qualifying record counts.
@@ -50,10 +58,12 @@ export function parseTranscript(text: string): Event[] {
       if (m === null) continue;
       // The baseline mode is tracked as soon as it is seen, even before any
       // timestamp exists, so a later switch away from it can be detected. A
-      // switch is only ever emitted as an event once a timestamp is known;
-      // a switch that happens before any timestamp is known is dropped.
-      if (lastMode !== null && m !== lastMode && lastTs !== null) {
-        events.push({ ts: lastTs, sessionId, kind: "mode_change" });
+      // switch before any timestamp waits: switching the mode before typing
+      // anything is how a session often starts, and it is attributed to the
+      // first timestamped record that follows. A file with none drops them.
+      if (lastMode !== null && m !== lastMode) {
+        if (lastTs === null) pendingModeChanges++;
+        else events.push({ ts: lastTs, sessionId, kind: "mode_change" });
       }
       lastMode = m;
       continue;
@@ -64,6 +74,7 @@ export function parseTranscript(text: string): Event[] {
     if (Number.isNaN(ts)) continue;
     lastTs = ts;
     events.push({ ts, sessionId, kind: "activity" });
+    for (; pendingModeChanges > 0; pendingModeChanges--) events.push({ ts, sessionId, kind: "mode_change" });
 
     const content = isObj(rec.message) ? rec.message.content : undefined;
     if (type === "user") {
@@ -91,13 +102,18 @@ export function parseTranscript(text: string): Event[] {
       // that has a string requestId, numeric usage.output_tokens and at least one
       // text block. A response holding only tool_use blocks is not text the human
       // reads, so it never triggers this, even on its first (and only) record.
+      // A count only counts when it is one a token count can be: a finite
+      // non-negative integer. `1e309` parses to Infinity and a negative count
+      // to -Infinity, and a day holding both summed to NaN; such a record is
+      // still `activity`, it just carries no tokens.
       const requestId = str(rec.requestId);
       const usage = isObj(rec.message) ? rec.message.usage : undefined;
       const outputTokens = isObj(usage) ? usage.output_tokens : undefined;
+      const tokens = typeof outputTokens === "number" && Number.isSafeInteger(outputTokens) && outputTokens >= 0 ? outputTokens : null;
       const hasText = blocks.some((b) => isObj(b) && b.type === "text");
-      if (requestId !== null && typeof outputTokens === "number" && hasText && !seenRequestIds.has(requestId)) {
+      if (requestId !== null && tokens !== null && hasText && !seenRequestIds.has(requestId)) {
         seenRequestIds.add(requestId);
-        events.push({ ts, sessionId, kind: "output", tokens: outputTokens });
+        events.push({ ts, sessionId, kind: "output", tokens });
       }
     }
   }

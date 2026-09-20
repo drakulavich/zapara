@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { analyze } from "../../src/analyze.ts";
-import { assistantText, assistantToolUseOnly, crossSession, prompt, taskNotification, teammate, transcript } from "../helpers/transcript.ts";
+import { assistantText, assistantTokensLiteral, assistantToolUseOnly, crossSession, prompt, taskNotification, teammate, transcript } from "../helpers/transcript.ts";
 
 const S = "11111111-1111-4111-8111-111111111111";
 const W = { to: "2026-09-14", days: 1 };
@@ -84,6 +84,21 @@ describe("output tokens are summed once per requestId per file", () => {
     ]);
     const day = analyze([t], W)[0]!;
     expect(day.buckets[13]!.outputTokens).toBe(300);
+  });
+
+  test("a count that is not a finite non-negative integer contributes nothing and leaves the index a number", () => {
+    // +1e309 and -1e309 parse to Infinity and -Infinity; their sum is NaN, which
+    // reached the day table as NaN beside the level Fried and null in the JSON.
+    const t = transcript([
+      assistantText(at("13:00"), S, 100, "req_ok"),
+      assistantTokensLiteral(at("13:01"), S, "1e309", "req_inf"),
+      assistantTokensLiteral(at("13:02"), S, "-1e309", "req_neg_inf"),
+      assistantTokensLiteral(at("13:03"), S, "-5", "req_negative"),
+      assistantTokensLiteral(at("13:04"), S, "1.5", "req_fraction"),
+    ]);
+    const b = analyze([t], W)[0]!.buckets[13]!;
+    expect(b.outputTokens).toBe(100);
+    expect(Number.isFinite(b.score!.index)).toBe(true);
   });
 
   test("a tool-use-only record does not block a later text record of the same requestId", () => {

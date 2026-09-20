@@ -43,9 +43,11 @@ async function collect(dir: string, entries: Dirent[], cutoffMs: number, out: st
 
 // mtime is a hint, not the truth: a transcript synced from another machine, restored by a
 // tool that rewrites times, or written under clock skew can be older by mtime than the
-// records inside it. For a file mtime would drop, the last "timestamp" in its final 4 KB
-// decides. The tail is matched for that one field and discarded; nothing else is read.
-const TAIL_BYTES = 4096;
+// records inside it. For a file mtime would drop, the last "timestamp" in its final 64 KB
+// decides. 64 KB, not a few, because the last record of a conversation is often a big tool
+// result (a file read, grep output) and its own timestamp field sits in front of all that
+// text. The tail is matched for that one field and discarded; nothing else is read.
+const TAIL_BYTES = 65_536;
 async function lastTimestampMs(path: string): Promise<number> {
   const fh = await open(path, "r");
   try {

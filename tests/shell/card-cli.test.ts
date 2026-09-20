@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cardData } from "../../src/card.ts";
@@ -103,6 +103,58 @@ describe("zapara card", () => {
       expect(await files()).toEqual([]);
     }
   });
+
+  test("a card that cannot be written exits 1 with one line that names no path", async () => {
+    // .html needs no browser engine, so this is the write and nothing else.
+    const r = await run("card", "--to", "2026-09-20", "--out", join(cwd, "missing", "c.html"));
+    expect(r.code).toBe(1);
+    expect(r.out).toBe("");
+    expect(r.err).toBe("zapara: cannot write the card: check the --out directory\n");
+    expect(r.err).not.toContain(cwd);
+    expect(r.err).not.toContain("ENOENT");
+  });
+
+  test("a directory that refuses the write says the same and still names no path", async () => {
+    if (process.getuid?.() === 0) return; // root writes into a 0500 directory anyway
+    const locked = join(cwd, "locked");
+    await mkdir(locked);
+    await chmod(locked, 0o500);
+    try {
+      const r = await run("card", "--to", "2026-09-20", "--out", join(locked, "c.html"));
+      expect(r.code).toBe(1);
+      expect(r.out).toBe("");
+      expect(r.err).toBe("zapara: cannot write the card: check the --out directory\n");
+      expect(r.err).not.toContain(cwd);
+      expect(r.err).not.toContain("EACCES");
+    } finally {
+      await chmod(locked, 0o700).catch(() => {});
+    }
+  });
+
+  test.skipIf(webviewMissing !== null)("a picture that cannot be written says the same and names no path", async () => {
+    // The rendered bytes take a different write from the .html page above, so
+    // the picture needs its own proof that no path reaches stderr.
+    const r = await run("card", "--to", "2026-09-20", "--out", join(cwd, "missing", "c.png"));
+    expect(r.code).toBe(1);
+    expect(r.out).toBe("");
+    expect(r.err).toBe("zapara: cannot write the card: check the --out directory\n");
+    expect(r.err).not.toContain(cwd);
+    expect(r.err).not.toContain("ENOENT");
+    if (process.getuid?.() === 0) return; // root writes into a 0500 directory anyway
+    const locked = join(cwd, "locked-png");
+    await mkdir(locked);
+    await chmod(locked, 0o500);
+    try {
+      const l = await run("card", "--to", "2026-09-20", "--out", join(locked, "c.png"));
+      expect(l.code).toBe(1);
+      expect(l.out).toBe("");
+      expect(l.err).toBe("zapara: cannot write the card: check the --out directory\n");
+      expect(l.err).not.toContain(cwd);
+      expect(l.err).not.toContain("EACCES");
+    } finally {
+      await chmod(locked, 0o700).catch(() => {});
+    }
+  }, 30_000);
 
   test("--out on the grid and --explain on card are usage errors", async () => {
     expect((await run("--out", "x.png")).code).toBe(2);

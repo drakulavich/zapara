@@ -24,6 +24,16 @@ export const prompt = (ts: string, sid: string) =>
 export const promptBlocks = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "text", text: "placeholder prompt" }] } });
 
+// A pasted screenshot: Claude Code puts the image block first and the typed text
+// after it, so a reader that inspects only content[0] finds no text at all.
+const IMAGE = { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } };
+
+export const promptAfterImage = (ts: string, sid: string) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: [IMAGE, { type: "text", text: "placeholder prompt" }] } });
+
+export const interruptAfterImage = (ts: string, sid: string) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: [IMAGE, { type: "text", text: "[Request interrupted by user]" }] } });
+
 export const meta = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", isMeta: true, message: { role: "user", content: [{ type: "text", text: "<system-reminder>placeholder</system-reminder>" }] } });
 
@@ -36,6 +46,14 @@ export const assistant = (ts: string, sid: string) =>
 export const assistantText = (ts: string, sid: string, tokens: number, requestId: string) =>
   base(ts, sid, { type: "assistant", requestId, message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", usage: { input_tokens: 2, output_tokens: tokens }, content: [{ type: "text", text: "placeholder reply" }] } });
 
+// The same record with `usage.output_tokens` written as a raw JSON literal, for
+// counts JSON.stringify cannot produce: `1e309` (Infinity once parsed), a
+// negative count, a fraction. A corrupt or hand-edited transcript holds these.
+const TOKEN_SLOT = "__output_tokens__";
+export const assistantTokensLiteral = (ts: string, sid: string, literal: string, requestId: string) =>
+  base(ts, sid, { type: "assistant", requestId, message: { id: "msg_placeholder", role: "assistant", model: "claude-fable-5-1", usage: { input_tokens: 2, output_tokens: TOKEN_SLOT }, content: [{ type: "text", text: "placeholder reply" }] } })
+    .replace(`"output_tokens":"${TOKEN_SLOT}"`, `"output_tokens":${literal}`);
+
 // An assistant record whose only content block is a tool call: not text the human
 // reads, so it must never contribute output tokens even though usage is present.
 export const assistantToolUseOnly = (ts: string, sid: string, tokens: number, requestId: string) =>
@@ -46,6 +64,12 @@ export const interrupt = (ts: string, sid: string, forTool = false) =>
 
 export const reject = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: true, content: "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed." }] }, toolUseResult: "The user doesn't want to proceed with this tool use." });
+
+// A tool_result of the size a real file read or grep output reaches. As the last
+// record of a file it pushes that record's own `timestamp` field far from the
+// end, where the tail rescue for an out-of-window mtime has to find it.
+export const bigToolResult = (ts: string, sid: string, bytes: number) =>
+  base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: false, content: "R".repeat(bytes) }] } });
 
 export const toolResult = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_placeholder", is_error: false, content: "ok" }] } });
