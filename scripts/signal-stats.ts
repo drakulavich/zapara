@@ -126,7 +126,7 @@ function renderTopHours(active: (Bucket & { date: string })[], by: "reports" | "
   return [`top 8 hours by ${label}:`, ...rows].join("\n");
 }
 
-const EVENT_KINDS: EventKind[] = ["prompt", "report", "output", "interrupt", "reject", "question", "plan_review", "mode_change", "activity"];
+const EVENT_KINDS: EventKind[] = ["prompt", "report", "output", "interrupt", "reject", "answer", "question", "plan_review", "mode_change", "activity"];
 
 type Drift = {
   files: number;
