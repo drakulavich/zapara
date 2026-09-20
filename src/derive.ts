@@ -35,7 +35,7 @@ const emptyMetrics = (): Metrics => ({
 // and the agent's own asks (`question`, `plan_review`) are never presence.
 const PRESENCE: ReadonlySet<EventKind> = new Set<EventKind>(["prompt", "interrupt", "reject", "answer"]);
 
-type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; lastPresence: { ts: number; streakStart: number } | null };
+type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; maxStreakMs: number };
 
 // Walks the sorted, look-back-filtered events once, keyed by "date|hour",
 // tracking the running presence streak (which may start before startMs) and
@@ -57,7 +57,7 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
   };
   const get = (k: string): Acc => {
     let a = acc.get(k);
-    if (!a) { a = { m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, lastPresence: null }; acc.set(k, a); }
+    if (!a) { a = { m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, maxStreakMs: 0 }; acc.set(k, a); }
     return a;
   };
 
@@ -80,7 +80,11 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
     }
     if (e.ts < startMs) continue; // look-back: presence bookkeeping only
     const a = get(key(e.ts));
-    if (PRESENCE.has(e.kind)) a.lastPresence = { ts: e.ts, streakStart };
+    // The hour's streak is the longest it saw, not the one it happened to end
+    // on: a single prompt after a break would otherwise erase a run of hours.
+    // A streak is longest at its last event, and that event lies in some hour,
+    // so the maximum over hours is the run's true length.
+    if (PRESENCE.has(e.kind)) a.maxStreakMs = Math.max(a.maxStreakMs, e.ts - streakStart);
     switch (e.kind) {
       case "activity":
         a.sessions.add(e.sessionId);
@@ -112,7 +116,7 @@ function buildDay(date: string, acc: Map<string, Acc>): Day {
     if (a) {
       m.sessions = a.sessions.size;
       m.activeMin = a.slots.size * 5;
-      m.streakMin = a.lastPresence ? Math.round((a.lastPresence.ts - a.lastPresence.streakStart) / 60000) : 0;
+      m.streakMin = Math.round(a.maxStreakMs / 60000);
     }
     m.decisions = m.interrupts + m.rejects + m.questions + m.plans + m.modeSwitches;
     // lateNight is a property of the hour label, so it is set on every bucket,

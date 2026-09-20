@@ -12,8 +12,9 @@ describe("presence streak", () => {
       transcript([prompt("2026-09-14T10:00:00.000Z", A), prompt("2026-09-14T10:09:00.000Z", A)], "p/a.jsonl"),
       transcript([prompt("2026-09-14T10:20:00.000Z", B), prompt("2026-09-14T10:25:00.000Z", B)], "p/b.jsonl"),
     ], W)[0]!;
-    // 10:00 -> 10:09 is 9 minutes, one streak; 10:09 -> 10:20 is 11, a new one.
-    expect(d.buckets[10]!.streakMin).toBe(5);
+    // 10:00 -> 10:09 is 9 minutes, one streak; 10:09 -> 10:20 is 11, so a second
+    // one of 5 minutes. The hour reads the longer of the two.
+    expect(d.buckets[10]!.streakMin).toBe(9);
   });
 
   test("a gap of exactly 10 minutes continues the streak", () => {
@@ -205,5 +206,37 @@ describe("answering the agent is presence", () => {
   test("an answer is presence only: not a prompt, not a decision, not a report", () => {
     const b = analyze([transcript(answered)], W)[0]!.buckets[10]!;
     expect([b.prompts, b.reports, b.questions, b.decisions]).toEqual([2, 0, 1, 1]);
+  });
+});
+
+describe("an hour's streak is the longest it saw", () => {
+  test("a prompt after a break does not erase the streak that ended in the same hour", () => {
+    // 08:30 to 10:00 unbroken, then a break, then one prompt at 10:50.
+    const lines = [];
+    for (let m = 0; m <= 90; m += 5) lines.push(prompt(new Date(Date.UTC(2026, 8, 14, 8, 30 + m)).toISOString(), A));
+    lines.push(prompt("2026-09-14T10:50:00.000Z", A));
+    const d = analyze([transcript(lines)], W)[0]!;
+    expect(d.buckets[10]!.streakMin).toBe(90);   // 08:30 to 10:00, not the lone 10:50
+    expect(d.buckets[9]!.streakMin).toBe(85);    // 08:30 to 09:55
+  });
+
+  test("a prompt 19 minutes after a 40-minute run keeps the hour's 40 minutes", () => {
+    const lines = [];
+    for (let m = 0; m <= 40; m += 10) lines.push(prompt(new Date(Date.UTC(2026, 8, 14, 10, m)).toISOString(), A));
+    lines.push(prompt("2026-09-14T10:59:00.000Z", A));
+    expect(analyze([transcript(lines)], W)[0]!.buckets[10]!.streakMin).toBe(40);
+  });
+
+  test("an hour inside one long run still reads that run", () => {
+    const lines = [];
+    for (let m = 0; m < 120; m += 5) lines.push(prompt(new Date(Date.UTC(2026, 8, 14, 10, m)).toISOString(), A));
+    const d = analyze([transcript(lines)], W)[0]!;
+    expect([d.buckets[10]!.streakMin, d.buckets[11]!.streakMin]).toEqual([55, 115]);
+  });
+
+  test("an hour with no presence of its own is still zero", () => {
+    const lines = [prompt("2026-09-14T10:00:00.000Z", A)];
+    for (let m = 1; m <= 30; m++) lines.push(assistant(`2026-09-14T11:${String(m).padStart(2, "0")}:00.000Z`, A));
+    expect(analyze([transcript(lines)], W)[0]!.buckets[11]!.streakMin).toBe(0);
   });
 });

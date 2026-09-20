@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { cardData, sentenceText } from "../../src/card.ts";
 import { report } from "../../src/report.ts";
+import { analyze } from "../../src/analyze.ts";
+import { prompt, transcript } from "../helpers/transcript.ts";
 
 // The 7-day fixture seen through the card's default 14-day window ending on the
 // fixture's Sunday: 22 active hours (15 Calm, 3 Warming, 1 Heating, 3 Fried).
@@ -58,5 +60,25 @@ describe("busy-week card", () => {
 
   test("days is the window's", () => {
     expect(card.days).toBe(14);
+  });
+});
+
+describe("the longest streak on the card is exact", () => {
+  // One unbroken run 08:30 to 10:00, a break, then a lone prompt at 10:50. The
+  // run's full 90 minutes belong to hour 10, where it ended, so that is what
+  // the card shows; hour 9 saw only its first 85.
+  const A = "aaaaaaaa-1111-4111-8111-111111111111";
+  const lines = [];
+  for (let m = 0; m <= 90; m += 5) lines.push(prompt(new Date(Date.UTC(2026, 8, 14, 8, 30 + m)).toISOString(), A));
+  lines.push(prompt("2026-09-14T10:50:00.000Z", A));
+  const day = analyze([transcript(lines)], { to: "2026-09-14", days: 1 });
+  const c = cardData(day, { days: 1 })!;
+
+  test("the highlight reads the whole run, not the hour it started in", () => {
+    expect(c.highlights[0]).toEqual({ key: "longestStreak", value: "1h30m", caption: "longest streak" });
+  });
+
+  test("the sentence carries the same figure", () => {
+    expect(sentenceText(c.sentence)).toContain("Longest streak 1h30m without a break");
   });
 });

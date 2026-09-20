@@ -90,7 +90,7 @@ nothing else; they are never bucketed.
 | `outputTokens` | Sum of tokens over `output` events. |
 | `decisions` | `interrupts + rejects + questions + plans + modeSwitches`. |
 | `contextSwitches` | Over the hour's prompts in time order, consecutive pairs from different sessions. |
-| `streakMin` | Length of the presence streak that contains the hour's last presence event, from that streak's first event, which may lie in an earlier hour or in the look-back. |
+| `streakMin` | The longest presence streak the hour saw, measured from that streak's first event, which may lie in an earlier hour or in the look-back. One action after a break does not erase the run the hour held. |
 | `activeMin` | Five times the number of 5-minute slots in the hour covered by presence. |
 | `lateNight` | The hour is one of 23, 0, 1, 2, 3, 4, 5. |
 
@@ -196,9 +196,10 @@ contract.
   mode, so the index leans on supervision and reading: what a heavy hour costs
   is reacting to reports, hopping between sessions and reading output. Check
   `--explain`.
-- **A streak of 1 minute after a long day.** The streak is the run you are in
-  now, not the day's longest; the longest is on the card. Eleven minutes without
-  a prompt of yours start a new one.
+- **A short streak in the table after a long day.** Each row shows the longest
+  run that hour held, not the day's longest; the day's longest is on the card,
+  and the one you are in right now is in the status file. Eleven minutes
+  without an action of yours start a new run.
 - **Fewer active minutes than the session felt.** Minutes count when you were
   present, not when an agent was working alone. The `sess` column still shows
   the agents.
