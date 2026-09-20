@@ -103,7 +103,7 @@ describe("week grid", () => {
       questions: 0, plans: 0, modeSwitches: 0, decisions: 0, contextSwitches: 0, activeMin: 0, streakMin: 0, lateNight: false,
     });
     const emptyBuckets = (): HourBucket[] => Array.from({ length: 24 }, (_, h) => emptyBucket(h));
-    const emptyDay = (date: string): Day => ({ date, peak: null, mean: null, activeMin: 0, buckets: emptyBuckets(), totals: { prompts: 0, reports: 0, outputTokens: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0, decisions: 0, contextSwitches: 0, maxSessions: 0 } });
+    const emptyDay = (date: string): Day => ({ date, peak: null, mean: null, activeMin: 0, presence: null, buckets: emptyBuckets(), totals: { prompts: 0, reports: 0, outputTokens: 0, interrupts: 0, rejects: 0, questions: 0, plans: 0, modeSwitches: 0, decisions: 0, contextSwitches: 0, maxSessions: 0 } });
     // One day carries every huge value; the other six stay empty, so the week
     // sums (prompts, reports, decisions) equal that day's totals exactly and
     // maxSessions (a max, not a sum) is unaffected by how many days hold it.

@@ -14,4 +14,8 @@ export type HourBucket = Metrics & { hour: number; score: Score | null };
 export type Totals = { prompts: number; reports: number; outputTokens: number; interrupts: number; rejects: number; questions: number; plans: number; modeSwitches: number; decisions: number; contextSwitches: number; maxSessions: number };
 // asOf is set only on the day that is still open when the report runs (the day
 // containing `now`), ISO 8601 UTC.
-export type Day = { date: string; peak: number | null; mean: number | null; activeMin: number; totals: Totals; buckets: HourBucket[]; asOf?: string };
+// `presence` is the day's last human action and the start of the streak that
+// action belongs to, both ISO 8601 UTC. The start may lie on an earlier day or
+// in the look-back. `null` on a day with no human action. It is what lets a
+// reader measure the streak against its own clock instead of the hour bucket.
+export type Day = { date: string; peak: number | null; mean: number | null; activeMin: number; presence: { lastAt: string; streakStartAt: string } | null; totals: Totals; buckets: HourBucket[]; asOf?: string };

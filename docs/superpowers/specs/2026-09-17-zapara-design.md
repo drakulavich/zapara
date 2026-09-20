@@ -85,7 +85,9 @@ repo records each drift when it happens.
 Time is local. A day is the 24 local hour labels `00`..`23`; an event belongs to
 the bucket named by its local date and hour. On a DST fall-back day two wall-clock
 hours share one label and merge into one bucket; on a spring-forward day one label
-stays empty. A week view is `--days` days ending on `--to` (default today).
+stays empty. So a merged bucket can hold up to 120 active minutes and such a day
+up to 1500, which is the ceiling a reader of either number should allow. A week
+view is `--days` days ending on `--to` (default today).
 
 Ordering: before deriving anything, all events from all files are sorted by
 `ts`, then `sessionId`, then their position in the parsed input. Every
@@ -127,6 +129,14 @@ Per bucket:
 Per day: `peak` (max index over buckets with activity), `mean` (mean index over
 buckets with activity, rounded), `activeMin` (sum), and the sums of every count
 including `reports` and `outputTokens`.
+
+`presence` is the day's last presence event and the start of the streak that
+event belongs to, as `{ lastAt, streakStartAt }` in ISO 8601 UTC, or `null` on
+a day with no presence event. `streakStartAt` may fall on an earlier day or in
+the look-back. Both are instants, not counts, so a reader with a clock can
+measure the streak against its own `now`: that is what the status file does,
+and it is why a live streak needs no bucket. `presence` appears in `--json`
+like every other field of a `Day`.
 
 `reports`, `outputTokens` and `contextSwitches` enter the index through its
 supervision and reading components (see Index).

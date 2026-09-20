@@ -35,7 +35,7 @@ const emptyMetrics = (): Metrics => ({
 // and the agent's own asks (`question`, `plan_review`) are never presence.
 const PRESENCE: ReadonlySet<EventKind> = new Set<EventKind>(["prompt", "interrupt", "reject", "answer"]);
 
-type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; maxStreakMs: number };
+type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; maxStreakMs: number; lastPresence: { ts: number; streakStart: number } | null };
 
 // Walks the sorted, look-back-filtered events once, keyed by "date|hour",
 // tracking the running presence streak (which may start before startMs) and
@@ -57,7 +57,7 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
   };
   const get = (k: string): Acc => {
     let a = acc.get(k);
-    if (!a) { a = { m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, maxStreakMs: 0 }; acc.set(k, a); }
+    if (!a) { a = { m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, maxStreakMs: 0, lastPresence: null }; acc.set(k, a); }
     return a;
   };
 
@@ -84,7 +84,10 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
     // on: a single prompt after a break would otherwise erase a run of hours.
     // A streak is longest at its last event, and that event lies in some hour,
     // so the maximum over hours is the run's true length.
-    if (PRESENCE.has(e.kind)) a.maxStreakMs = Math.max(a.maxStreakMs, e.ts - streakStart);
+    if (PRESENCE.has(e.kind)) {
+      a.maxStreakMs = Math.max(a.maxStreakMs, e.ts - streakStart);
+      a.lastPresence = { ts: e.ts, streakStart }; // the bucket's last, for the day's live streak
+    }
     switch (e.kind) {
       case "activity":
         a.sessions.add(e.sessionId);
@@ -110,10 +113,14 @@ function foldEvents(sorted: Event[], startMs: number): Map<string, Acc> {
 // and rolls up totals, peak and mean.
 function buildDay(date: string, acc: Map<string, Acc>): Day {
   const buckets: HourBucket[] = [];
+  // The day's last human action: the last one of the highest hour that saw any.
+  // Hours run in time order, so the last write wins.
+  let lastPresence: { ts: number; streakStart: number } | null = null;
   for (let hour = 0; hour < 24; hour++) {
     const a = acc.get(`${date}|${hour}`);
     const m = a ? a.m : emptyMetrics();
     if (a) {
+      if (a.lastPresence) lastPresence = a.lastPresence;
       m.sessions = a.sessions.size;
       m.activeMin = a.slots.size * 5;
       m.streakMin = Math.round(a.maxStreakMs / 60000);
@@ -138,6 +145,7 @@ function buildDay(date: string, acc: Map<string, Acc>): Day {
     peak: scored.length ? Math.max(...scored.map((b) => b.score!.index)) : null,
     mean: scored.length ? Math.round(scored.reduce((s, b) => s + b.score!.index, 0) / scored.length) : null,
     activeMin: buckets.reduce((s, b) => s + b.activeMin, 0),
+    presence: lastPresence && { lastAt: new Date(lastPresence.ts).toISOString(), streakStartAt: new Date(lastPresence.streakStart).toISOString() },
     totals,
     buckets,
   };
