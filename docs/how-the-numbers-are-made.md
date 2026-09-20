@@ -154,6 +154,15 @@ index over hours with a live session, rounded), both `null` on a day with none;
 `activeMin`, the sum of the hours' active minutes; and `totals`, the sums of
 every count and the largest `sessions` of any hour.
 
+It also carries `presence`, two instants in ISO 8601 UTC: `lastAt`, your last
+action of the day, and `streakStartAt`, the first action of the streak that one
+belongs to, which may fall on an earlier day. It is `null` on a day where you
+did nothing. These are what let a reader with a clock measure the streak you
+are in right now, which is how the status file gets its live number, and the
+first day of a window borrows the last action before it when it has none of its
+own, so a run just after midnight still knows you are there. Both appear in
+`--json`.
+
 A day that includes now is a snapshot: the run fixes `now` when it starts,
 records it as `asOf`, and counts nothing timestamped after it, even if Claude
 Code appends records while the run reads. The next run makes the next

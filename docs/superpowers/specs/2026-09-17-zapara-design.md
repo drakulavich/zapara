@@ -135,8 +135,12 @@ event belongs to, as `{ lastAt, streakStartAt }` in ISO 8601 UTC, or `null` on
 a day with no presence event. `streakStartAt` may fall on an earlier day or in
 the look-back. Both are instants, not counts, so a reader with a clock can
 measure the streak against its own `now`: that is what the status file does,
-and it is why a live streak needs no bucket. `presence` appears in `--json`
-like every other field of a `Day`.
+and it is why a live streak needs no bucket. The first day of the window takes
+the last presence event of the look-back as its `presence` when it has none of
+its own, so a report run minutes after midnight still knows the streak that
+was running; that event reaches this field alone, never a bucket, a total or
+an active minute. `presence` appears in `--json` like every other field of a
+`Day`.
 
 `reports`, `outputTokens` and `contextSwitches` enter the index through its
 supervision and reading components (see Index).
@@ -240,10 +244,17 @@ they read `par 25 pace 15 sup 30 read 9 strk 7.9 late 0`, so the number can be
 traced to its inputs.
 
 `--json` prints the same data as one JSON document: for the grid, an array of days,
-each with `date`, `peak`, `mean`, `activeMin`, totals and a `buckets` array of 24
-entries, each with `hour`, every metric, and `score`, which is
+each with `date`, `peak`, `mean`, `activeMin`, `presence`, totals and a `buckets`
+array of 24 entries, each with `hour`, every metric, and `score`, which is
 `{ index, level, parts }` or `null` when the bucket has no activity; for a day,
-one such day. JSON is also the default when stdout is not a TTY. The day that
+one such day. `presence` is `{ lastAt, streakStartAt }`, two ISO 8601 UTC
+instants: the day's last presence event and the first event of the streak it
+belongs to. It is `null` on a day with no presence event, and `streakStartAt`
+may fall on an earlier day or in the look-back. The first day of the window
+carries the last presence event of the look-back when it has none of its own,
+so a window that opens minutes after a person stopped typing still knows the
+streak they are in; nothing else about that event enters the window.
+JSON is also the default when stdout is not a TTY. The day that
 contains the moment the report ran also carries `asOf`, that moment as an ISO
 8601 UTC string; every other day omits the field. That day's own numbers cover
 only events timestamped at or before `asOf`, so a record appended while zapara
