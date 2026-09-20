@@ -13,7 +13,7 @@ const html = cardHtml(card, assets);
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
 
 // Regenerate with: bun scripts/card-golden.ts
-const GOLDEN = "31b580dce3be3a5c24622b8da70f07d454c9ce7354ebfdcf4d4bced751d15979";
+const GOLDEN = "57c9a5b3e6b1852b0a1fee1e43881df8350cde8d9259847671899c8aa0efb5cc";
 
 describe("card page for busy-week", () => {
   test("name and sentence appear once, the motto follows the sentence", () => {
@@ -26,9 +26,11 @@ describe("card page for busy-week", () => {
     expect(html).toContain('<b class="fried">87 · Fried</b>');
   });
 
-  test("the spectrum bar has four segments with the pinned widths, in level order", () => {
+  test("the spectrum bar has one segment per nonzero level, with the pinned widths, in level order", () => {
+    // busy-week holds no Heating hour under the 40-minute streak norm, so the
+    // heat segment is absent (the 0% rule below) and the other three add to 100.
     const segments = [...html.matchAll(/<div class="(calm|warm|heat|fried)" style="width:(\d+)%"><\/div>/g)].map((m) => `${m[1]} ${m[2]}%`);
-    expect(segments).toEqual(["calm 68%", "warm 14%", "heat 4%", "fried 14%"]);
+    expect(segments).toEqual(["calm 68%", "warm 14%", "fried 18%"]);
   });
 
   test("three highlight panels in the pinned order", () => {

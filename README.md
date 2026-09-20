@@ -186,7 +186,7 @@ parallel    = clamp((sessions - 1) / 4)                                   # 1 se
 pace        = clamp(prompts / 20)                                         # 10 prompts/hour → 0.5, 20+ → 1
 supervision = clamp((3 * decisions + reports + contextSwitches) / 45)     # 15 decisions alone → 1; 45 reports alone → 1
 reading     = clamp(outputTokens / 80000)                                 # 40k → 0.5, 80k+ → 1
-streak      = clamp(streakMin / 120)                                      # 60 min → 0.5, 2h+ → 1
+streak      = clamp(streakMin / 40)                                       # 20 min → 0.5, 40+ → 1
 late        = lateNight ? 1 : 0
 
 index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 10*late)

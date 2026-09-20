@@ -16,7 +16,7 @@ const supervisor = [
   ...Array.from({ length: 45 }, (_, i) => teammate(at(10, i), sid("s"))),
   assistantText(at(10, 45), sid("s"), 5000, nextRequestId()),
 ];
-// One session, a prompt every 5 minutes from 10:00 to 12:55: streak 55/115/175 min -> 4.6 + 9.6 + 10 of 30 -> 0.81.
+// One session, a prompt every 5 minutes from 10:00 to 12:55: streak 55/115/175 min, all past the 40-minute norm -> 10 + 10 + 10 of 30 -> 1.0.
 const marathoner = Array.from({ length: 36 }, (_, i) => prompt(at(10 + Math.floor(i / 12), (i % 12) * 5), sid("m")));
 // Two prompts at 01:00 and 01:05: late 10 of 10 -> 1.0.
 const nightOwl = [prompt(at(1, 0), sid("n")), prompt(at(1, 5), sid("n"))];
@@ -88,7 +88,7 @@ describe("ties and eligibility", () => {
   test("equal shares go to the earlier character: Marathoner over Night Owl", () => {
     // A prompt every 5 minutes from 22:00 on the 13th to 01:55 on the 14th. Only the
     // 14th is in the window; the look-back makes hours 0 and 1 carry a streak past
-    // the 120-minute cap (10 points each) while both are late (10 each): 1.0 = 1.0.
+    // the 40-minute cap (10 points each) while both are late (10 each): 1.0 = 1.0.
     // Mutation: `>=` in the character reduce flips this to nightOwl.
     const lines = Array.from({ length: 48 }, (_, i) => {
       const m = 22 * 60 + i * 5;
@@ -103,7 +103,7 @@ describe("ties and eligibility", () => {
   test("lateShare is never the third highlight on someone else's card", () => {
     // Five sessions at 01:00-01:04 and again at 13:00-13:04: Conductor (0.72) over
     // Night Owl (0.5). lateShare's norm 50/25 = 2.0 would beat longestStreak's
-    // 4/120, but it is not eligible, so the streak wins.
+    // 4/40, but it is not eligible, so the streak wins.
     const lines = [1, 13].flatMap((h) => ["a", "b", "c", "d", "e"].map((c, i) => prompt(at(h, i), sid(c))));
     const c = cardOf(lines);
     expect(c.character).toBe("conductor");

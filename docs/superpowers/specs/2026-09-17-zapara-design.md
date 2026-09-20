@@ -97,7 +97,7 @@ result.
 Look-back: the deriver receives events from `windowStart - LOOKBACK` (3 hours)
 onward. Events before `windowStart` contribute only to `streakMin` and to the
 presence spans that reach into the window; slots and events before
-`windowStart` are never bucketed. Because the streak component of the index saturates at 120
+`windowStart` are never bucketed. Because the streak component of the index saturates at 40
 minutes, the index is exact at the window boundary. The displayed `streakMin`
 of a streak that started more than 3 hours before the window is floored at what
 the look-back sees, which is the one documented approximation.
@@ -154,7 +154,7 @@ parallel    = clamp((sessions - 1) / 4)                                   # 1 se
 pace        = clamp(prompts / 20)                                         # 10 prompts/hour → 0.5, 20+ → 1
 supervision = clamp((3 * decisions + reports + contextSwitches) / 45)     # 15 decisions alone → 1; 45 reports alone → 1
 reading     = clamp(outputTokens / 80000)                                 # 40k → 0.5, 80k+ → 1
-streak      = clamp(streakMin / 120)                                      # 60 min → 0.5, 2h+ → 1
+streak      = clamp(streakMin / 40)                                       # 20 min → 0.5, 40+ → 1
 late        = lateNight ? 1 : 0
 
 index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 10*late)
@@ -185,8 +185,13 @@ sessions — and reading, the sheer volume of model output to get through. A
 decision still counts for three times what one report or one session hop counts
 for, and the three share one norm of 45. The pace norm is 20 because human
 prompts per hour reached a p90 of 13 on one machine and 20 on the other; 40 was
-unreachable. Weights and norms live in one exported constant in `src/score.ts`
-so a change is one diff.
+unreachable. The streak norm was re-measured once the presence rule started
+counting only the human's own actions: over the same 14 days and 118 active
+hours the p90 fell from 156 minutes under the old rule, which let agent activity
+keep a streak alive, to 33 minutes, with a maximum of 74. It is therefore 40,
+not 120, so that an hour of unbroken presence scores the full streak points; the
+second machine's numbers are still to come and may move it again. Weights and
+norms live in one exported constant in `src/score.ts` so a change is one diff.
 
 ## CLI
 
