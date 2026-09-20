@@ -110,6 +110,29 @@ describe("ties and eligibility", () => {
     expect(keys(lines)).toEqual(["peakSessions", "contextSwitches", "longestStreak"]);
     expect(c.highlights[2]!.value).toBe("4m");
   });
+
+  test("the streak candidate is ranked by the index's streak norm, so a recalibration moves the third highlight", () => {
+    // One active hour: 11 prompts three minutes apart from 10:00 to 10:30 across
+    // five sessions, and one reply of 32 500 output tokens. The Conductor's own
+    // pair takes the first two slots, so the third is a race between the two
+    // candidates that score anything:
+    //   longestStreak  30 / NORMS.streakMin = 30/40  = 0.75
+    //   tokensRead     32500 / (65000 x 1 hour)      = 0.5
+    // The streak wins. Under the old norm of 120 it would rank 30/120 = 0.25 and
+    // tokensRead would take the slot instead, so this row is what keeps the
+    // card's ranking honest when src/score.ts is recalibrated.
+    // Conductor 0.83 = (parallel 25 + pace 15 x 11/20 = 8.25) / 40 beats
+    // Marathoner 0.75 (the streak part) and Supervisor 0.27, and 10:00 is not
+    // late, so the character is the Conductor and the pair is its own.
+    const lines = [
+      ...Array.from({ length: 11 }, (_, i) => prompt(at(10, i * 3), sid("abcde"[i % 5]!))),
+      assistantText(at(10, 31), sid("a"), 32_500, nextRequestId()),
+    ];
+    const c = cardOf(lines);
+    expect(c.character).toBe("conductor");
+    expect(keys(lines)).toEqual(["peakSessions", "contextSwitches", "longestStreak"]);
+    expect(c.highlights[2]).toEqual({ key: "longestStreak", value: "30m", caption: "longest streak" });
+  });
 });
 
 describe("spectrum rounding", () => {
