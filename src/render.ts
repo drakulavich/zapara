@@ -1,4 +1,5 @@
 import { formatCount, plural } from "./format.ts";
+import { levelOf } from "./score.ts";
 import type { Day, HourBucket, Level } from "./types.ts";
 
 const GLYPH: Record<Level, string> = { Calm: "░", Warming: "▒", Heating: "▓", Fried: "█" };
@@ -26,7 +27,11 @@ export function renderWeek(days: Day[], color: boolean): string {
   const header = "            " + Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")} `).join("") + "  peak  active";
   const rows = days.map((d) => {
     const cells = d.buckets.map((b) => ` ${b.score ? paint(GLYPH[b.score.level], b.score.level, color) : "·"} `).join("");
-    return `${label(d.date).padEnd(12)}${cells}${String(d.peak ?? "-").padStart(6)}${hm(d.activeMin).padStart(8)}`;
+    // The peak wears the color of the level its index falls in, by the same
+    // thresholds `zapara status` reads a level from. The padding stays outside
+    // the paint so the escape codes add no width; a dash stays plain.
+    const peak = d.peak === null ? "-".padStart(6) : " ".repeat(6 - String(d.peak).length) + paint(String(d.peak), levelOf(d.peak), color);
+    return `${label(d.date).padEnd(12)}${cells}${peak}${hm(d.activeMin).padStart(8)}`;
   });
   // A painted glyph's own \x1b[0m would cancel the line's outer dim, so in
   // color mode re-emit \x1b[2m right after it to keep the label dim too.

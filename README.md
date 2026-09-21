@@ -135,7 +135,7 @@ This one comes from the same `busy-week` fixture as the pictures above. A headle
 | `--json` | Print the whole window as one JSON document instead of a table. |
 | `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
 | `--out <path>` | Where `card` writes; the extension picks the format. |
-| `--no-color` | Plain glyphs with no ANSI codes. `NO_COLOR` in the environment does the same. |
+| `--no-color` | Plain glyphs and peaks with no ANSI codes. `NO_COLOR` in the environment does the same. |
 | `-h`, `--help` | Usage, exit 0. |
 | `-V`, `--version` | The version from `package.json`, exit 0. |
 

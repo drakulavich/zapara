@@ -84,6 +84,19 @@ describe("week grid", () => {
     expect(colored.replace(/\x1b\[\d+m/g, "")).toBe(text);
   });
 
+  test("color mode paints the peak with the level its index falls in", () => {
+    // The same thresholds `zapara status` uses for its level: Monday's peak 87
+    // is Fried although its last active hour is Calm, Tuesday's 33 is Warming
+    // although its last hour is Calm too, and Thursday's 15 is Calm. The
+    // mutation this pins: painting the peak with the day's last level, or with
+    // one color for every day. A padded dash stays unpainted.
+    const coloredLines = renderWeek(days, true).split("\n");
+    expect(coloredLines[1]).toEndWith("    \x1b[31m87\x1b[0m    8h50");
+    expect(coloredLines[2]).toContain("\x1b[33m33\x1b[0m");
+    expect(coloredLines[4]).toContain("\x1b[32m15\x1b[0m");
+    expect(coloredLines[3]).toEndWith("     -    0h00");
+  });
+
   test("color mode dims the legend and totals lines, without losing the painted glyph's dim", () => {
     // Mutation this pins: dropping the \x1b[2m/\x1b[0m dim wrapper around either
     // line, or forgetting to re-emit \x1b[2m after the glyph's own \x1b[0m
