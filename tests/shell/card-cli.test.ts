@@ -6,7 +6,7 @@ import { cardData } from "../../src/card.ts";
 import { cardHtml } from "../../src/cardhtml.ts";
 import { loadAssets } from "../../src/image.ts";
 import { report } from "../../src/report.ts";
-import { webviewMissing } from "../helpers/webview.ts";
+import { WEBVIEW_TEST_TIMEOUT, webviewMissing } from "../helpers/webview.ts";
 
 const CLI = join(import.meta.dir, "../../src/index.ts");
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
@@ -81,7 +81,7 @@ describe("zapara card", () => {
       expect(p.out).toContain("wrote zapara-card.png");
       expect(await files()).toContain("zapara-card.png");
     }
-  }, 15_000);
+  }, WEBVIEW_TEST_TIMEOUT);
 
   test("an empty window exits 1 with one line and writes nothing", async () => {
     const r = await run("card", "--to", "2026-08-20", "--days", "3", "--out", "x.html");
@@ -171,5 +171,5 @@ describe("zapara card", () => {
       expect(bytes.length).toBeGreaterThan(20_000);
       expect(await new Bun.Image(bytes).metadata()).toMatchObject({ width: 2400, height: 1260, format });
     }
-  }, 15_000);
+  }, WEBVIEW_TEST_TIMEOUT);
 });
