@@ -6,14 +6,14 @@ import { analyze } from "../../src/analyze.ts";
 import { prompt, transcript } from "../helpers/transcript.ts";
 
 // The 7-day fixture seen through the card's default 14-day window ending on the
-// fixture's Sunday: 22 active hours (15 Calm, 3 Warming, 0 Heating, 4 Fried).
+// fixture's Sunday: 22 active hours (15 Calm, 3 Warming, 1 Heating, 3 Fried).
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
 const days = await report({ projects, to: "2026-09-20", days: 14 });
 const card = cardData(days, { days: 14 })!;
 
 describe("busy-week card", () => {
   test("the long calm days make it the Marathoner", () => {
-    // Shares: conductor 0.31, supervisor 0.19, marathoner 1.00, night owl 0.14 (3 of 22 hours are late).
+    // Shares: conductor 0.31, supervisor 0.19, marathoner 0.99, night owl 0.14 (3 of 22 hours are late).
     expect(card.character).toBe("marathoner");
     expect(card.name).toBe("The Marathoner");
     expect(card.motto).toBe("You do not stop while it compiles.");
@@ -29,10 +29,11 @@ describe("busy-week card", () => {
   test("shares are the fraction of each character's maximum points", () => {
     expect(card.shares.conductor).toBeCloseTo(0.311, 2);
     expect(card.shares.supervisor).toBeCloseTo(0.195, 2);
-    // Streak points total 220 of a possible 220, an exact 1. The shortest of the
-    // 22 active hours still holds 50 minutes of unbroken presence, and the
-    // 40-minute norm pays the full 10 points from 40 on, so every hour caps.
-    expect(card.shares.marathoner).toBe(1);
+    // Streak points total 217.3 of a possible 220. Twenty-one of the 22 active
+    // hours hold 40 minutes or more of unbroken presence and cap at 10; only
+    // Friday's half storm falls short, paying 10*(29/40) = 7.3 (the share sums
+    // the displayed one-decimal part, not the raw 7.25).
+    expect(card.shares.marathoner).toBeCloseTo(217.3 / 220, 12);
     expect(card.shares.nightOwl).toBeCloseTo(0.136, 2);
   });
 
@@ -40,19 +41,21 @@ describe("busy-week card", () => {
     expect(card.peak).toEqual({ index: 87, level: "Fried" });
   });
 
-  test("spectrum: 15 / 3 / 0 / 4 of 22 hours -> 68 / 14 / 0 / 18, summing to 100", () => {
-    // Raw 68.18 / 13.64 / 0 / 18.18, floors 68/13/0/18 = 99; warming holds the
-    // largest remainder (.64) and takes the one point left over.
-    expect(card.spectrum).toEqual({ calm: 68, warming: 14, heating: 0, fried: 18 });
+  test("spectrum: 15 / 3 / 1 / 3 of 22 hours -> 68 / 14 / 4 / 14, summing to 100", () => {
+    // Raw 68.18 / 13.64 / 4.55 / 13.64, floors 68/13/4/13 = 98; warming and
+    // fried hold the two largest remainders (.64 each) and take the two points
+    // left over.
+    expect(card.spectrum).toEqual({ calm: 68, warming: 14, heating: 4, fried: 14 });
     expect(Object.values(card.spectrum).reduce((a, b) => a + b, 0)).toBe(100);
   });
 
   test("highlights: the owned pair, then the largest remaining norm", () => {
     // Remaining norms: contextSwitches 54/45 = 1.2 beats peakSessions (5-1)/4 = 1.0,
-    // tokensRead 232600/(65000*22) = 0.16 and reportsRead 0; lateShare is not eligible here.
+    // tokensRead 207600/(65000*22) = 0.15 and reportsRead 0; lateShare is not eligible here.
+    // Interrupts: 20 in each of Monday's three storm hours, 10 in Friday's half one.
     expect(card.highlights).toEqual([
       { key: "longestStreak", value: "7h53m", caption: "longest streak" },
-      { key: "interrupts", value: "80", caption: "times you stopped Claude" },
+      { key: "interrupts", value: "70", caption: "times you stopped Claude" },
       { key: "contextSwitches", value: "54", caption: "switches in one hour" },
     ]);
   });

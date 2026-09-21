@@ -27,13 +27,21 @@ function calm(day: number, n: number, from: number, to: number) {
 // question/plan lines) so no event's timestamp ever crosses into the next hour;
 // calm() only ever adds 3 to an m that stops at 50, so it cannot overflow.
 // Each reply carries 1000 output tokens (its own requestId, so none is deduped
-// away), so a storm hour reads 55 x 1000 = 55.0k tokens. Real heavy hours carry
-// 60k-236k; at calm()'s 100 tokens a storm hour would read 5.5k and the reading
-// component would be invisible in the week picture.
-function storm(day: number, from: number, to: number) {
+// away), so a full storm hour reads 55 x 1000 = 55.0k tokens. Real heavy hours
+// carry 60k-236k; at calm()'s 100 tokens a storm hour would read 5.5k and the
+// reading component would be invisible in the week picture.
+//
+// `lastMin` is the last minute at which the storm may start an event, and it
+// applies to every hour the call spans, not only the last one (every caller
+// that passes it so far storms a single hour). A full storm hour caps the
+// 40-minute streak norm on its own, so a storm meant to read below Fried has to
+// stop short of the cap: see Friday below. The default sits above every m the
+// loop can reach, so `m + 4 < 60` stays the only bound on a full hour and this
+// parameter cannot silently become the binding one if that offset ever changes.
+function storm(day: number, from: number, to: number, lastMin = 59) {
   for (let n = 1; n <= 5; n++) {
     const lines = [mode(sid(n), "auto")];
-    for (let h = from; h < to; h++) for (let m = n; m + 4 < 60; m += 5) {
+    for (let h = from; h < to; h++) for (let m = n; m + 4 < 60 && m <= lastMin; m += 5) {
       lines.push(prompt(ts(day, h, m), sid(n)));
       lines.push(assistantText(ts(day, h, m + 2), sid(n), 1000, nextRequestId()));
       if (m % 15 === n % 15) lines.push(interrupt(ts(day, h, m + 3), sid(n)));
@@ -62,8 +70,11 @@ calm(15, 1, 10, 18); calm(15, 2, 14, 17);
 // Wed 16: nothing
 // Thu 17: one calm session 11-13
 calm(17, 1, 11, 13);
-// Fri 18: storm 15-16 with no warm-up (its own 54 minutes already cap the 40-minute streak norm → Fried)
-storm(18, 15, 16);
+// Fri 18: half a storm 15:01-15:30 with no warm-up. A whole storm hour caps the
+// 40-minute streak by itself and reads 87, exactly Monday's later storm hours;
+// stopping at minute 30 leaves a 29-minute streak and an index of 81, one band
+// below (Heating), which is the contrast this day exists to draw.
+storm(18, 15, 16, 30);
 // Sat 19: late night only 0-2
 calm(19, 1, 0, 2);
 // Sun 20: nothing
