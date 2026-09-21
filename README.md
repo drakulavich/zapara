@@ -12,45 +12,40 @@
   <img src="https://raw.githubusercontent.com/drakulavich/zapara/main/assets/demo.webp" alt="zapara demo: week heatmap, day table, JSON" width="800">
 </p>
 
-Claude Code writes a JSONL transcript for every session under `~/.claude/projects`. zapara reads those files, puts each record in the local hour it happened in, and turns the hour into one number. A week is a heatmap of seven rows by 24 cells; a day is a table with one row per hour and, with `--explain`, the weighted contribution of each component. Nothing is installed into Claude Code, no hook is registered, and no network call is made.
+Claude Code writes a JSONL transcript for every session under `~/.claude/projects`. zapara reads those files, puts each record in the local hour it happened in, and turns the hour into one number. A week is a heatmap of seven rows by 24 cells; a day is a table with one row per hour and, with `--explain`, the weighted contribution of each component.
 
-## Quick Start
+## Quick start
 
 ```bash
-# Install Bun if you do not have it (zapara needs 1.4 or newer)
+# Bun 1.4 or newer
 curl -fsSL https://bun.sh/install | bash
 
-# Run it once without installing anything: the last 7 days
+# Run it once, without installing
 bunx @drakulavich/zapara@latest
 ```
 
-To keep it around, install it with Bun:
+To keep it, install it with Bun. The same command upgrades it later.
 
 ```bash
 bun add -g @drakulavich/zapara
 ```
 
-That puts `zapara` on your PATH, in Bun's global bin directory (`~/.bun/bin`, which Bun's own installer adds to your shell profile — if you got Bun from Homebrew instead, add it yourself). Then:
+`zapara` lands in Bun's global bin directory, `~/.bun/bin`. Bun's own installer puts that on your PATH; a Homebrew Bun does not, so add it yourself. Then:
 
 ```bash
-# The last 7 days
-zapara
-
-# Yesterday, hour by hour, with the components behind each index
-zapara yesterday --explain
-
-# The card
-zapara card
+zapara                      # the last 7 days
+zapara yesterday --explain  # one day, with the components behind each index
+zapara card                 # the picture
 ```
 
-Upgrading is the same command: `bun add -g @drakulavich/zapara` pulls the newest version. There is no build step and no runtime dependency — Bun runs `src/index.ts` from the package as it is.
+No build step and no runtime dependency: Bun runs `src/index.ts` from the package as it is.
 
 ## What it looks like
 
-Both pictures below come from the synthetic fixture in `tests/fixtures/busy-week`: a calm morning of one session, a five-session storm in the middle of the day, and a late tail that runs past midnight.
+The week below, and the day behind the fold under it, come from the synthetic fixture in `tests/fixtures/busy-week`: a calm morning of one session, a five-session storm in the middle of the day, and a late tail that runs past midnight.
 
 ```
-            00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active
+            00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active
 Mon 14/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  █  █  █  ·  ·  ·  ·  ·  ░  ░  ·  ░     87    8h50
 Tue 15/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  ░  ▒  ▒  ▒  ░  ·  ·  ·  ·  ·  ·     33    7h55
 Wed 16/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
@@ -63,8 +58,23 @@ Sun 20/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  · 
   21h10 active   323 prompts   0 reports   86 decisions   5 sessions at once
 ```
 
+<details>
+<summary><b>Monday hour by hour, and the commands that print both</b></summary>
+
+The fixture's timestamps are UTC and zapara buckets by local time, so pin the zone to get these exact hours:
+
+```bash
+TZ=UTC bun src/index.ts --projects tests/fixtures/busy-week --to 2026-09-20 --no-color
 ```
-hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
+
+That prints the grid above. One day of it, with the weighted parts behind each index:
+
+```bash
+TZ=UTC bun src/index.ts 2026-09-14 --projects tests/fixtures/busy-week --explain --no-color
+```
+
+```
+hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
 09:00     15  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1    10     0
 10:00     15  Calm        1        6     0    0      0     0     0       0    110m      600    0   4.5     0   0.1    10     0
 11:00     15  Calm        1        7     0    0      0     0     0       0    179m      600    0   5.3     0   0.1    10     0
@@ -77,23 +87,13 @@ Sun 20/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  · 
   no reports today
 ```
 
-<details>
-<summary><b>Reproduce these pictures from the repository</b></summary>
-
-Two commands in a terminal reproduce them. The fixture's timestamps are UTC and zapara buckets by local time, so pin the zone to get these exact hours:
-
-```bash
-TZ=UTC bun src/index.ts --projects tests/fixtures/busy-week --to 2026-09-20 --no-color
-TZ=UTC bun src/index.ts 2026-09-14 --projects tests/fixtures/busy-week --explain --no-color
-```
-
 The grid is a fixed 98 columns wide, 100 with its hour header, and does not reflow, so it needs a terminal at least that wide.
 
 </details>
 
 ## Share a card
 
-`zapara card` turns your last two weeks into one picture: a character named after the kind of load that dominates your hours, the sentence behind it, the peak hour, the share of calm, warming, heating and fried hours, and three highlights. No dates, no hour totals, nothing that reads as a timesheet.
+`zapara card` turns your last two weeks into one picture: a character named after the kind of load that dominates your hours, the sentence behind it, the peak hour, the share of calm, warming, heating and fried hours, and three highlights. It carries no dates and no hour totals, so it does not read as a timesheet.
 
 ```bash
 zapara card                    # writes zapara-card.png in the current directory
@@ -113,7 +113,7 @@ wrote zapara-card.png
 
 <p align="center"><img src="https://raw.githubusercontent.com/drakulavich/zapara/main/assets/card.webp" alt="zapara card: The Marathoner, longest streak 7h53m, 68% of hours calm" width="800"></p>
 
-This one comes from the same `busy-week` fixture as the pictures above. The picture is taken by a headless browser that Bun drives: WebKit on macOS, an installed Google Chrome elsewhere, so on Linux or Windows install Chrome, or write `--out card.html` and open the page in any browser.
+This one comes from the same `busy-week` fixture as the pictures above. A headless browser that Bun drives takes the picture: WebKit on macOS, an installed Google Chrome elsewhere. On Linux or Windows, install Chrome or write `--out card.html` and open the page in any browser.
 
 ## Usage
 
@@ -141,13 +141,13 @@ This one comes from the same `busy-week` fixture as the pictures above. The pict
 
 Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
-The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; there is no flag to force text in a pipe yet. `card` always writes its file and prints its two lines, piped or not, and only `card --json` prints JSON. `status` always writes its file and prints the same JSON line, piped or not, and `--json` changes nothing there.
+The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` always write their file and print their lines, piped or not: only `card --json` prints JSON instead, and `--json` changes nothing for `status`, whose line is already JSON.
 
-Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read, when `status` cannot write its file, or when `card` cannot write its picture (four different messages, none with a path), and 2 for a usage error such as a bad date or an unknown flag, which prints one line and a hint to `--help`. A value flag given twice is a usage error. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read, when `status` cannot write its file, or when `card` cannot write its picture (four different messages, none with a path), and 2 for a usage error such as a bad date, an unknown flag or a value flag given twice, which prints one line and a hint to `--help`. A window with no data prints an empty grid and exits 0.
 
 ## Status line
 
-A status line wants one number every thirty seconds and cannot wait half a second for a transcript scan, so zapara writes the number down and the status line reads it back. `zapara status` computes today exactly as `zapara today` does, writes it as one line of JSON to `~/.claude/zapara/status.json`, and prints the same line. Only `--projects` applies to it; the window flags, `--explain` and `--out` are usage errors, and `--json` changes nothing because the output is already JSON. There is one file per user, whatever `--projects` said, created with mode `0600` in a directory with mode `0700`; the write goes to a temporary file and is renamed into place, so a reader sees the old line or the new one and never half of one. The file holds the nine values below and nothing else: no path, no project, no session count, no text.
+A status line wants one number every thirty seconds and cannot wait half a second for a transcript scan, so zapara writes the number down and the status line reads it back. `zapara status` computes today exactly as `zapara today` does, writes it as one line of JSON to `~/.claude/zapara/status.json`, and prints the same line. Only `--projects` applies; the window flags, `--explain` and `--out` are usage errors. There is one file per user, whatever `--projects` said, created with mode `0600` in a directory with mode `0700`; the write goes to a temporary file and is renamed into place, so a reader sees the old line or the new one and never half of one. The file holds the nine values below and nothing else: no path, no project, no session count, no text.
 
 ```json
 {"schema":1,"asOf":"2026-09-19T12:30:38.300Z","date":"2026-09-19","hour":15,"index":36,"level":"Warming","peak":41,"activeMin":555,"streakMin":166}
@@ -165,21 +165,21 @@ A status line wants one number every thirty seconds and cannot wait half a secon
 | `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your actions and the gaps of at most 10 minutes between them; `0` on a day with no action of yours. |
 | `streakMin` | Minutes of your live presence streak as of `asOf`: from the streak's first action to `asOf`, when your last action is no more than 10 minutes before `asOf`; `0` once you have been away longer. It keeps growing while you sit there, and it does not reset at an hour boundary. |
 
-Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon. A reader decodes the file strictly and treats anything that fails validation, and a missing or unreadable file, as no data: it draws nothing and counts the file as stale. When the snapshot is stale or missing it starts `zapara status` as a detached process, does not wait for it, and draws what it has, which is also how the file first comes to exist on a machine that never ran zapara. A reader may start a run on every stale render: nothing coordinates readers, concurrent runs are harmless because the file is written atomically, and renders are seconds apart while a run is under a second. The whole contract is in [the status file spec](docs/superpowers/specs/2026-09-19-zapara-status-file-design.md), and [pult](https://github.com/drakulavich/pult) is the reader that exists, with a five-minute threshold.
+Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon. A reader that finds the file stale or missing starts `zapara status` detached and draws what it has, which is also how the file first comes to exist on a machine that never ran zapara. The rest of the contract, from strict decoding to concurrent runs, is in [the status file spec](docs/superpowers/specs/2026-09-19-zapara-status-file-design.md); [pult](https://github.com/drakulavich/pult) is the reader that exists, with a five-minute threshold.
 
 ## Privacy
 
-zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. Selection is by modification time first, and a file whose modification time is older than the window is opened only to read the last timestamp in its final 64 KB; nothing from that tail is kept or printed. Message text is compared against a few fixed markers, for interrupts, tool rejections and inbound agent messages, and then discarded. What survives into an event is a timestamp, a session id, an event kind and a token count.
+zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. It picks files by modification time first, and opens one whose modification time is older than the window only to read the last timestamp in its final 64 KB; nothing from that tail is kept or printed. It compares message text against a few fixed markers, for interrupts, tool rejections and inbound agent messages, then discards it. What survives into an event is a timestamp, a session id, an event kind and a token count.
 
-No message text, prompt length, file path or session title is kept, written or printed. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. Nothing is sent anywhere, no file is written except the card or the status file you ask for, and nothing is installed into Claude Code.
+zapara keeps, writes and prints no message text, prompt length, file path or session title. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. It sends nothing anywhere, writes no file except the card or the status file you ask for, and installs nothing into Claude Code.
 
 ## Limits
 
 - Time is local and buckets are whole hours, so an hour that straddles midnight or a daylight-saving change is bucketed by the local clock. On a fall-back day two wall-clock hours share one label and merge, so that bucket can hold up to 120 active minutes and the day up to 1500.
-- Only Claude Code transcripts are read. Work in other tools, and time away from the keyboard, is invisible.
-- Files are chosen by modification time, and a file whose modification time is older than the window is still read when the last timestamp in it falls inside the window, so a restored or synced transcript is not lost. A very old session touched today is read in full, but only its in-window events count.
+- zapara reads only Claude Code transcripts. Work in other tools, and time away from the keyboard, is invisible.
+- A file whose modification time is older than the window is still read when the last timestamp in it falls inside the window, so a restored or synced transcript is not lost. A very old session touched today is read in full, but only its in-window events count.
 - The transcript format is Claude Code's private format, built against version 2.1.274, and it may drift. `bun run stats` shows when it has.
-- The norms come from two machines of one user working in auto mode. They are a starting point for a conversation about the metric, not a study.
+- The norms come from two machines of one user working in auto mode, which makes them a starting point for a conversation about the metric rather than a study.
 - The 98-column grid does not adapt to a narrow terminal.
 - For the grid and the day a pipe always gets JSON, and there is no flag to ask for text instead.
 - The card needs a browser engine: WebKit comes with macOS, elsewhere Google Chrome must be installed. `--out card.html` works everywhere.
@@ -214,7 +214,7 @@ index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 
 | Heating | 60–84 |
 | Fried | 85–100 |
 
-The norms come from two machines, 14 days each, of real transcripts covering 116 and 114 active hours. The surprise in that data was how rare explicit decisions are: in auto mode the p90 is 3 decisions per hour, so a component built on decisions alone reads near zero on hours that felt heavy. What those hours actually cost is reading the reports agents send back, switching between sessions, and getting through the volume of model output, which is why supervision carries 30 points and reading 10. Human prompts reached a p90 of 13 per hour on one machine and 20 on the other, hence the pace norm of 20. The parallel-session threshold follows the research this project started from rather than the transcripts: BCG and HBR report that productivity drops past three simultaneous AI tools, and Osmani makes the same point as three focused teammates beating five scattered ones.
+The norms are the p90 of two weeks of real transcripts on two machines, 116 and 114 active hours. Why each one is what it is, and what surprised us in that data, is in [How the numbers are made](docs/how-the-numbers-are-made.md#5-the-index).
 
 Weights and norms live in one exported constant in `src/score.ts`, so a recalibration is one diff there plus a line in `CHANGELOG.md`.
 
