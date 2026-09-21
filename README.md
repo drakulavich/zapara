@@ -17,7 +17,7 @@ Claude Code writes a JSONL transcript for every session under `~/.claude/project
 ## Quick start
 
 ```bash
-# Bun 1.4 or newer
+# Skip this if you already have Bun 1.4 or newer
 curl -fsSL https://bun.sh/install | bash
 
 # Run it once, without installing
@@ -30,7 +30,7 @@ To keep it, install it with Bun. The same command upgrades it later.
 bun add -g @drakulavich/zapara
 ```
 
-`zapara` lands in Bun's global bin directory, `~/.bun/bin`. Bun's own installer puts that on your PATH; a Homebrew Bun does not, so add it yourself. Then:
+`zapara` lands in Bun's global bin directory, `~/.bun/bin` unless `BUN_INSTALL_BIN` says otherwise; `bun pm bin -g` prints the one in force. Bun's own installer puts that directory on your PATH; a Homebrew Bun does not, so add it yourself. Then:
 
 ```bash
 zapara                      # the last 7 days
@@ -141,7 +141,7 @@ This one comes from the same `busy-week` fixture as the pictures above. A headle
 
 Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
-The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` always write their file and print their lines, piped or not: only `card --json` prints JSON instead, and `--json` changes nothing for `status`, whose line is already JSON.
+The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` write their file and print their lines whether piped or not. `card --json` is the exception: it prints the card's data and writes no file. `--json` changes nothing for `status`, whose line is already JSON and whose file is written either way.
 
 Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read, when `status` cannot write its file, or when `card` cannot write its picture (four different messages, none with a path), and 2 for a usage error such as a bad date, an unknown flag or a value flag given twice, which prints one line and a hint to `--help`. A window with no data prints an empty grid and exits 0.
 
