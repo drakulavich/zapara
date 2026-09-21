@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-21
+
 ### Changed
 - Streak norm recalibrated for the presence rule: 40 minutes of your own uninterrupted actions now score the full streak points (was 120, the p90 of the old rule that let agent activity keep a streak alive; the p90 under the new rule is 33 on one machine and 48 on another, and 40 sits between them).
 - Presence counts every human action, not only prompts: an interrupt, a tool rejection and an answer to a question or a plan hold a streak open and fill active minutes the same way a prompt does. They remain decisions where they already were; nothing is counted twice.
