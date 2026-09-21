@@ -9,6 +9,7 @@ import type { Day, HourBucket } from "../../src/types.ts";
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
 const days = await report({ projects, to: "2026-09-20", days: 7 });
 const monday = days[0]!;
+const tuesday = days[1]!; // two calm sessions overlap 14-17
 const wednesday = days[2]!; // empty
 const thursday = days[3]!; // one calm session, 11-13: every event column reads zero
 
@@ -41,7 +42,7 @@ describe("week grid", () => {
     expect(cells[9]).toBe("░");
     // The stillThere() prompt at 11:59 carries presence from the calm morning
     // into the storm (9 minutes, then 2 to the storm's first prompt at 12:01),
-    // so hour 12 already opens past the 120-minute cap: index 87, Fried.
+    // so hour 12 already opens past the 40-minute cap: index 87, Fried.
     expect(cells[12]).toBe("█");
     expect(cells[13]).toBe("█");
     expect(cells[14]).toBe("█");
@@ -53,16 +54,17 @@ describe("week grid", () => {
     expect(row.slice(84)).toMatch(/^\s+\d{1,3}\s+\d+h\d{2}$/);
   });
 
-  test("Friday's warm-up-less storm reads Heating, not Fried, and does not bleed into the next hour", () => {
+  test("Friday's warm-up-less storm is Fried on its own hour and does not bleed into the next", () => {
     const row = lines[5]!;
     const cells = Array.from({ length: 24 }, (_, h) => row[12 + h * 3 + 1]);
     // 5 sessions, 55 prompts, 25 decisions, 55 000 output tokens, streak 54 min
     // (prompts 15:01 to 15:55, no calm warm-up before them), not a late hour:
     // parallel 25 + pace 15 + supervision 30 (3*25 = 75, already past the norm 45)
-    // + reading 10*(55000/80000) = 6.875 + streak 10*(54/120) = 4.5 + late 0
-    // = 81.375 -> 81, Heating (60-84). Monday's later storm hours differ only in
-    // the streak, which has reached the cap by then: 86.875 -> 87, Fried.
-    expect(cells[15]).toBe("▓");
+    // + reading 10*(55000/80000) = 6.875 + streak 10*clamp(54/40) = 10 + late 0
+    // = 86.875 -> 87, Fried (85-100). Under the 40-minute norm an hour of storm
+    // caps the streak by itself, so Friday reads like Monday's later storm hours
+    // instead of one band below them.
+    expect(cells[15]).toBe("█");
     expect(cells[16]).toBe("·");
   });
 
@@ -236,30 +238,32 @@ describe("day table", () => {
     // 5 sessions saturate par, 55 prompts saturate pace, 25 decisions alone put
     // supervision past its norm (3*25 = 75 > 45), 55 replies x 1000 tokens give
     // read 10*(55000/80000) = 6.875 -> 6.9, presence has run unbroken from 9:00
-    // to 13:55 (295 minutes) so strk is at the 120-minute cap, and 13:00 isn't
+    // to 13:55 (295 minutes) so strk is at the 40-minute cap, and 13:00 isn't
     // a late hour. Index 86.875 -> 87.
     expect(parts).toEqual([25, 15, 30, 6.9, 10, 0]);
     expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
   });
 
   test("--explain columns on a row where no two parts share a value", () => {
-    // Monday 23:00: the late-night calm tail (calm(14, 7, 23, 24), one lone
-    // session, 6 prompts and 6 replies of 100 tokens). parallel 0 (1 session),
-    // pace 15 · min(1, 6/20) = 4.5, supervision 0 (no decisions, no reports and
-    // one session means no context switches), reading 10 · (600/80000) = 0.075
-    // rounded to 0.1, streak 10 · min(1, 50/120) = 4.1667 rounded to 4.2
-    // (streakMin 50, the prompts from 23:00 to 23:50, a fresh streak since the
-    // evening session ended over an hour earlier), late 10 (23:00 is in the
-    // late-night set). Index 0 + 4.5 + 0 + 0.075 + 4.1667 + 10 = 18.74 -> 19.
-    // Every part here holds a different value, so a swap between any two
-    // accessors fails on this row even though 13:00's row would not notice it.
-    const lines = renderDay(monday, { explain: true, color: false }).split("\n");
-    const row23 = lines.find((l) => l.startsWith("23:00"))!;
-    const nums = row23.trim().split(/\s+/);
+    // Tuesday 14:00: two calm sessions overlap (calm(15, 1, 10, 18) and
+    // calm(15, 2, 14, 17)), 12 prompts and 12 replies of 100 tokens.
+    // parallel 25 · (1/4) = 6.25 rounded to 6.3, pace 15 · (12/20) = 9,
+    // supervision 30 · (0 + 0 + 11)/45 = 7.3333 rounded to 7.3 (no decisions and
+    // no reports: the 11 context switches between the two sessions are the whole
+    // load), reading 10 · (1200/80000) = 0.15 rounded to 0.2, streak 10 ·
+    // min(1, 290/40) = 10 (presence has run from 10:00, long past the norm),
+    // late 0 (14:00 is not in the late-night set).
+    // Index 6.25 + 9 + 7.3333 + 0.15 + 10 + 0 = 32.7333 -> 33. Every part here
+    // holds a different value, so a swap between any two accessors fails on this
+    // row; unlike 13:00's row, four of the six are fractions, so the one-decimal
+    // rounding of the parts is exercised at the same time.
+    const lines = renderDay(tuesday, { explain: true, color: false }).split("\n");
+    const row14 = lines.find((l) => l.startsWith("14:00"))!;
+    const nums = row14.trim().split(/\s+/);
     const index = Number(nums[1]);
     const parts = nums.slice(-6).map(Number);
-    expect(parts).toEqual([0, 4.5, 0, 0.1, 4.2, 10]);
-    expect(index).toBe(19);
+    expect(parts).toEqual([6.3, 9, 7.3, 0.2, 10, 0]);
+    expect(index).toBe(33);
     expect(Math.round(parts.reduce((a, b) => a + b, 0))).toBe(index);
   });
 });

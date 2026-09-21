@@ -53,7 +53,7 @@ describe("presence streak", () => {
     const d = analyze([transcript(lines)], W)[0]!;
     expect(d.buckets[10]!.streakMin).toBe(55);
     expect(d.buckets[11]!.streakMin).toBe(115);
-    expect(d.buckets[11]!.score!.parts.streak).toBe(9.6); // 10 * 115/120 = 9.5833... -> 9.6
+    expect(d.buckets[11]!.score!.parts.streak).toBe(10); // 10 * clamp(115/40) = 10, past the norm
   });
 
   test("a streak that started in the look-back before the window is measured, but not bucketed", () => {

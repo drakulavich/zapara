@@ -40,7 +40,7 @@ The window is the days you asked for plus a 3-hour look-back before it. The
 look-back exists for one thing: a presence streak that began before the window
 is measured from where it began, up to three hours back. A streak older than
 that is floored at what the look-back sees, the one documented approximation;
-the index is not affected, because its streak component saturates at 120
+the index is not affected, because its streak component saturates at 40
 minutes.
 
 ## 2. From records to events
@@ -118,7 +118,7 @@ parallel    = clamp((sessions - 1) / 4)                                   # 1 se
 pace        = clamp(prompts / 20)                                         # 10 prompts/hour → 0.5, 20+ → 1
 supervision = clamp((3 * decisions + reports + contextSwitches) / 45)     # 15 decisions alone → 1; 45 reports alone → 1
 reading     = clamp(outputTokens / 80000)                                 # 40k → 0.5, 80k+ → 1
-streak      = clamp(streakMin / 120)                                      # 60 min → 0.5, 2h+ → 1
+streak      = clamp(streakMin / 40)                                       # 20 min → 0.5, 40+ → 1
 late        = lateNight ? 1 : 0
 
 index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 10*late)
@@ -128,7 +128,7 @@ Levels: 0–29 Calm, 30–59 Warming, 60–84 Heating, 85–100 Fried. Without t
 late-night flag the index tops out at 90.
 
 A worked hour: 2 sessions, 8 prompts, 2 decisions, 6 reports, 1 context
-switch, 30 000 output tokens, a streak of 45 minutes, at 14:00.
+switch, 30 000 output tokens, a streak of 15 minutes, at 14:00.
 
 | Part | Computation | Points |
 |---|---|---|
@@ -136,7 +136,7 @@ switch, 30 000 output tokens, a streak of 45 minutes, at 14:00.
 | pace | 8 / 20 = 0.4 × 15 | 6.00 |
 | supervision | (3·2 + 6 + 1) / 45 = 0.289 × 30 | 8.67 |
 | reading | 30 000 / 80 000 = 0.375 × 10 | 3.75 |
-| streak | 45 / 120 = 0.375 × 10 | 3.75 |
+| streak | 15 / 40 = 0.375 × 10 | 3.75 |
 | late | 0 × 10 | 0 |
 | **index** | round(28.42) | **28, Calm** |
 

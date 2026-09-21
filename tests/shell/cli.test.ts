@@ -47,8 +47,8 @@ describe("cli", () => {
     // switch, 100 output tokens, streak 5 min (13:00 to 13:05), hour 13 not late:
     // parallel 25*(1/4) = 6.25 + pace 15*(2/20) = 1.5
     // + supervision 30*(3*1 + 0 + 1)/45 = 2.667 + reading 10*(100/80000) = 0.0125
-    // + streak 10*(5/120) = 0.4167 + late 0 = 10.846 -> 11
-    expect(b.score.index).toBe(11);
+    // + streak 10*(5/40) = 1.25 + late 0 = 11.679 -> 12
+    expect(b.score.index).toBe(12);
   });
 
   test("a date names one day", async () => {

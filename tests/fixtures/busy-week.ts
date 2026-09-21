@@ -55,14 +55,14 @@ function stillThere(day: number, n: number, h: number, m: number) {
 }
 
 await rm(root, { recursive: true, force: true });
-// Mon 14: calm morning, storm 12-15 with no gap after it (streak at cap → index 85, Fried), calm evening, late-night tail
+// Mon 14: calm morning, storm 12-15 with no gap after it (streak at cap → index 87, Fried), calm evening, late-night tail
 calm(14, 1, 9, 12); storm(14, 12, 15); calm(14, 6, 20, 22); calm(14, 7, 23, 24);
 // Tue 15: two sessions 10-18, the window's longest run
 calm(15, 1, 10, 18); calm(15, 2, 14, 17);
 // Wed 16: nothing
 // Thu 17: one calm session 11-13
 calm(17, 1, 11, 13);
-// Fri 18: storm 15-16 with no warm-up (streak short → Heating, not Fried)
+// Fri 18: storm 15-16 with no warm-up (its own 54 minutes already cap the 40-minute streak norm → Fried)
 storm(18, 15, 16);
 // Sat 19: late night only 0-2
 calm(19, 1, 0, 2);

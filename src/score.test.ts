@@ -27,16 +27,16 @@ describe("score", () => {
     ["40 000 output tokens = half reading", { outputTokens: 40_000 }, 5],             // 10*(40000/80000) = 5
     ["80 000 output tokens cap reading", { outputTokens: 80_000 }, 10],               // 10*(80000/80000) = 10
     ["200 000 output tokens still capped", { outputTokens: 200_000 }, 10],            // clamp(200000/80000) = 1 → 10
-    ["60 min streak = half", { streakMin: 60 }, 5],                                   // 10*(60/120) = 5
-    ["120 min streak caps", { streakMin: 120 }, 10],                                  // 10*(120/120) = 10
+    ["20 min streak = half", { streakMin: 20 }, 5],                                   // 10*(20/40) = 5
+    ["40 min streak caps", { streakMin: 40 }, 10],                                    // 10*(40/40) = 10
     ["late night alone", { lateNight: true }, 10],                                    // 10*1 = 10
     // 25 + 15 + 30 + 10 + 10 + 10 = 100
-    ["everything at cap", { sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 120, lateNight: true }, 100],
+    ["everything at cap", { sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 40, lateNight: true }, 100],
     // The same without the late-night flag: 25 + 15 + 30 + 10 + 10 = 90, the daytime maximum.
-    ["everything at cap but the hour", { sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 120 }, 90],
+    ["everything at cap but the hour", { sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 40 }, 90],
     // Integer weights keep this exact in floating point: 12.5 + 5 = 17.5, and
     // Math.round takes a mathematical half upwards, so the index is 18, not 17.
-    ["an exact half-point sum rounds up", { sessions: 3, streakMin: 60 }, 18],
+    ["an exact half-point sum rounds up", { sessions: 3, streakMin: 20 }, 18],
   ])("%s", (_name, over, expected) => {
     expect(score(m(over))?.index).toBe(expected);
   });
@@ -44,8 +44,8 @@ describe("score", () => {
   test("the six weighted parts are reported and add up to the index", () => {
     // parallel 25*(2/4) = 12.5, pace 15*(10/20) = 7.5,
     // supervision 30*(3*3 + 6 + 12)/45 = 30*(27/45) = 18, reading 10*(40000/80000) = 5,
-    // streak 10*(60/120) = 5, late 10 → 58 exactly.
-    const s = score(m({ sessions: 3, prompts: 10, decisions: 3, reports: 6, contextSwitches: 12, outputTokens: 40_000, streakMin: 60, lateNight: true }));
+    // streak 10*(20/40) = 5, late 10 → 58 exactly.
+    const s = score(m({ sessions: 3, prompts: 10, decisions: 3, reports: 6, contextSwitches: 12, outputTokens: 40_000, streakMin: 20, lateNight: true }));
     expect(s).not.toBeNull();
     expect(s!.parts).toEqual({ parallel: 12.5, pace: 7.5, supervision: 18, reading: 5, streak: 5, late: 10 });
     expect(Math.round(Object.values(s!.parts).reduce((a, b) => a + b, 0))).toBe(s!.index);
@@ -59,20 +59,20 @@ describe("score", () => {
   });
 
   test("the index rounds the unrounded sum, not the rounded parts", () => {
-    // pace 15*(1/20) = 0.75 and streak 10*(8/120) = 0.6667 sum to 1.4167, which
-    // rounds to 1. The parts as displayed are 0.8 and 0.7, and those sum to 1.5,
-    // which would round to 2: an index built from the displayed parts reads one
-    // point higher than the formula says.
-    const s = score(m({ prompts: 1, streakMin: 8 }));
+    // pace 15*(1/20) = 0.75 and reading 10*(5333/80000) = 0.666625 sum to
+    // 1.416625, which rounds to 1. The parts as displayed are 0.8 and 0.7, and
+    // those sum to 1.5, which would round to 2: an index built from the
+    // displayed parts reads one point higher than the formula says.
+    const s = score(m({ prompts: 1, outputTokens: 5333 }));
     expect(s!.parts.pace).toBe(0.8);
-    expect(s!.parts.streak).toBe(0.7);
+    expect(s!.parts.reading).toBe(0.7);
     expect(s!.index).toBe(1);
   });
 
-  test("2 min streak rounds its own displayed part to 0.2 but the index to 0", () => {
-    // 10*(2/120) = 0.1666… → part 0.2, index round(0.1666…) = 0
-    expect(score(m({ streakMin: 2 }))?.parts.streak).toBe(0.2);
-    expect(score(m({ streakMin: 2 }))?.index).toBe(0);
+  test("1 min streak rounds its displayed part to 0.3 but the index to 0", () => {
+    // 10*(1/40) = 0.25 → part 0.3, index round(0.25) = 0
+    expect(score(m({ streakMin: 1 }))?.parts.streak).toBe(0.3);
+    expect(score(m({ streakMin: 1 }))?.index).toBe(0);
   });
 
   test("no sessions means no score", () => {
@@ -89,6 +89,6 @@ describe("score", () => {
   test("the daytime maximum of 90 is already Fried", () => {
     // Without the late-night flag the index tops out at 90, which is inside the
     // 85-100 Fried band: a full daytime hour is not merely Heating.
-    expect(score(m({ sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 120 }))?.level).toBe("Fried");
+    expect(score(m({ sessions: 5, prompts: 20, decisions: 15, outputTokens: 80_000, streakMin: 40 }))?.level).toBe("Fried");
   });
 });

@@ -141,7 +141,7 @@ value divided by its calibration norm, for ranking:
 |---|---|---|---|
 | peakSessions | `{maxSessions}` | `sessions at once` | `(maxSessions − 1) / 4` |
 | contextSwitches | `{maxContextSwitches}` | `switches in one hour` | `maxContextSwitches / 45` |
-| longestStreak | `{streak}` | `longest streak` | `maxStreakMin / 120` |
+| longestStreak | `{streak}` | `longest streak` | `maxStreakMin / NORMS.streakMin (40)` |
 | reportsRead | `{reports}` | `agent reports read` | `reports / (12 · activeHours)` |
 | tokensRead | `{outputTokens}` | `tokens of output read` | `outputTokens / (65000 · activeHours)` |
 | interrupts | `{interrupts}` | `times you stopped Claude` | `interrupts / (3 · activeHours)` |
@@ -153,7 +153,11 @@ Marathoner `longestStreak, interrupts`; Night Owl `lateShare, longestStreak`.
 The third is the remaining key with the largest `norm`; `lateShare` is
 eligible as the third only for the Night Owl (a late-night number on someone
 else's card is exactly the kind of thing they would hide). Ties keep the
-table order.
+table order. The first three norms in the table are the index's own
+(`NORMS.parallelSpan`, `NORMS.supervisionPerHour`, `NORMS.streakMin`), so
+recalibrating one of those in `src/score.ts` also changes which candidate wins
+the third slot; the last four are the card's own `CARD_NORMS`, which rank
+highlights on a picture and never enter the index.
 
 Window label: `LAST {days} DAYS`. No dates appear on the card.
 

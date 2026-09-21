@@ -67,9 +67,9 @@ describe("decisions in one hour", () => {
     // prompts are the same session), output tokens 100 (one assistant reply),
     // streak 8 min (13:00 to 13:08), hour 13 is not late:
     // parallel 0 + pace 15*(2/20) = 1.5 + supervision 30*(3*7 + 0 + 0)/45 = 14
-    // + reading 10*(100/80000) = 0.0125 + streak 10*(8/120) = 0.6667 + late 0
-    // = 16.179 -> 16
-    expect(b.score?.index).toBe(16);
-    expect(day.peak).toBe(16);
+    // + reading 10*(100/80000) = 0.0125 + streak 10*(8/40) = 2 + late 0
+    // = 17.5125 -> 18
+    expect(b.score?.index).toBe(18);
+    expect(day.peak).toBe(18);
   });
 });

@@ -48,7 +48,7 @@ describe("zapara card", () => {
     expect(j.days).toBe(14);
     expect(j.sentence).toBe("Longest streak 7h53m without a break, 68% of your hours calm.");
     expect(j.motto).toBe("You do not stop while it compiles.");
-    expect(j.shares.marathoner).toBe(0.8);
+    expect(j.shares.marathoner).toBe(1);
     expect(j.shares.conductor).toBe(0.31);
     expect(j.peak).toEqual({ index: 87, level: "Fried" });
     expect(j.highlights[0]).toEqual({ key: "longestStreak", value: "7h53m", caption: "longest streak" });

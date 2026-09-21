@@ -79,7 +79,7 @@ describe("signal-stats", () => {
       expect(reportVals[maxIdx]).toBe(2);
 
       expect(r.out).toContain(
-        "records with type: 10, events: 20 (prompt 6, report 3, output 1, interrupt 0, reject 0, question 0, plan_review 0, mode_change 0, activity 10)",
+        "records with type: 10, events: 20 (prompt 6, report 3, output 1, interrupt 0, reject 0, answer 0, question 0, plan_review 0, mode_change 0, activity 10)",
       );
       expect(r.out).toContain("events per record with type: 2.00");
     } finally {
@@ -104,7 +104,7 @@ describe("signal-stats", () => {
       expect(data.drift.recordsWithType).toBe(10);
       expect(data.drift.events).toBe(20);
       expect(data.drift.eventsByKind).toEqual({
-        prompt: 6, report: 3, output: 1, interrupt: 0, reject: 0, question: 0, plan_review: 0, mode_change: 0, activity: 10,
+        prompt: 6, report: 3, output: 1, interrupt: 0, reject: 0, answer: 0, question: 0, plan_review: 0, mode_change: 0, activity: 10,
       });
       expect(data.drift.eventsPerRecordWithType).toBe(2);
     } finally {
@@ -163,7 +163,7 @@ describe("signal-stats", () => {
       expect(data.drift.recordsWithType).toBe(2);
       expect(data.drift.events).toBe(4); // in-window pair only: activity x2, prompt x1, output x1
       expect(data.drift.eventsByKind).toEqual({
-        prompt: 1, report: 0, output: 1, interrupt: 0, reject: 0, question: 0, plan_review: 0, mode_change: 0, activity: 2,
+        prompt: 1, report: 0, output: 1, interrupt: 0, reject: 0, answer: 0, question: 0, plan_review: 0, mode_change: 0, activity: 2,
       });
     } finally {
       await rm(root, { recursive: true, force: true });
