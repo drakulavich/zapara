@@ -144,8 +144,21 @@ The index is rounded once, from the unrounded sum; the parts that `--explain`
 prints are rounded to one decimal for display, so they can add up to a number
 one off from the index while the index is right. Weights, norms and level
 bounds live in one constant in `src/score.ts`; a recalibration is one diff
-there plus a CHANGELOG line. The norms are the p90 of two weeks of real data
-on two machines; the design spec's "Index" section says why each is what it is.
+there plus a CHANGELOG line.
+
+The norms come from two machines, 14 days each, of real transcripts covering
+116 and 114 active hours. The surprise in that data was how rare explicit
+decisions are: in auto mode the p90 is 3 decisions per hour, so a component
+built on decisions alone reads near zero on hours that felt heavy. Those hours
+cost reading the reports agents send back, switching between sessions, and
+getting through the volume of model output, which is why supervision carries
+30 points and reading 10. Human prompts reached a p90 of 13 per hour on one
+machine and 20 on the other, hence the pace norm of 20. The parallel-session
+threshold follows the research this project started from rather than the
+transcripts: BCG and HBR report that productivity drops past three simultaneous
+AI tools, and Osmani makes the same point as three focused teammates beating
+five scattered ones. The design spec's "Index" section says why each norm is
+what it is.
 
 ## 6. What a day adds up to
 
