@@ -31,10 +31,14 @@ function calm(day: number, n: number, from: number, to: number) {
 // carry 60k-236k; at calm()'s 100 tokens a storm hour would read 5.5k and the
 // reading component would be invisible in the week picture.
 //
-// `lastMin` cuts the storm short inside its last hour. A full hour of it already
-// caps the 40-minute streak norm on its own, so a storm that is meant to read
-// below Fried has to stop before the cap: see Friday below.
-function storm(day: number, from: number, to: number, lastMin = 55) {
+// `lastMin` is the last minute at which the storm may start an event, and it
+// applies to every hour the call spans, not only the last one (every caller
+// that passes it so far storms a single hour). A full storm hour caps the
+// 40-minute streak norm on its own, so a storm meant to read below Fried has to
+// stop short of the cap: see Friday below. The default sits above every m the
+// loop can reach, so `m + 4 < 60` stays the only bound on a full hour and this
+// parameter cannot silently become the binding one if that offset ever changes.
+function storm(day: number, from: number, to: number, lastMin = 59) {
   for (let n = 1; n <= 5; n++) {
     const lines = [mode(sid(n), "auto")];
     for (let h = from; h < to; h++) for (let m = n; m + 4 < 60 && m <= lastMin; m += 5) {

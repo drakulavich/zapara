@@ -33,7 +33,7 @@ describe("busy-week card", () => {
     // hours hold 40 minutes or more of unbroken presence and cap at 10; only
     // Friday's half storm falls short, paying 10*(29/40) = 7.3 (the share sums
     // the displayed one-decimal part, not the raw 7.25).
-    expect(card.shares.marathoner).toBeCloseTo(0.988, 3);
+    expect(card.shares.marathoner).toBeCloseTo(217.3 / 220, 12);
     expect(card.shares.nightOwl).toBeCloseTo(0.136, 2);
   });
 

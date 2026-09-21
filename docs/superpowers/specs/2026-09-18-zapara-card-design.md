@@ -328,9 +328,11 @@ Scenarios:
   warming, 1 heating, 3 fried → 68 / 14 / 4 / 14, and a test that the four
   numbers sum to 100); the three highlights pinned by key, value and caption
   (the fixture's long calm days make it the Marathoner, shares 0.31 / 0.19 /
-  0.81 / 0.14: longestStreak `7h53m`, interrupts `80`, then contextSwitches
+  0.99 / 0.14: longestStreak `7h53m`, interrupts `70`, then contextSwitches
   `54` as the largest remaining norm, 1.2 against peakSessions' 1.0); the
-  four shares pinned to two decimals.
+  four shares pinned to two decimals. The Marathoner's share was 0.81 under
+  the 0.2.0 streak norm of 120 minutes; at 40 every active hour but Friday's
+  half storm caps, so it reads 0.99.
 - One small fixture per character, each built so that one share clearly
   wins, pinning the character, the sentence's numbers and the two owned
   highlights. A tie fixture (two equal shares) pins the tie order. A fixture

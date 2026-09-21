@@ -37,30 +37,30 @@ To keep it around, `bun add -g @drakulavich/zapara` puts `zapara` on your PATH. 
 Both pictures below come from the synthetic fixture in `tests/fixtures/busy-week`: a calm morning of one session, a five-session storm in the middle of the day, and a late tail that runs past midnight.
 
 ```
-            00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active
+            00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23   peak  active
 Mon 14/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  █  █  █  ·  ·  ·  ·  ·  ░  ░  ·  ░     87    8h50
 Tue 15/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ░  ░  ▒  ▒  ▒  ░  ·  ·  ·  ·  ·  ·     33    7h55
 Wed 16/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
-Thu 17/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     14    1h55
-Fri 18/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▓  ·  ·  ·  ·  ·  ·  ·  ·     81    1h00
-Sat 19/09    ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     24    1h55
+Thu 17/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     15    1h55
+Fri 18/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▓  ·  ·  ·  ·  ·  ·  ·  ·     81    0h35
+Sat 19/09    ░  ░  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     25    1h55
 Sun 20/09    ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·      -    0h00
 
   ░ calm   ▒ warming   ▓ heating   █ fried
-  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once
+  21h10 active   323 prompts   0 reports   86 decisions   5 sessions at once
 ```
 
 ```
-hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
-09:00      9  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1   4.2     0
-10:00     14  Calm        1        6     0    0      0     0     0       0    110m      600    0   4.5     0   0.1   9.2     0
+hour   index  level    sess  prompts  intr  rej  quest  plan  mode  ctx-sw  streak  out-tok  par  pace   sup  read  strk  late
+09:00     15  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1    10     0
+10:00     15  Calm        1        6     0    0      0     0     0       0    110m      600    0   4.5     0   0.1    10     0
 11:00     15  Calm        1        7     0    0      0     0     0       0    179m      600    0   5.3     0   0.1    10     0
 12:00     87  Fried       5       55    20    1      1     1     2      54    235m    55.0k   25    15    30   6.9    10     0
 13:00     87  Fried       5       55    20    1      1     1     2      54    295m    55.0k   25    15    30   6.9    10     0
 14:00     87  Fried       5       55    20    1      1     1     2      54    355m    55.0k   25    15    30   6.9    10     0
-20:00      9  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1   4.2     0
-21:00     14  Calm        1        6     0    0      0     0     0       0    110m      600    0   4.5     0   0.1   9.2     0
-23:00     19  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1   4.2    10
+20:00     15  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1    10     0
+21:00     15  Calm        1        6     0    0      0     0     0       0    110m      600    0   4.5     0   0.1    10     0
+23:00     25  Calm        1        6     0    0      0     0     0       0     50m      600    0   4.5     0   0.1    10    10
   no reports today
 ```
 
