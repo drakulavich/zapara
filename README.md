@@ -143,7 +143,7 @@ Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
 The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` write their file and print their lines whether piped or not. `card --json` is the exception: it prints the card's data and writes no file. `--json` changes nothing for `status`, whose line is already JSON and whose file is written either way.
 
-Exit codes are 0 on success, 1 when the projects directory is missing or cannot be read, when `status` cannot write its file, or when `card` cannot write its picture (four different messages, none with a path), and 2 for a usage error such as a bad date, an unknown flag or a value flag given twice, which prints one line and a hint to `--help`. A window with no data prints an empty grid and exits 0.
+Exit codes are 0 on success, 1 for a failure zapara can name, which prints one line to stderr and never a path: the projects directory missing or unreadable, `status` unable to write its file, `card` unable to write its picture or to find a browser engine, and whatever else goes wrong below the command line; and 2 for a usage error such as a bad date, an unknown flag or a value flag given twice, which prints one line and a hint to `--help`. A window with no data prints an empty grid and exits 0.
 
 ## Status line
 
