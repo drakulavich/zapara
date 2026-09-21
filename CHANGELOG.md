@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
-- Streak norm recalibrated for the presence rule: 40 minutes of your own uninterrupted actions now score the full streak points (was 120, the p90 of the old rule that let agent activity keep a streak alive; the p90 under the new rule is 33 on the first machine).
+- Streak norm recalibrated for the presence rule: 40 minutes of your own uninterrupted actions now score the full streak points (was 120, the p90 of the old rule that let agent activity keep a streak alive; the p90 under the new rule is 33 on one machine and 48 on another, and 40 sits between them).
 - Presence counts every human action, not only prompts: an interrupt, a tool rejection and an answer to a question or a plan hold a streak open and fill active minutes the same way a prompt does. They remain decisions where they already were; nothing is counted twice.
 - An hour's streak is the longest streak seen in it, not the one it happened to end on. A single prompt after a break no longer erases the run the hour held, nor the streak points of that hour's index.
 - The status file's streak is live: it counts from the first action of the streak you are in up to `asOf`, and resets to `0` once you have been away for more than ten minutes. Before, it was the current hour's bucket, so it fell to zero at every hour boundary.
