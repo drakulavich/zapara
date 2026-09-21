@@ -20,17 +20,30 @@ Claude Code writes a JSONL transcript for every session under `~/.claude/project
 # Install Bun if you do not have it (zapara needs 1.4 or newer)
 curl -fsSL https://bun.sh/install | bash
 
-# The last 7 days, straight from the registry
+# Run it once without installing anything: the last 7 days
 bunx @drakulavich/zapara@latest
-
-# Yesterday, hour by hour, with the components behind each index
-bunx @drakulavich/zapara@latest yesterday --explain
-
-# The card
-bunx @drakulavich/zapara@latest card
 ```
 
-To keep it around, `bun add -g @drakulavich/zapara` puts `zapara` on your PATH. There is no build step and no runtime dependency: Bun runs `src/index.ts` from the package as it is.
+To keep it around, install it with Bun:
+
+```bash
+bun add -g @drakulavich/zapara
+```
+
+That puts `zapara` on your PATH, in Bun's global bin directory (`~/.bun/bin`, which Bun's own installer adds to your shell profile — if you got Bun from Homebrew instead, add it yourself). Then:
+
+```bash
+# The last 7 days
+zapara
+
+# Yesterday, hour by hour, with the components behind each index
+zapara yesterday --explain
+
+# The card
+zapara card
+```
+
+Upgrading is the same command: `bun add -g @drakulavich/zapara` pulls the newest version. There is no build step and no runtime dependency — Bun runs `src/index.ts` from the package as it is.
 
 ## What it looks like
 
