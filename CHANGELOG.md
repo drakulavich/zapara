@@ -5,6 +5,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The week grid's `peak` column is painted in a TTY with the color of the level its index falls in, by the same thresholds `zapara status` reads a level from; `--no-color` and a pipe are unchanged.
+
 ## [0.4.0] - 2026-09-21
 
 ### Changed
