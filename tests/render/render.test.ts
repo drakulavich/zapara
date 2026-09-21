@@ -23,16 +23,18 @@ describe("week grid", () => {
     expect(lines[8]).toBe("");
     expect(lines[9]).toBe("  ░ calm   ▒ warming   ▓ heating   █ fried");
     // Hand-computed from the generator's day-by-day schedule (see busy-week.ts):
-    // prompts 202 (Mon) + 67 (Tue) + 12 (Thu) + 55 (Fri) + 12 (Sat) = 348, the
+    // prompts 202 (Mon) + 67 (Tue) + 12 (Thu) + 30 (Fri) + 12 (Sat) = 323, the
     // two extras being the stillThere() prompts that carry a presence streak
     // where a reply used to; reports 0, since busy-week has no inbound
-    // agent-message lines; decisions 75 (Mon storm) + 25 (Fri storm) = 100;
-    // max sessions is the Mon/Fri storm's 5.
+    // agent-message lines; decisions 75 (Mon storm, three full hours) + 11
+    // (Fri's half storm: 10 interrupts and 1 reject, the question at minute 33
+    // and the plan at 44 falling past its minute-30 stop) = 86; max sessions is
+    // the Mon/Fri storm's 5.
     // Active minutes are the slots presence covers, so each run fills the gaps
     // between its prompts: Mon 8h50 (9:00-14:55 unbroken, 20:00-21:50,
-    // 23:00-23:50), Tue 7h55 (10:00-17:53), Thu 1h55, Fri 1h00 (15:01-15:55),
-    // Sat 1h55 = 21h35.
-    expect(lines[10]).toBe("  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once");
+    // 23:00-23:50), Tue 7h55 (10:00-17:53), Thu 1h55, Fri 0h35 (15:01-15:30),
+    // Sat 1h55 = 21h10.
+    expect(lines[10]).toBe("  21h10 active   323 prompts   0 reports   86 decisions   5 sessions at once");
   });
 
   test("Monday reads calm morning, fried storm, quiet evening, late tail", () => {
@@ -54,17 +56,19 @@ describe("week grid", () => {
     expect(row.slice(84)).toMatch(/^\s+\d{1,3}\s+\d+h\d{2}$/);
   });
 
-  test("Friday's warm-up-less storm is Fried on its own hour and does not bleed into the next", () => {
+  test("Friday's warm-up-less half storm is Heating, one band below Monday's, and does not bleed into the next hour", () => {
     const row = lines[5]!;
     const cells = Array.from({ length: 24 }, (_, h) => row[12 + h * 3 + 1]);
-    // 5 sessions, 55 prompts, 25 decisions, 55 000 output tokens, streak 54 min
-    // (prompts 15:01 to 15:55, no calm warm-up before them), not a late hour:
-    // parallel 25 + pace 15 + supervision 30 (3*25 = 75, already past the norm 45)
-    // + reading 10*(55000/80000) = 6.875 + streak 10*clamp(54/40) = 10 + late 0
-    // = 86.875 -> 87, Fried (85-100). Under the 40-minute norm an hour of storm
-    // caps the streak by itself, so Friday reads like Monday's later storm hours
-    // instead of one band below them.
-    expect(cells[15]).toBe("█");
+    // 5 sessions, 30 prompts, 11 decisions, 29 context switches, 30 000 output
+    // tokens, streak 29 min (prompts every minute 15:01 to 15:30, no calm
+    // warm-up before them), not a late hour:
+    // parallel 25 + pace 15 + supervision 30 ((3*11 + 29)/45 = 62/45, past the
+    // norm) + reading 10*(30000/80000) = 3.75 + streak 10*(29/40) = 7.25
+    // + late 0 = 81, Heating (60-84).
+    // Monday's storm hours are the same shape run for a full hour: their streak
+    // is at the 40-minute cap and they read 87, Fried. The half hour is what
+    // keeps the two apart, so this test and Monday's below are one pair.
+    expect(cells[15]).toBe("▓");
     expect(cells[16]).toBe("·");
   });
 
@@ -88,7 +92,7 @@ describe("week grid", () => {
     expect(coloredLines[9]).toMatch(/^\x1b\[2m/);
     expect(coloredLines[9]).toMatch(/\x1b\[0m$/);
     expect(coloredLines[9]).toContain("\x1b[32m░\x1b[0m\x1b[2m");
-    expect(coloredLines[10]).toBe("\x1b[2m  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once\x1b[0m");
+    expect(coloredLines[10]).toBe("\x1b[2m  21h10 active   323 prompts   0 reports   86 decisions   5 sessions at once\x1b[0m");
   });
 
   test("the totals line uses the singular for exactly one", () => {
@@ -118,7 +122,7 @@ describe("week grid", () => {
     expect(hugeLines[10]!.length).toBeLessThanOrEqual(100);
     // Values under 10 000 (busy-week's) are unaffected by the compact format.
     expect(lines[9]).toBe("  ░ calm   ▒ warming   ▓ heating   █ fried");
-    expect(lines[10]).toBe("  21h35 active   348 prompts   0 reports   100 decisions   5 sessions at once");
+    expect(lines[10]).toBe("  21h10 active   323 prompts   0 reports   86 decisions   5 sessions at once");
   });
 });
 
