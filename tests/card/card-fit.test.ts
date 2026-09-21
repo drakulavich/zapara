@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { CardData, Character, Segment } from "../../src/card.ts";
 import { cardHtml } from "../../src/cardhtml.ts";
 import { loadAssets, renderCard } from "../../src/image.ts";
-import { openPage, webviewMissing } from "../helpers/webview.ts";
+import { openPage, WEBVIEW_TEST_TIMEOUT, webviewMissing } from "../helpers/webview.ts";
 
 const assets = await loadAssets();
 const strong = (text: string): Segment => ({ text, strong: true });
@@ -76,7 +76,7 @@ describe("the longest values fit the layout", () => {
       } finally {
         view.close();
       }
-    }, 15_000);
+    }, WEBVIEW_TEST_TIMEOUT);
   }
 });
 
@@ -103,7 +103,7 @@ describe("renderCard", () => {
       expect(png.length).toBeGreaterThan(20_000);
       expect(webp.length).toBeGreaterThan(20_000);
     } finally { await rm(dir, { recursive: true, force: true }); }
-  }, 15_000);
+  }, WEBVIEW_TEST_TIMEOUT);
 
   // No test for the timeout path: on this machine's WebKit backend, both a broken
   // <img> (reports `complete` once it has errored) and a broken @font-face (settles
