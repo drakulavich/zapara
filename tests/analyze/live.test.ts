@@ -32,3 +32,78 @@ describe("live: the sixty minutes ending at asOf", () => {
     expect(noClock.every((d) => d.live === undefined)).toBe(true);
   });
 });
+
+describe("live: the rule's edges", () => {
+  test("a window that coincides with a calendar hour is that hour's bucket, metric for metric", () => {
+    // Events on the hour exactly, so a window bound on the wrong side of it
+    // drops the 11:00:00 prompt or admits the 10:59:59.999 one. Mutation this
+    // pins: `t >= fromMs` (admits 10:59:59.999) or `t < nowMs` (drops nothing
+    // here, but `t <= nowMs` is what lets an event at exactly `now` count, as
+    // derive() promises).
+    const onTheHour = transcript([
+      prompt("2026-09-14T10:59:59.999Z", B),
+      prompt("2026-09-14T11:00:00.000Z", A), assistant("2026-09-14T11:00:30.000Z", A),
+      prompt("2026-09-14T11:30:00.000Z", B), assistant("2026-09-14T11:30:30.000Z", B),
+      prompt("2026-09-14T11:59:00.000Z", A), assistant("2026-09-14T11:59:30.000Z", A),
+      prompt("2026-09-14T12:00:00.000Z", A),
+    ]);
+    const [day] = analyze([onTheHour], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T11:59:59.999Z") });
+    const { hour, ...bucket11 } = day!.buckets[11]!;
+    expect(hour).toBe(11);
+    expect(day!.live).toEqual(bucket11);
+    expect(day!.live!.prompts).toBe(3);
+    expect(day!.live!.contextSwitches).toBe(2);
+  });
+
+  test("a streak that began before the window is measured from where it began", () => {
+    // Prompts every two minutes from 11:20. Window from 11:30. Mutations this
+    // pins: starting the streak at the window's edge (60 and 40); using the
+    // live streak of the status file (70 and 0).
+    const every2 = (untilMin: number) => transcript(Array.from({ length: (untilMin - 80) / 2 + 1 }, (_, i) => {
+      const t = 80 + i * 2; // minutes after 10:00
+      return prompt(`2026-09-14T${mm(10 + Math.floor(t / 60))}:${mm(t % 60)}:00.000Z`, A);
+    }));
+    const now = new Date("2026-09-14T12:30:00.000Z");
+    const toTheEnd = analyze([every2(150)], { to: "2026-09-14", days: 1, now })[0]!;
+    expect(toTheEnd.live!.streakMin).toBe(70);
+    const stopped = analyze([every2(130)], { to: "2026-09-14", days: 1, now })[0]!;
+    expect(stopped.live!.streakMin).toBe(50);
+    expect(stopped.presence!.lastAt).toBe("2026-09-14T12:10:00.000Z"); // 20 minutes ago: the file's own streak is 0
+  });
+
+  test("just past midnight the window reaches into yesterday, and only the live bucket sees it", () => {
+    // Prompts every two minutes 23:30–23:58 on the 13th; now 00:20 on the 14th.
+    // Mutation this pins: skipping events before the day's start in the live
+    // fold, as foldEvents does for buckets.
+    const lateRun = transcript(Array.from({ length: 15 }, (_, i) => prompt(`2026-09-13T23:${30 + i * 2}:00.000Z`, A)));
+    const [day] = analyze([lateRun], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T00:20:00.000Z") });
+    expect([day!.live!.prompts, day!.live!.sessions, day!.live!.activeMin]).toEqual([15, 1, 30]);
+    expect(day!.live!.score).not.toBeNull();
+    expect([day!.buckets[0]!.prompts, day!.totals.prompts, day!.peak]).toEqual([0, 0, null]);
+  });
+
+  test("late night is the clock's, not the window's first hour", () => {
+    // The same activity, 22:30–22:50, read at 22:55 and at 23:05: everything
+    // in the index is equal but the ten late points. Mutation this pins:
+    // taking lateNight from the hour the window starts in.
+    const evening = transcript([
+      prompt("2026-09-14T22:30:00.000Z", A),
+      prompt("2026-09-14T22:40:00.000Z", A),
+      prompt("2026-09-14T22:50:00.000Z", A),
+    ]);
+    const at = (iso: string) => analyze([evening], { to: "2026-09-14", days: 1, now: new Date(iso) })[0]!.live!;
+    const before = at("2026-09-14T22:55:00.000Z"), after = at("2026-09-14T23:05:00.000Z");
+    expect([before.lateNight, after.lateNight]).toEqual([false, true]);
+    expect(after.score!.index - before.score!.index).toBe(10);
+    expect(after.score!.parts).toEqual({ ...before.score!.parts, late: 10 });
+  });
+
+  test("nothing in the window scores null, and the day keeps its own numbers", () => {
+    // Mutation this pins: scoring an empty metrics object.
+    const morning = transcript([prompt("2026-09-14T09:00:00.000Z", A), assistant("2026-09-14T09:01:00.000Z", A)]);
+    const [day] = analyze([morning], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T14:00:00.000Z") });
+    expect(day!.live!.score).toBeNull();
+    expect([day!.live!.sessions, day!.live!.prompts, day!.live!.activeMin, day!.live!.streakMin]).toEqual([0, 0, 0, 0]);
+    expect(day!.peak).not.toBeNull();
+  });
+});
