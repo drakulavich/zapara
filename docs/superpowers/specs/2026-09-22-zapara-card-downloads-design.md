@@ -46,16 +46,21 @@ What it prints:
 Offering to open it:
 
 - After the file is written, and only when both stdin and stdout are
-  terminals, zapara writes `open it? [Y/n] ` to stdout (no newline) and reads
+  terminals and the platform is not Windows, zapara writes `open it? [Y/n] ` to stdout (no newline) and reads
   one line from stdin.
 - An empty line, `y` or `yes` (any case, surrounding whitespace ignored)
-  opens the file: `open <file>` on macOS, `xdg-open <file>` elsewhere, started
-  in the background through `sh -c '"$0" "$@" >/dev/null 2>&1 &'` and not
+  opens the file: `open <file>` on macOS, `xdg-open <file>` elsewhere, where
+  `<file>` is the written path made absolute (`resolve()`), so an `--out`
+  such as `-card.html` reaches the opener as a file and never as an option.
+  The opener is started in the background through `sh -c '"$0" "$@" >/dev/null 2>&1 &'` and not
   waited for. zapara exits 0 whether or not the opener exists or succeeds:
   the card is written, which is what the command promised.
 - Any other answer, or end of input, exits 0 without opening.
 - When stdin or stdout is not a terminal (a pipe, a script, CI, the test
   suite) there is no question, no read from stdin and nothing is opened.
+- Windows gets no question: it has no `sh` to start the opener through and
+  CI does not run there, so an opener there would be code nobody ran. The
+  card is written and the run ends as in a pipe.
 - It applies to every format: `--out card.html` opens the page in the
   default browser.
 - `--json` writes no file, so it asks nothing.
@@ -91,8 +96,8 @@ network request is made and nothing is printed.
 
 ## Testing
 
-In `tests/shell/card-cli.test.ts`, with `HOME` set to a temporary directory
-and the child's stdin and stdout pipes:
+In `tests/shell/card-cli.test.ts`, with `HOME` set to a temporary directory.
+Without a terminal (the child's stdin and stdout pipes):
 
 - the default card lands in `$HOME/Downloads/zapara-card.png`, and the
   current directory stays empty;
@@ -101,6 +106,18 @@ and the child's stdin and stdout pipes:
 - in a pipe there is no `open it?` on stdout and the run finishes with stdin
   held open, so it never waits for an answer.
 
-Each must fail under a one-line mutation of what it pins. The question
-branch needs a pseudo-terminal, which Bun does not provide; it is checked by
-hand before the PR is marked ready, and the PR says so.
+In a terminal: the child runs in a pseudo-terminal through `Bun.spawn`'s
+`terminal` option, with a directory first on `PATH` that holds fake `open`
+and `xdg-open` scripts appending their arguments to a log file. No test seam
+is added to shipped code.
+
+- an empty answer and `y` each open the card once, with its absolute path;
+- `n` and end of input (^D) print the question, exit 0 and open nothing;
+- `--out=-card.html` answered with `y` opens the absolute path of
+  `-card.html`, never the bare `-card.html`.
+
+Opening happens in the background, so a test waits for a logged line (up to
+2 s: macOS checks a freshly written executable for about 400 ms before it
+runs) and a test expecting no open waits for the child to exit and then
+checks the log stays empty. Each test must fail under a one-line mutation of
+what it pins.
