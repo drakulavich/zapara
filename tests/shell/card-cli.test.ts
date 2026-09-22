@@ -117,6 +117,7 @@ describe("zapara card", () => {
     const j = await run("card", "--to", "2026-09-20", "--json");
     expect(j.code).toBe(0);
     expect(JSON.parse(j.out).name).toBe("The Marathoner");
+    expect(await readdir(home)).not.toContain("Downloads"); // never created
   });
 
   test("an empty window exits 1 with one line and writes nothing", async () => {

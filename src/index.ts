@@ -35,7 +35,8 @@ window:
 
 options:
   --explain         with a day: the six weighted parts behind each index
-  --out <path>      with card: .png, .webp or .html (default: in ~/Downloads)
+  --out <path>      with card: .png, .webp or .html
+                    (default ~/Downloads/zapara-card.png)
   --json            the same data as JSON; a pipe gets JSON without asking
   --projects <dir>  read this directory instead of ~/.claude/projects
   --no-color        no ANSI colors; NO_COLOR does the same
