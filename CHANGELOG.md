@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-23
+
 ### Added
 - In a terminal, `zapara card` asks `open it? [Y/n]` and opens the picture in
   the default viewer on Enter. Pipes, scripts and Windows are never asked.
