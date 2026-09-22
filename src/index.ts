@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 // Argument parsing, the clock, stdout and exit codes live here; everything else is pure.
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { cardData, sentenceText } from "./card.ts";
 import { cardHtml } from "./cardhtml.ts";
 import { localDate } from "./derive.ts";
-import { loadAssets, renderCard } from "./image.ts";
+import { loadAssets, openCard, renderCard } from "./image.ts";
 import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
 import { renderStatus, statusOf } from "./status.ts";
@@ -35,7 +35,8 @@ window:
 
 options:
   --explain         with a day: the six weighted parts behind each index
-  --out <path>      with card: .png, .webp or .html (default zapara-card.png)
+  --out <path>      with card: .png, .webp or .html
+                    (default ~/Downloads/zapara-card.png)
   --json            the same data as JSON; a pipe gets JSON without asking
   --projects <dir>  read this directory instead of ~/.claude/projects
   --no-color        no ANSI colors; NO_COLOR does the same
@@ -44,7 +45,7 @@ options:
 levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
 const HINT = "run 'zapara --help' for usage";
 
-type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
+type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string | null; projects: string; color: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position, never for a token consumed as another flag's
@@ -95,12 +96,11 @@ function windowOf(days: string | null, from: string | null, to: string | null, d
 }
 
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: "zapara-card.png", projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: null, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
   let days: string | null = null;
   let from: string | null = null;
   let to: string | null = null;
   let jsonFlag = false;
-  let outGiven = false;
   const positional: string[] = [];
   // A value flag given twice is a usage error; bare flags are idempotent and untracked.
   const seen = new Set<string>();
@@ -136,7 +136,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
       case "--from": from = value(); break;
       case "--to": to = value(); break;
       case "--days": days = value(true); break;
-      case "--out": a.out = value(); outGiven = true; break;
+      case "--out": a.out = value(); break;
       default:
         if (arg.startsWith("-")) throw new UsageError(`unknown flag${named(arg)}`);
         positional.push(arg);
@@ -158,10 +158,12 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   // The card is a file either way, so only an explicit --json switches it.
   a.json = a.command === "card" ? jsonFlag : jsonFlag || !isTTY;
   if (a.command !== "day" && a.explain) throw new UsageError("--explain applies to a named day only");
-  if (a.command !== "card" && outGiven) throw new UsageError("--out applies to card only");
-  // Printed back verbatim in `wrote \u2026`, so it must be one plain line.
-  if (/[\x00-\x1f\x7f]/.test(a.out)) throw new UsageError("--out must not contain control characters");
-  if (!/\.(png|webp|html)$/i.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
+  if (a.command !== "card" && a.out !== null) throw new UsageError("--out applies to card only");
+  if (a.out !== null) {
+    // Printed back verbatim in `wrote \u2026`, so it must be one plain line.
+    if (/[\x00-\x1f\x7f]/.test(a.out)) throw new UsageError("--out must not contain control characters");
+    if (!/\.(png|webp|html)$/i.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
+  }
   return a;
 }
 
@@ -188,6 +190,16 @@ async function status(a: Args, now: Date): Promise<number> {
   return 0;
 }
 
+// The label names the folder, not the path: the CLI never prints a derived path.
+function cardTarget(out: string | null): { path: string; label: string } {
+  if (out !== null) return { path: out, label: out };
+  const dir = join(homedir(), "Downloads");
+  let isDir = false;
+  try { isDir = statSync(dir).isDirectory(); } catch {}
+  if (!isDir) throw new Error("no Downloads folder: pass --out <path>");
+  return { path: join(dir, "zapara-card.png"), label: "zapara-card.png to Downloads" };
+}
+
 async function card(a: Args): Promise<number> {
   const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days });
   const data = cardData(days, { days: a.days });
@@ -203,8 +215,15 @@ async function card(a: Args): Promise<number> {
     console.log(JSON.stringify(json, null, 2));
     return 0;
   }
-  await renderCard(cardHtml(data, await loadAssets()), a.out);
-  console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${a.out}`);
+  const target = cardTarget(a.out);
+  await renderCard(cardHtml(data, await loadAssets()), target.path);
+  console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${target.label}`);
+  if (process.stdin.isTTY && process.stdout.isTTY && process.platform !== "win32") {
+    process.stdout.write("open it? [Y/n] ");
+    let answer: string | null = null;
+    for await (const line of console) { answer = line; break; }
+    if (answer !== null && /^(y|yes)?$/i.test(answer.trim())) openCard(target.path);
+  }
   return 0;
 }
 

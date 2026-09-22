@@ -1,6 +1,7 @@
 // The only module that reads the card assets, opens a Bun.WebView or Bun.Image,
-// and writes the card.
+// writes the card, and starts another program: the opener that shows it.
 import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { CardAssets } from "./cardhtml.ts";
 
 const ASSETS = new URL("../assets/", import.meta.url);
@@ -71,4 +72,13 @@ async function write(out: string, data: string | Uint8Array): Promise<void> {
   } catch {
     throw new Error(WRITE_LINE);
   }
+}
+
+// Absolute, so `-card.html` is never an option. `sh … &` with SIGHUP ignored:
+// a detached Bun.spawn child, or one in a terminal zapara leads, dies with zapara.
+export function openCard(path: string): void {
+  const opener = process.platform === "darwin" ? "open" : "xdg-open";
+  try {
+    Bun.spawnSync(["sh", "-c", 'trap "" HUP; "$0" "$@" </dev/null >/dev/null 2>&1 &', opener, resolve(path)], { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
+  } catch {}
 }

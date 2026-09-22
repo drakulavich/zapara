@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cardData } from "../../src/card.ts";
@@ -11,15 +11,83 @@ import { WEBVIEW_TEST_TIMEOUT, webviewMissing } from "../helpers/webview.ts";
 const CLI = join(import.meta.dir, "../../src/index.ts");
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
 let cwd: string;
-beforeEach(async () => { cwd = await mkdtemp(join(tmpdir(), "zapara-card-")); });
-afterEach(() => rm(cwd, { recursive: true, force: true }));
+let home: string;
+beforeEach(async () => {
+  cwd = await mkdtemp(join(tmpdir(), "zapara-card-"));
+  home = await mkdtemp(join(tmpdir(), "zapara-home-"));
+  await mkdir(join(home, "Downloads"));
+});
+afterEach(async () => {
+  await rm(cwd, { recursive: true, force: true });
+  await rm(home, { recursive: true, force: true });
+});
 
 async function run(...args: string[]): Promise<{ code: number; out: string; err: string }> {
-  const p = Bun.spawn(["bun", CLI, "--projects", projects, ...args], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+  const p = Bun.spawn(["bun", CLI, "--projects", projects, ...args], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   return { code, out, err };
 }
 const files = () => readdir(cwd);
+const downloads = () => readdir(join(home, "Downloads"));
+
+// Warmed once: macOS checks a fresh executable for ~400 ms before running it.
+let bin: string;
+let log: string;
+beforeAll(async () => {
+  bin = await mkdtemp(join(tmpdir(), "zapara-bin-"));
+  log = join(bin, "opened.log");
+  for (const name of ["open", "xdg-open"]) {
+    await writeFile(join(bin, name), '#!/bin/sh\nprintf \'%s\\n\' "$@" >> "$ZAPARA_TEST_LOG"\n', { mode: 0o755 });
+  }
+  Bun.spawnSync([join(bin, "open"), "warm"], { env: { ...process.env, ZAPARA_TEST_LOG: log } });
+});
+afterAll(() => rm(bin, { recursive: true, force: true }));
+beforeEach(() => rm(log, { force: true }));
+
+const opened = async (): Promise<string[]> => {
+  const text = await Bun.file(log).text().catch(() => "");
+  return text.split("\n").filter(Boolean);
+};
+async function openedWithin(ms: number): Promise<string[]> {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    const lines = await opened();
+    if (lines.length > 0) return lines;
+    await Bun.sleep(25);
+  }
+  return opened();
+}
+
+// A run that exits without asking returns at once: a missing question fails an assertion.
+async function runInTerminal(answer: string, ...args: string[]): Promise<{ code: number; out: string }> {
+  let out = "";
+  const decoder = new TextDecoder();
+  const p = Bun.spawn(["bun", CLI, "--projects", projects, ...args], {
+    cwd,
+    env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
+    terminal: { cols: 200, rows: 24, data(_t, d) { out += decoder.decode(d); } },
+  });
+  while (!out.includes("open it? [Y/n] ") && p.exitCode === null) await Bun.sleep(20);
+  if (p.exitCode === null) p.terminal!.write(answer);
+  const code = await p.exited;
+  p.terminal!.close();
+  return { code, out };
+}
+
+// The script points one stream away from the terminal; a run still waiting after 5 s is killed (code null).
+async function runHalfTerminal(script: string, ...args: string[]): Promise<{ code: number | null; out: string }> {
+  let out = "";
+  const decoder = new TextDecoder();
+  const p = Bun.spawn(["sh", "-c", script, CLI, "--projects", projects, ...args], {
+    cwd,
+    env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
+    terminal: { cols: 200, rows: 24, data(_t, d) { out += decoder.decode(d); } },
+  });
+  const code = await Promise.race([p.exited, Bun.sleep(5000).then(() => null)]);
+  if (code === null) { p.kill(); await p.exited; }
+  p.terminal!.close();
+  return { code, out };
+}
 
 describe("zapara card", () => {
   test("--out x.html writes exactly the cardHtml string and prints the two lines", async () => {
@@ -71,17 +139,45 @@ describe("zapara card", () => {
     expect(await files()).toEqual(["p.html"]);
   });
 
-  test("the default output is zapara-card.png in the current directory", async () => {
-    // Only the argument handling is pinned here; rendering is the test below.
-    const r = await run("card", "--to", "2026-09-20", "--out", "zapara-card.html");
-    expect(r.out).toContain("wrote zapara-card.html");
-    if (webviewMissing === null) {
-      const p = await run("card", "--to", "2026-09-20");
-      expect(p.code).toBe(0);
-      expect(p.out).toContain("wrote zapara-card.png");
-      expect(await files()).toContain("zapara-card.png");
-    }
+  test.skipIf(webviewMissing !== null)("without --out the card goes to Downloads and the line names the folder, not its path", async () => {
+    const r = await run("card", "--to", "2026-09-20");
+    expect(r.code).toBe(0);
+    expect(r.out).toBe("The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.\nwrote zapara-card.png to Downloads\n");
+    expect(await downloads()).toEqual(["zapara-card.png"]);
+    expect(await files()).toEqual([]);
+    const bytes = await readFile(join(home, "Downloads", "zapara-card.png"));
+    expect(await new Bun.Image(bytes).metadata()).toMatchObject({ width: 2400, height: 1260, format: "png" });
   }, WEBVIEW_TEST_TIMEOUT);
+
+  test("without a Downloads folder the default exits 1 with one line that names no path, and writes nothing", async () => {
+    await rm(join(home, "Downloads"), { recursive: true });
+    const r = await run("card", "--to", "2026-09-20");
+    expect(r.code).toBe(1);
+    expect(r.out).toBe("");
+    expect(r.err).toBe("zapara: no Downloads folder: pass --out <path>\n");
+    expect(await files()).toEqual([]);
+    expect(await readdir(home)).not.toContain("Downloads"); // never created
+  });
+
+  test("a file named Downloads is not a Downloads folder", async () => {
+    await rm(join(home, "Downloads"), { recursive: true });
+    await Bun.write(join(home, "Downloads"), "");
+    const r = await run("card", "--to", "2026-09-20");
+    expect(r.code).toBe(1);
+    expect(r.err).toBe("zapara: no Downloads folder: pass --out <path>\n");
+  });
+
+  test("--out and --json need no Downloads folder", async () => {
+    await rm(join(home, "Downloads"), { recursive: true });
+    const o = await run("card", "--to", "2026-09-20", "--out", "c.html");
+    expect(o.code).toBe(0);
+    expect(o.out.endsWith("wrote c.html\n")).toBe(true);
+    expect(await files()).toEqual(["c.html"]);
+    const j = await run("card", "--to", "2026-09-20", "--json");
+    expect(j.code).toBe(0);
+    expect(JSON.parse(j.out).name).toBe("The Marathoner");
+    expect(await readdir(home)).not.toContain("Downloads"); // never created
+  });
 
   test("an empty window exits 1 with one line and writes nothing", async () => {
     const r = await run("card", "--to", "2026-08-20", "--days", "3", "--out", "x.html");
@@ -172,4 +268,67 @@ describe("zapara card", () => {
       expect(await new Bun.Image(bytes).metadata()).toMatchObject({ width: 2400, height: 1260, format });
     }
   }, WEBVIEW_TEST_TIMEOUT);
+
+  test("in a terminal, Enter and y open the card by its absolute path", async () => {
+    for (const answer of ["\r", "y\r", " YES \r"]) {
+      await rm(log, { force: true });
+      const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("wrote c.html\r\nopen it? [Y/n] ");
+      const lines = await openedWithin(2000);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]!.startsWith("/")).toBe(true);
+      expect(await realpath(lines[0]!)).toBe(await realpath(join(cwd, "c.html")));
+    }
+  }, 20_000);
+
+  test("an --out that starts with a dash reaches the opener as a file, not an option", async () => {
+    const r = await runInTerminal("y\r", "card", "--to", "2026-09-20", "--out=-card.html");
+    expect(r.code).toBe(0);
+    const lines = await openedWithin(2000);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.startsWith("/")).toBe(true);
+    expect(lines[0]!.endsWith("/-card.html")).toBe(true);
+  }, 10_000);
+
+  test("in a terminal, n and end of input exit 0 and open nothing", async () => {
+    for (const answer of ["n\r", "\x04"]) {
+      const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("open it? [Y/n] ");
+      expect(await files()).toEqual(["c.html"]);
+    }
+    expect(await openedWithin(2000)).toEqual([]);
+  }, 20_000);
+
+  test("in a pipe there is no question and no read from stdin", async () => {
+    // stdin stays open: a run that asked would hang.
+    const p = Bun.spawn(["bun", CLI, "--projects", projects, "card", "--to", "2026-09-20", "--out", "c.html"], {
+      cwd, stdin: "pipe", stdout: "pipe", stderr: "pipe",
+      env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
+    });
+    const [out, code] = await Promise.all([new Response(p.stdout).text(), p.exited]);
+    expect(code).toBe(0);
+    expect(out.endsWith("wrote c.html\n")).toBe(true);
+    expect(out).not.toContain("open it?");
+    expect(await openedWithin(1000)).toEqual([]);
+  }, 10_000);
+
+  test("with stdin a terminal but stdout a file there is no question and no read", async () => {
+    const r = await runHalfTerminal('exec bun "$0" "$@" > out.txt', "card", "--to", "2026-09-20", "--out", "c.html");
+    expect(r.code).toBe(0);
+    const out = await readFile(join(cwd, "out.txt"), "utf8");
+    expect(out.endsWith("wrote c.html\n")).toBe(true);
+    expect(out).not.toContain("open it?");
+    expect(await openedWithin(1000)).toEqual([]);
+  }, 10_000);
+
+  test("with stdout a terminal but stdin a pipe there is no question and no read", async () => {
+    // A run that asked would read this "y" and open the card.
+    const r = await runHalfTerminal('printf "y\\n" | exec bun "$0" "$@"', "card", "--to", "2026-09-20", "--out", "c.html");
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("wrote c.html\r\n");
+    expect(r.out).not.toContain("open it?");
+    expect(await openedWithin(1000)).toEqual([]);
+  }, 10_000);
 });

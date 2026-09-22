@@ -20,7 +20,8 @@ when a test or CI step comes to catch it.
 - **Functional core, imperative shell.** `src/index.ts`, `src/report.ts`,
   `src/scan.ts`, `src/image.ts` and `src/statusfile.ts` are the only files that
   touch argv, stdout, the file system or the clock; `src/image.ts` is the only
-  one that may use `Bun.WebView` or `Bun.Image` or read the card assets, and
+  one that may use `Bun.WebView` or `Bun.Image` or read the card assets, or
+  start another program (the opener that shows the card), and
   `src/image.ts` (the card) and `src/statusfile.ts` (the status file) are the
   only ones that may write a file. Everything else is pure functions over plain
   data: `analyze()` takes transcript text already in memory and a window with
