@@ -262,11 +262,11 @@ Tests are fixture-driven: they build or load transcripts in the real Claude Code
 
 The question comes from Addy Osmani's [Your parallel Agent limit](https://addyosmani.com/blog/cognitive-parallel-agents/). More agents running does not make more of you available, because "your cognitive bandwidth doesn't parallelize", and the cost of the ones you are not looking at is what he calls the ambient anxiety tax: "the part of your mind that can't fully relax because it knows something might be silently going sideways in a thread you haven't checked in twenty minutes." His own ceiling is "somewhere around three to four threads depending on complexity", and his advice is to start with one thread less than feels right.
 
-The index was calibrated before I read that. `NORMS.parallelSpan` in [src/score.ts](src/score.ts) is 4, from the 90th percentile of two weeks on two machines, which spends all 25 points for parallel work at the fifth session running at once. Two numbers reached separately, landing in the same place.
+The index was calibrated before I read that, from the 90th percentile of two weeks on two machines, and it arrived at the same number: `NORMS.parallelSpan` in [src/score.ts](src/score.ts) is 4, so the fifth session running at once spends all 25 points for parallel work.
 
-Where the post and this tool disagree is worth saying out loud. Osmani's signal is the quality of your own review: you have passed your ceiling when your confidence in what you are accepting starts dropping. A transcript cannot see that. It can see how much model output went past you, which is the `out-tok` column and ten of the hundred points, and it can see the shape of the hour around it. So the index is a proxy with a known blind spot, and the number is worth something only next to your memory of the hour it scores.
+The post and this tool disagree about what to watch. Osmani's signal is the quality of your own review: you have passed your ceiling when your confidence in what you are accepting starts dropping. A transcript cannot see that. It can see how much model output went past you, which is the `out-tok` column and ten of the hundred points, and it can see the shape of the hour around it. The index is a proxy with a known blind spot, and the number is worth something only next to your memory of the hour it scores.
 
-Most of the advice in this area stops at fewer threads, smaller scope and take a break, with few numbers you can hold yourself to. An hour with a score is something to argue with.
+Most of the advice in this area stops at fewer threads, smaller scope and take a break, with few numbers you can hold yourself to. An hour with a score on it is at least something you can disagree with.
 
 The repository layout follows [pult](https://github.com/drakulavich/pult) and oura-cli, and pult is the status line the `zapara status` file was shaped for.
 
