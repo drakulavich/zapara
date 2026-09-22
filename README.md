@@ -260,9 +260,13 @@ Tests are fixture-driven: they build or load transcripts in the real Claude Code
 
 ## Where it comes from
 
-The question comes from Addy Osmani's [Your parallel Agent limit](https://addyosmani.com/blog/cognitive-parallel-agents/): agents multiply throughput, you stay the one who has to evaluate what they produce, and the cost of that shows up as what he calls the ambient anxiety tax — "the part of your mind that can't fully relax because it knows something might be silently going sideways in a thread you haven't checked in twenty minutes." He puts the sustainable ceiling at three or four focused threads and describes the signals that say you have passed it: your confidence in what you are accepting starts dropping, and the worry shows up in more than one thread at a time.
+The question comes from Addy Osmani's [Your parallel Agent limit](https://addyosmani.com/blog/cognitive-parallel-agents/). More agents running does not make more of you available, because "your cognitive bandwidth doesn't parallelize", and the cost of the ones you are not looking at is what he calls the ambient anxiety tax: "the part of your mind that can't fully relax because it knows something might be silently going sideways in a thread you haven't checked in twenty minutes." His own ceiling is "somewhere around three to four threads depending on complexity", and his advice is to start with one thread less than feels right.
 
-Those signals are felt, and by the time you notice one the hour is over. zapara measures what the transcripts can see of the same thing — sessions at once, prompt pace, how much agent output went past you, how long you went without a break — and gives the hour a number you can check against your memory of it.
+The index was calibrated before I read that. `NORMS.parallelSpan` in [src/score.ts](src/score.ts) is 4, from the 90th percentile of two weeks on two machines, which spends all 25 points for parallel work at the fifth session running at once. Two numbers reached separately, landing in the same place.
+
+Where the post and this tool disagree is worth saying out loud. Osmani's signal is the quality of your own review: you have passed your ceiling when your confidence in what you are accepting starts dropping. A transcript cannot see that. It can see how much model output went past you, which is the `out-tok` column and ten of the hundred points, and it can see the shape of the hour around it. So the index is a proxy with a known blind spot, and the number is worth something only next to your memory of the hour it scores.
+
+Most of the advice in this area stops at fewer threads, smaller scope and take a break, with few numbers you can hold yourself to. An hour with a score is something to argue with.
 
 The repository layout follows [pult](https://github.com/drakulavich/pult) and oura-cli, and pult is the status line the `zapara status` file was shaped for.
 
