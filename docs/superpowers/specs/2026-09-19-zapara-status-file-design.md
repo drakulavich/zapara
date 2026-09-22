@@ -5,8 +5,8 @@ that spec says.
 
 ## Purpose
 
-A status line wants one number from zapara, the load of the hour that is
-running now, and it wants it in a few milliseconds, every thirty seconds,
+A status line wants one number from zapara, the load of the last hour, and
+it wants it in a few milliseconds, every thirty seconds,
 without reading a single transcript. zapara takes about half a second to
 compute a day, which is too slow for a status line and far too slow for one
 that Claude Code kills and restarts on every event. So zapara writes the
@@ -75,14 +75,15 @@ Content: exactly one line of JSON, no trailing spaces, a newline at the end.
 | `asOf` | When the snapshot was taken, ISO 8601 UTC: the `Day.asOf` of the base spec, the `now` of this run. A reader decides staleness from this field, never from the file's mtime. |
 | `date` | The local calendar day the numbers describe, `YYYY-MM-DD`. |
 | `hour` | The local hour that contains `asOf`, `0`..`23`. |
-| `index` | That hour's load index, `0`..`100`, or `null` when the hour has no activity yet. |
-| `level` | That hour's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colours by this field so it never needs the thresholds. |
+| `index` | The load index of the sixty minutes ending at `asOf`, `0`..`100`, or `null` when they hold no session. |
+| `level` | That index's level, `Calm`, `Warming`, `Heating` or `Fried`, or `null` with `index`. A reader colours by this field so it never needs the thresholds. |
 | `peak` | The day's peak index so far, or `null` on a day with no activity. |
 | `activeMin` | Minutes of your presence in the day so far: the 5-minute slots covered by your actions and the gaps of at most 10 minutes between them; `0` on a day with no action of yours. |
 | `streakMin` | Minutes of your live presence streak as of `asOf`: from the streak's first human action to `asOf`, when your last action is no more than 10 minutes before `asOf`; `0` once you have been away longer. Not the hour's bucket. |
 
-`hour`, `index` and `level` describe the bucket of the current hour; `peak`
-and `activeMin` describe the day; `streakMin` describes now, and is the one
+`hour` is the clock; `index` and `level` describe the sixty minutes ending at
+`asOf` (the day's `live` bucket, see `2026-09-22-zapara-live-index-design.md`);
+`peak` and `activeMin` describe the day; `streakMin` describes now, and is the one
 field that keeps growing while you sit there. It is computed from the day's
 `presence` (`lastAt`, `streakStartAt`) against `asOf`, so it does not reset at
 an hour boundary and does not wait for your next action to grow. On a day with no activity the
@@ -138,7 +139,7 @@ source.
   of 25 hours. Anything else, and a missing or
   unreadable file, is treated as no data: the segment is not drawn, and the
   file counts as stale.
-- Draw the current hour's `index`, coloured by `level`; `null` draws nothing.
+- Draw `index`, the last sixty minutes' load, coloured by `level`; `null` draws nothing.
   Whatever else the reader shows (`peak`, `activeMin` as hours and minutes)
   comes from the same file.
 - Staleness is `now - asOf`, or no data at all. When the file is stale, the
@@ -168,10 +169,11 @@ source.
   temporary file, `rename`, and the modes. It exports one function,
   `writeStatus(line: string): Promise<void>`.
 - `src/status.ts` is core: `statusOf(day: Day, now: Date): Status` builds
-  the object from the `Day` that `report()` returned, using `now` only for
-  `hour`; `renderStatus(s: Status): string` is `JSON.stringify` in the field
-  order above plus the newline. Neither touches the clock or the file
-  system. `Status` is the type of the table above.
+  the object from the `Day` that `report()` returned, using `now` for `hour`
+  and reading `index` and `level` from the day's `live` bucket rather than
+  from the hour's own bucket; `renderStatus(s: Status): string` is
+  `JSON.stringify` in the field order above plus the newline. Neither touches
+  the clock or the file system. `Status` is the type of the table above.
 - `src/index.ts`: `status` is a fourth command beside `grid`, `day` and
   `card`; it takes the day path's window (`to = localDate(now)`, `days = 1`),
   calls `report()`, then `statusOf`, `renderStatus`, `writeStatus`, and prints
