@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cardData } from "../../src/card.ts";
@@ -29,6 +29,55 @@ async function run(...args: string[]): Promise<{ code: number; out: string; err:
 }
 const files = () => readdir(cwd);
 const downloads = () => readdir(join(home, "Downloads"));
+
+// Fake `open` and `xdg-open`, first on PATH, append each argument to the log
+// as its own line. One pair for the whole file, run once up front: macOS
+// checks a freshly written executable for about 400 ms before it runs.
+let bin: string;
+let log: string;
+beforeAll(async () => {
+  bin = await mkdtemp(join(tmpdir(), "zapara-bin-"));
+  log = join(bin, "opened.log");
+  for (const name of ["open", "xdg-open"]) {
+    await writeFile(join(bin, name), '#!/bin/sh\nprintf \'%s\\n\' "$@" >> "$ZAPARA_TEST_LOG"\n', { mode: 0o755 });
+  }
+  Bun.spawnSync([join(bin, "open"), "warm"], { env: { ...process.env, ZAPARA_TEST_LOG: log } });
+});
+afterAll(() => rm(bin, { recursive: true, force: true }));
+beforeEach(() => rm(log, { force: true }));
+
+const opened = async (): Promise<string[]> => {
+  const text = await Bun.file(log).text().catch(() => "");
+  return text.split("\n").filter(Boolean);
+};
+// The opener runs in the background, so a line may land after zapara exits.
+async function openedWithin(ms: number): Promise<string[]> {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    const lines = await opened();
+    if (lines.length > 0) return lines;
+    await Bun.sleep(25);
+  }
+  return opened();
+}
+
+// Runs the CLI in a pseudo-terminal, so stdin and stdout are both TTYs, and
+// types `answer` once the question appears. A run that exits without asking
+// returns at once, so a missing question fails the assertion, not the timeout.
+async function runInTerminal(answer: string, ...args: string[]): Promise<{ code: number; out: string }> {
+  let out = "";
+  const decoder = new TextDecoder();
+  const p = Bun.spawn(["bun", CLI, "--projects", projects, ...args], {
+    cwd,
+    env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
+    terminal: { cols: 200, rows: 24, data(_t, d) { out += decoder.decode(d); } },
+  });
+  while (!out.includes("open it? [Y/n] ") && p.exitCode === null) await Bun.sleep(20);
+  if (p.exitCode === null) p.terminal!.write(answer);
+  const code = await p.exited;
+  p.terminal!.close();
+  return { code, out };
+}
 
 describe("zapara card", () => {
   test("--out x.html writes exactly the cardHtml string and prints the two lines", async () => {
@@ -209,4 +258,50 @@ describe("zapara card", () => {
       expect(await new Bun.Image(bytes).metadata()).toMatchObject({ width: 2400, height: 1260, format });
     }
   }, WEBVIEW_TEST_TIMEOUT);
+
+  test("in a terminal, Enter and y open the card by its absolute path", async () => {
+    for (const answer of ["\r", "y\r", " YES \r"]) {
+      await rm(log, { force: true });
+      const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("wrote c.html\r\nopen it? [Y/n] ");
+      const lines = await openedWithin(2000);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]!.startsWith("/")).toBe(true);
+      expect(await realpath(lines[0]!)).toBe(await realpath(join(cwd, "c.html")));
+    }
+  }, 20_000);
+
+  test("an --out that starts with a dash reaches the opener as a file, not an option", async () => {
+    const r = await runInTerminal("y\r", "card", "--to", "2026-09-20", "--out=-card.html");
+    expect(r.code).toBe(0);
+    const lines = await openedWithin(2000);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.startsWith("/")).toBe(true);
+    expect(lines[0]!.endsWith("/-card.html")).toBe(true);
+  }, 10_000);
+
+  test("in a terminal, n and end of input exit 0 and open nothing", async () => {
+    for (const answer of ["n\r", "\x04"]) {
+      const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("open it? [Y/n] ");
+      expect(await files()).toEqual(["c.html"]);
+    }
+    // A wrongly started opener logs in the background; give it the time a real one gets.
+    expect(await openedWithin(2000)).toEqual([]);
+  }, 20_000);
+
+  test("in a pipe there is no question and no read from stdin", async () => {
+    // stdin is a pipe held open: a run that waited for an answer would hang here.
+    const p = Bun.spawn(["bun", CLI, "--projects", projects, "card", "--to", "2026-09-20", "--out", "c.html"], {
+      cwd, stdin: "pipe", stdout: "pipe", stderr: "pipe",
+      env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
+    });
+    const [out, code] = await Promise.all([new Response(p.stdout).text(), p.exited]);
+    expect(code).toBe(0);
+    expect(out.endsWith("wrote c.html\n")).toBe(true);
+    expect(out).not.toContain("open it?");
+    expect(await openedWithin(1000)).toEqual([]);
+  }, 10_000);
 });

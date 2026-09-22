@@ -100,15 +100,12 @@ zapara card                    # writes zapara-card.png to ~/Downloads
 zapara card --out card.webp    # WebP instead; --out card.html writes the page itself
 ```
 
-On macOS, one more command puts the picture on the clipboard, ready to paste into a chat:
-
-```bash
-zapara card && osascript -e 'set the clipboard to (read (POSIX file "zapara-card.png") as «class PNGf»)'
-```
+In a terminal it then asks `open it? [Y/n]`: Enter opens the picture in the default viewer, where ⌘C copies it for a chat. A pipe or a script is never asked.
 
 ```
 The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.
 wrote zapara-card.png to Downloads
+open it? [Y/n]
 ```
 
 <p align="center"><img src="https://raw.githubusercontent.com/drakulavich/zapara/main/assets/card.webp" alt="zapara card: The Marathoner, longest streak 7h53m, 68% of hours calm" width="800"></p>
@@ -141,7 +138,7 @@ This one comes from the same `busy-week` fixture as the pictures above. A headle
 
 Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
-The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` write their file and print their lines whether piped or not. `card --json` is the exception: it prints the card's data and writes no file. `--json` changes nothing for `status`, whose line is already JSON and whose file is written either way.
+The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` write their file and print their lines whether piped or not. `card` asks to open the picture only when stdin and stdout are both a terminal, and never on Windows. `card --json` is the exception: it prints the card's data and writes no file. `--json` changes nothing for `status`, whose line is already JSON and whose file is written either way.
 
 A run that works exits 0, and so does a window with no data, which prints an empty grid. Exit 1 is a failure zapara can name, printed as one line to stderr that never contains a path: the projects directory missing or unreadable, `status` unable to write its file, `card` unable to write its picture or to find a browser engine, `card` without `--out` on a machine with no `~/Downloads` folder, and whatever else goes wrong below the command line. Exit 2 is a usage error, such as a bad date, an unknown flag or a value flag given twice; it prints one line and a hint to `--help`.
 

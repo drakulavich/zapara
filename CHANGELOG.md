@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- In a terminal, `zapara card` asks `open it? [Y/n]` and opens the picture in
+  the default viewer on Enter. Pipes, scripts and Windows are never asked.
+
 ### Changed
 - `zapara card` writes to `~/Downloads/zapara-card.png` instead of the current
   directory, and says `wrote zapara-card.png to Downloads`. Without that

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { cardData, sentenceText } from "./card.ts";
 import { cardHtml } from "./cardhtml.ts";
 import { localDate } from "./derive.ts";
-import { loadAssets, renderCard } from "./image.ts";
+import { loadAssets, openCard, renderCard } from "./image.ts";
 import { renderDay, renderJson, renderWeek } from "./render.ts";
 import { report } from "./report.ts";
 import { renderStatus, statusOf } from "./status.ts";
@@ -219,6 +219,13 @@ async function card(a: Args): Promise<number> {
   const target = cardTarget(a.out);
   await renderCard(cardHtml(data, await loadAssets()), target.path);
   console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${target.label}`);
+  // Only a person at a terminal is asked; a pipe, a script or Windows never is.
+  if (process.stdin.isTTY && process.stdout.isTTY && process.platform !== "win32") {
+    process.stdout.write("open it? [Y/n] ");
+    let answer: string | null = null;
+    for await (const line of console) { answer = line; break; }
+    if (answer !== null && /^(y|yes)?$/i.test(answer.trim())) openCard(target.path);
+  }
   return 0;
 }
 
