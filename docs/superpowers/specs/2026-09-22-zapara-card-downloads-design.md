@@ -52,8 +52,11 @@ Offering to open it:
   opens the file: `open <file>` on macOS, `xdg-open <file>` elsewhere, where
   `<file>` is the written path made absolute (`resolve()`), so an `--out`
   such as `-card.html` reaches the opener as a file and never as an option.
-  The opener is started in the background through `sh -c '"$0" "$@" >/dev/null 2>&1 &'` and not
-  waited for. zapara exits 0 whether or not the opener exists or succeeds:
+  The opener is started in the background through `sh -c 'trap "" HUP; "$0" "$@" </dev/null >/dev/null 2>&1 &'`
+  and not waited for. The opener ignores SIGHUP: when zapara itself leads
+  the terminal's session (`ssh -t host zapara card`, a test's
+  pseudo-terminal), its exit hangs up the terminal and would kill the
+  opener before it shows anything. zapara exits 0 whether or not the opener exists or succeeds:
   the card is written, which is what the command promised.
 - Any other answer, or end of input, exits 0 without opening.
 - When stdin or stdout is not a terminal (a pipe, a script, CI, the test
