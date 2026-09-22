@@ -258,6 +258,14 @@ bun run check    # tsc --noEmit, then the test suite under TZ=UTC
 
 Tests are fixture-driven: they build or load transcripts in the real Claude Code format and assert the statistics that come out of the public seams, `analyze()`, `report()` and the CLI itself. No test imports the parser, the deriver or the scanner, so refactoring internals never touches a test. The rules every change follows are in [CLAUDE.md](CLAUDE.md), the design is in [docs/superpowers/specs/2026-09-17-zapara-design.md](docs/superpowers/specs/2026-09-17-zapara-design.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
 
+## Where it comes from
+
+The question comes from Addy Osmani's [Your parallel Agent limit](https://addyosmani.com/blog/cognitive-parallel-agents/): agents multiply throughput, you stay the one who has to evaluate what they produce, and the cost of that shows up as what he calls the ambient anxiety tax — "the part of your mind that can't fully relax because it knows something might be silently going sideways in a thread you haven't checked in twenty minutes." He puts the sustainable ceiling at three or four focused threads and describes the signals that say you have passed it: your confidence in what you are accepting starts dropping, and the worry shows up in more than one thread at a time.
+
+Those signals are felt, and by the time you notice one the hour is over. zapara measures what the transcripts can see of the same thing — sessions at once, prompt pace, how much agent output went past you, how long you went without a break — and gives the hour a number you can check against your memory of it.
+
+The repository layout follows [pult](https://github.com/drakulavich/pult) and oura-cli, and pult is the status line the `zapara status` file was shaped for.
+
 ---
 
 <p align="center">Made with ❤️ and 🥤 energy under <a href="LICENSE">MIT License</a></p>
