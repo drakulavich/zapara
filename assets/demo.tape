@@ -59,15 +59,7 @@ Set Width 1500
 Set Height 800
 Set FontSize 22
 
-# 1. orient the viewer
-Ctrl+L
-Sleep 500ms
-Type "zapara --version"
-Sleep 300ms
-Enter
-Sleep 1s
-
-# 2. the hero: a week of hourly load as a heatmap
+# 1. the hero: a week of hourly load as a heatmap
 Ctrl+L
 Sleep 500ms
 Type "zapara --to 2026-09-20"
@@ -75,7 +67,7 @@ Sleep 300ms
 Enter
 Sleep 4s
 
-# 3. one day, hour by hour
+# 2. one day, hour by hour
 Ctrl+L
 Sleep 500ms
 Type "zapara 2026-09-14"
@@ -83,7 +75,7 @@ Sleep 300ms
 Enter
 Sleep 4s
 
-# 4. the same data as JSON, which is what a pipe gets
+# 3. the same data as JSON, which is what a pipe gets
 Ctrl+L
 Sleep 500ms
 Type "zapara 2026-09-14 --json | head -c 400"
@@ -91,7 +83,7 @@ Sleep 300ms
 Enter
 Sleep 2500ms
 
-# 5. the line a status line reads, from the sandbox's own today
+# 4. the line a status line reads, from the sandbox's own today
 Ctrl+L
 Sleep 500ms
 Type "zapara status"
