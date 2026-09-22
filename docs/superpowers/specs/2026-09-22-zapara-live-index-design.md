@@ -187,7 +187,10 @@ format, `TZ=UTC`, each with the one-line mutation that fails it:
   every hour boundary and no longer climbs through the hour as the bucket
   fills. `Day.live` in `--json` carries that bucket on the open day. Same
   formula, same norms; `schema` stays 1."
-- The status-file spec is not edited; this document extends it.
+- The status-file spec of 2026-09-19 has its `index`/`level` rows, the
+  sentence after its table, the reader-contract bullet and the
+  `src/status.ts` bullet updated in place, as the presence rule did; this
+  document holds the rule and the reasoning.
 
 ## Later
 
