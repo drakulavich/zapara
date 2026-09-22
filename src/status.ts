@@ -18,10 +18,15 @@ export type Status = {
   streakMin: number;
 };
 
-// `hour` is the local hour containing `now`; index and level describe that
-// hour's bucket, peak and activeMin the whole day, and streakMin the streak the
-// person is in right now. A day the report did not mark as open has no asOf, so
-// `now` stands in and the function stays total.
+// `hour` is the local hour containing `now`; index and level describe the
+// sixty minutes ending at `now` (the day's `live` bucket), peak and activeMin
+// the whole day, and streakMin the streak the person is in right now. A day
+// the report did not mark as open has no asOf and no live bucket, so `now`
+// stands in and the index is null, and the function stays total.
+//
+// The live bucket, not the hour's: the hour's bucket holds thirty seconds at
+// half past the hour's first minute, and its counts climb all hour, so a
+// status line drawn from it saws from nothing to the hour's number and back.
 //
 // The live streak, not the bucket's: a status line answers "how long have I
 // been at this?", and the bucket's number drops to zero at every hour boundary
@@ -30,15 +35,14 @@ export type Status = {
 // break is longer than that, it is over and reads 0.
 export function statusOf(day: Day, now: Date): Status {
   const hour = now.getHours();
-  const bucket = day.buckets[hour];
   const live = day.presence !== null && now.getTime() - Date.parse(day.presence.lastAt) <= GAP_MS;
   return {
     schema: 1,
     asOf: day.asOf ?? now.toISOString(),
     date: day.date,
     hour,
-    index: bucket?.score?.index ?? null,
-    level: bucket?.score?.level ?? null,
+    index: day.live?.score?.index ?? null,
+    level: day.live?.score?.level ?? null,
     peak: day.peak,
     activeMin: day.activeMin,
     streakMin: live ? Math.round((now.getTime() - Date.parse(day.presence!.streakStartAt)) / 60000) : 0,

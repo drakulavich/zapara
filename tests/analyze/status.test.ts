@@ -22,19 +22,21 @@ const t = transcript([
 ]);
 
 describe("status: today's load in nine fields", () => {
-  test("the current hour's bucket and the day's peak and active time", () => {
+  test("the last sixty minutes, and the day's peak and active time", () => {
     const now = new Date("2026-09-14T14:32:00.000Z");
     const [day] = analyze([t], { to: "2026-09-14", days: 1, now });
     const current = day!.buckets[14]!, busiest = day!.buckets[13]!;
     const s = statusOf(day!, now);
     expect(s).toEqual({
       schema: 1, asOf: "2026-09-14T14:32:00.000Z", date: "2026-09-14", hour: 14,
-      index: current.score!.index, level: current.score!.level,
+      index: day!.live!.score!.index, level: day!.live!.score!.level,
       peak: day!.peak, activeMin: day!.activeMin, streakMin: 0,
     });
-    // The busier hour is behind us: the status describes now, the peak the day.
+    // The window (13:32, 14:32] holds the tail of the busy hour and the quiet
+    // exchange: less than the peak, more than the quiet hour's own bucket.
     expect(s.peak).toBe(busiest.score!.index);
     expect(s.index!).toBeLessThan(s.peak!);
+    expect(s.index!).toBeGreaterThan(current.score!.index);
     // 22 minutes since the 14:10 prompt, so the streak is over; the hour's own
     // bucket agrees here, but the status answers about now, not about the hour.
     expect([current.streakMin, s.streakMin]).toEqual([0, 0]);
@@ -57,6 +59,18 @@ describe("status: today's load in nine fields", () => {
     const now = new Date("2026-09-14T09:15:00.000Z");
     const [day] = analyze([], { to: "2026-09-14", days: 1, now });
     expect(renderStatus(statusOf(day!, now))).toBe('{"schema":1,"asOf":"2026-09-14T09:15:00.000Z","date":"2026-09-14","hour":9,"index":null,"level":null,"peak":null,"activeMin":0,"streakMin":0}\n');
+  });
+  test("the index does not reset on the hour: it is the last sixty minutes, not the current bucket", () => {
+    // Thirty seconds into hour 14, which has no event of its own. Mutation this
+    // pins: index from buckets[now.getHours()], which is null here.
+    const now = new Date("2026-09-14T14:00:30.000Z");
+    const [day] = analyze([t], { to: "2026-09-14", days: 1, now });
+    const s = statusOf(day!, now);
+    expect(s.hour).toBe(14);
+    expect(day!.buckets[14]!.score).toBeNull();
+    expect(s.index).toBe(day!.live!.score!.index);
+    expect(s.index!).toBeGreaterThan(0);
+    expect(s.level).toBe(day!.live!.score!.level);
   });
 });
 
