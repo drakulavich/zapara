@@ -268,8 +268,6 @@ The post and this tool disagree about what to watch. Osmani's signal is the qual
 
 Most of the advice in this area stops at fewer threads, smaller scope and more breaks, with few numbers you can hold yourself to. An hour with a score on it is at least something you can disagree with.
 
-The repository layout follows [pult](https://github.com/drakulavich/pult) and oura-cli, and pult is the status line the `zapara status` file was shaped for.
-
 ---
 
 <p align="center">Made with ❤️ and 🥤 energy under <a href="LICENSE">MIT License</a></p>
