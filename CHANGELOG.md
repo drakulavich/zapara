@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-22
+
 ### Changed
 - The week grid's `peak` column is painted in a TTY with the color of the level its index falls in, by the same thresholds `zapara status` reads a level from; `--no-color` and a pipe are unchanged.
 - The status file's `index` and `level` are the load of the sixty minutes ending at `asOf`, not of the calendar hour that contains it: the number no longer drops to nothing at every hour boundary (90 at 11:59:30, 6 at 12:00:30 on one machine) and no longer climbs through the hour as the bucket fills. `Day.live` in `--json` carries that bucket on the open day. Same formula, same norms; `schema` stays 1.
