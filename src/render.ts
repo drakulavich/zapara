@@ -12,9 +12,8 @@ const paint = (s: string, level: Level, color: boolean) => (color ? `\x1b[${ANSI
 const dim = (s: string, color: boolean) => (color ? `\x1b[2m${s}\x1b[0m` : s);
 const hm = (min: number) => `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`;
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-// A window that includes today reads a transcript Claude Code is still appending
-// to; this line marks the snapshot time on the one day still open, so two runs
-// minutes apart are explained rather than silently disagreeing.
+// Marks the snapshot time on the open day, so two runs minutes apart are
+// explained rather than silently disagreeing.
 const snapshotLine = (d: Day | undefined, color: boolean): string[] =>
   d?.asOf ? [dim(`  as of ${hhmm(new Date(d.asOf))}, this hour is still running`, color)] : [];
 const label = (date: string) => {
@@ -23,18 +22,15 @@ const label = (date: string) => {
 };
 
 export function renderWeek(days: Day[], color: boolean): string {
-  // Geometry: 12-char label, 24 cells of 3 chars (glyph in the middle), peak in 6, active in 8. Header hours are `HH ` so they sit over the cells.
+  // 12-char label, 24 cells of 3 chars, peak in 6, active in 8.
   const header = "            " + Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")} `).join("") + "  peak  active";
   const rows = days.map((d) => {
     const cells = d.buckets.map((b) => ` ${b.score ? paint(GLYPH[b.score.level], b.score.level, color) : "·"} `).join("");
-    // The peak wears the color of the level its index falls in, by the same
-    // thresholds `zapara status` reads a level from. The padding stays outside
-    // the paint so the escape codes add no width; a dash stays plain.
+    // Padding stays outside the paint so the escape codes add no width.
     const peak = d.peak === null ? "-".padStart(6) : " ".repeat(6 - String(d.peak).length) + paint(String(d.peak), levelOf(d.peak), color);
     return `${label(d.date).padEnd(12)}${cells}${peak}${hm(d.activeMin).padStart(8)}`;
   });
-  // A painted glyph's own \x1b[0m would cancel the line's outer dim, so in
-  // color mode re-emit \x1b[2m right after it to keep the label dim too.
+  // A painted glyph's own \x1b[0m cancels the line's dim; re-emit it after.
   const dimGlyph = (level: Level) => paint(GLYPH[level], level, color) + (color ? "\x1b[2m" : "");
   const legend = dim("  " + LEVELS.map((l) => `${dimGlyph(l)} ${LEVEL_NAME[l]}`).join("   "), color);
   const active = days.reduce((s, d) => s + d.activeMin, 0);
@@ -42,18 +38,16 @@ export function renderWeek(days: Day[], color: boolean): string {
   const reports = days.reduce((s, d) => s + d.totals.reports, 0);
   const decisions = days.reduce((s, d) => s + d.totals.decisions, 0);
   const maxSessions = Math.max(0, ...days.map((d) => d.totals.maxSessions));
-  // Counts go through formatCount so a very active window (999 999 999 prompts) still
-  // fits inside the grid's 100 columns; hm(active) has no compact form, so it stays as is.
+  // Compact counts keep a very active window inside the grid's 100 columns.
   const totals = dim(`  ${hm(active)} active   ${plural(prompts, "prompt")}   ${plural(reports, "report")}   ${plural(decisions, "decision")}   ${plural(maxSessions, "session")} at once`, color);
   return [header, ...rows, "", legend, totals, ...snapshotLine(days[days.length - 1], color)].join("\n");
 }
 
-// Values at or above 1000 are shown as one decimal of a thousand (e.g. "41.2k"); smaller values print as-is.
 const fmtTokens = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
 type Col = [string, number, (b: HourBucket) => string];
 
-// Widths reproduce the header the test pins: hour is left-aligned, level is left-aligned inside a 9-wide cell with two leading spaces, everything else right-aligned.
+// Hour left-aligned, level left-aligned after two spaces, the rest right-aligned.
 const COLS: Col[] = [
   ["hour", 5, (b) => `${String(b.hour).padStart(2, "0")}:00`],
   ["index", 7, (b) => String(b.score?.index ?? "")],
@@ -78,10 +72,8 @@ const EXPLAIN: Col[] = [
   ["strk", 6, (b) => String(b.score?.parts.streak ?? "")],
   ["late", 6, (b) => String(b.score?.parts.late ?? "")],
 ];
-// Event columns: left out of the table for a day where every active bucket reads
-// zero (a quiet day is mostly zeros, and the eye hunts for the non-zero cell).
-// The skeleton columns (hour, index, level, sess, prompts, streak, out-tok, and
-// the six --explain parts) always show, so two days still line up.
+// Left out of the table for a day where every active bucket reads zero; the
+// other columns always show, so two days still line up.
 const EVENT_COLS = new Set(["rep", "intr", "rej", "quest", "plan", "mode", "ctx-sw"]);
 const FULL_NAME: Record<string, string> = {
   rep: "reports", intr: "interrupts", rej: "rejects", quest: "questions",
@@ -94,9 +86,8 @@ export function renderDay(day: Day, opts: { explain: boolean; color: boolean }):
     cells.map((c, i) => { const w = columns[i]![1]; if (i === 0) return c.padEnd(w); if (columns[i]![0] === "level") return `  ${c.padEnd(w - 2)}`; return c.padStart(w); }).join("").trimEnd();
 
   const active = day.buckets.filter((b) => b.score !== null);
-  // No active bucket: just the full header, plus the snapshot line if this
-  // quiet day is still open — otherwise a run at 09:00 and one at 18:00 on an
-  // empty today would print the identical line.
+  // The snapshot line still shows on an empty open day, or a run at 09:00 and
+  // one at 18:00 would print the identical line.
   if (active.length === 0) return [line(cols, cols.map(([name]) => name)), ...snapshotLine(day, opts.color)].join("\n");
 
   const visible = cols.filter(([name, , f]) => !EVENT_COLS.has(name) || active.some((b) => f(b) !== "0"));
@@ -106,8 +97,7 @@ export function renderDay(day: Day, opts: { explain: boolean; color: boolean }):
   const rows = active.map((b) => {
     const cells = visible.map(([, , f]) => f(b));
     const text = line(visible, cells);
-    // Safe only because no other column can contain a level word (Calm/Warming/Heating/Fried);
-    // if one ever could, this would need to target the level column's slice, not a string search.
+    // Safe only while no other column can contain a level word.
     return opts.color && b.score ? text.replace(b.score.level, paint(b.score.level, b.score.level, true)) : text;
   });
   const lines = [header, ...rows];

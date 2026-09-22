@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// zapara CLI. Argument parsing, the clock, stdout and exit codes live here; everything else is pure.
+// Argument parsing, the clock, stdout and exit codes live here; everything else is pure.
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -13,9 +13,8 @@ import { renderStatus, statusOf } from "./status.ts";
 import { writeStatus } from "./statusfile.ts";
 import type { Day } from "./types.ts";
 
-// Read lazily, only when --version is actually handled, so a broken install
-// (missing or corrupt package.json) fails inside the guarded catch below
-// instead of throwing at module load, before any try/catch is in place.
+// Read only when --version is handled, so a broken package.json fails inside
+// the guarded catch instead of at module load.
 function version(): string {
   const parsed: unknown = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   if (typeof parsed === "object" && parsed !== null && typeof (parsed as { version?: unknown }).version === "string") {
@@ -45,22 +44,18 @@ options:
 levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
 const HINT = "run 'zapara --help' for usage";
 
-// A grid is the window as one cell per hour; a day is one date as one row per
-// hour; status is today, written to the status file for a status line to read.
 type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string; projects: string; color: boolean };
 
 class UsageError extends Error {}
-// Thrown only at a flag position (never when a token was consumed as another
-// flag's value, e.g. `--to --help`), so `main()` can short-circuit to exit 0
-// without parseArgs having to also validate the rest of a help/version call.
+// Thrown only at a flag position, never for a token consumed as another flag's
+// value (`--to --help`).
 class HelpRequested extends Error {}
 class VersionRequested extends Error {}
 
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-// A usage error quotes the offending value only when it is short, printable ASCII
-// with no path separator: the CLI never prints a filesystem path or an escape,
-// not even one the person typed.
+// A usage error quotes the value only when it is short, printable ASCII with no
+// path separator: the CLI never prints a path or an escape, even one typed in.
 const quotable = (v: string): boolean => /^[\x21-\x7e]{1,24}$/.test(v) && !/[\/\\]/.test(v);
 const got = (v: string): string => (quotable(v) ? `, got ${v}` : "");
 const named = (v: string): string => (quotable(v) ? ` ${v}` : "");
@@ -73,7 +68,6 @@ function validDate(s: string): boolean {
   return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
 }
 
-// A date on the command line: YYYY-MM-DD, today or yesterday, in local time.
 function resolveDate(what: string, s: string, now: Date): string {
   if (s === "today") return localDate(now);
   if (s === "yesterday") return localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
@@ -81,15 +75,13 @@ function resolveDate(what: string, s: string, now: Date): string {
   return s;
 }
 
-// Calendar days from one date to another, inclusive; UTC arithmetic so a DST day is still one day.
+// UTC arithmetic, so a DST day is still one day.
 function spanDays(from: string, to: string): number {
   const utc = (s: string): number => { const [y = 0, m = 0, d = 0] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
   return Math.round((utc(to) - utc(from)) / 86_400_000) + 1;
 }
 
-// The window from its flags: --days ending today or at --to, or --from/--to, both
-// inclusive. --from with --days is one length too many. Checks run in the order
-// a reader meets the flags in --help.
+// Checks run in the order a reader meets the flags in --help.
 function windowOf(days: string | null, from: string | null, to: string | null, defaultDays: number, now: Date): { to: string; days: number } {
   if (from !== null && days !== null) throw new UsageError("--from sets the length; drop --days");
   if (days !== null && (!/^\d+$/.test(days) || Number(days) < 1 || Number(days) > 90)) throw new UsageError(`--days must be 1..90${got(days)}`);
@@ -110,19 +102,16 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   let jsonFlag = false;
   let outGiven = false;
   const positional: string[] = [];
-  // A value flag given twice is a usage error, not the last value winning
-  // silently; bare flags (--json, --explain, --no-color) are idempotent and stay untracked.
+  // A value flag given twice is a usage error; bare flags are idempotent and untracked.
   const seen = new Set<string>();
   for (let i = 0; i < argv.length; i++) {
     let arg = argv[i]!;
-    // `--days=30` is `--days 30`. A flag that takes no value refuses an inline one.
     let inline: string | null = null;
     const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
     if (eq > 0) { inline = arg.slice(eq + 1); arg = arg.slice(0, eq); }
     const bare = (): void => { if (inline !== null) throw new UsageError(`unknown flag${named(argv[i]!)}`); };
-    // A missing value or one that looks like another flag is a usage error,
-    // never treated as this flag's value (e.g. `--projects --json`). Only --days
-    // takes a negative number as a value, so `--days -1` reaches the range check.
+    // A value that looks like another flag is a usage error (`--projects --json`);
+    // only --days accepts a negative number, so `--days -1` reaches the range check.
     const value = (negativeNumberIsValue = false): string => {
       let v: string;
       if (inline !== null) v = inline;
@@ -161,19 +150,16 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
   else if (word === "today" || word === "yesterday" || DATE.test(word)) { a.command = "day"; a.to = resolveDate("date", word, now); a.days = 1; }
   else throw new UsageError(`unknown command${named(word)} (try today, yesterday, a date, card or status)`);
 
-  // Both commands fix their own window: a named day is the date given, status is today.
   if (a.command === "day" || a.command === "status") {
     if (days !== null || from !== null || to !== null) throw new UsageError(`--days, --from and --to do not apply to ${a.command === "day" ? "a named day" : "status"}`);
   } else {
-    // Two weeks make a pattern; a week makes a picture of one week.
     ({ to: a.to, days: a.days } = windowOf(days, from, to, a.command === "card" ? 14 : 7, now));
   }
-  // Tables turn into JSON in a pipe; the card is a file either way, so only an explicit --json switches it.
+  // The card is a file either way, so only an explicit --json switches it.
   a.json = a.command === "card" ? jsonFlag : jsonFlag || !isTTY;
   if (a.command !== "day" && a.explain) throw new UsageError("--explain applies to a named day only");
   if (a.command !== "card" && outGiven) throw new UsageError("--out applies to card only");
-  // The value is printed back verbatim in `wrote \u2026`, so it must be one plain line:
-  // no control character, and the message never quotes it.
+  // Printed back verbatim in `wrote \u2026`, so it must be one plain line.
   if (/[\x00-\x1f\x7f]/.test(a.out)) throw new UsageError("--out must not contain control characters");
   if (!/\.(png|webp|html)$/i.test(a.out)) throw new UsageError("--out must end in .png, .webp or .html");
   return a;
@@ -193,9 +179,7 @@ async function main(): Promise<number> {
   return 0;
 }
 
-// Today's load, written to the status file and then printed. The write comes
-// first so that a run whose write failed prints its one-line error and nothing
-// else: a caller never reads a line that was not saved for the status line.
+// The write comes first: a caller never reads a line that was not saved.
 async function status(a: Args, now: Date): Promise<number> {
   const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now });
   const line = renderStatus(statusOf(days[0]!, now));

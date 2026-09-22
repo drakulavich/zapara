@@ -1,7 +1,6 @@
-// The card page: one self-contained HTML document from CardData and the embedded
-// assets. Pure: strings in, string out. Nothing is escaped because nothing from a
-// transcript reaches this file: only CardData's fixed strings and formatted numbers.
-// The look is the table in docs/superpowers/specs/2026-09-18-zapara-card-design.md.
+// Nothing is escaped because nothing from a transcript reaches this file: only
+// CardData's fixed strings and formatted numbers. The look is the table in
+// docs/superpowers/specs/2026-09-18-zapara-card-design.md.
 import type { CardData, Character, Segment } from "./card.ts";
 import type { Level } from "./types.ts";
 
@@ -10,10 +9,8 @@ export type CardAssets = {
   characters: string;
 };
 
-// Where each character sits on the sheet, as fractions [x, y, w, h] of its side,
-// measured on the current assets/characters.webp. The box is scaled so the
-// rectangle's longer side is BOX px and centred at CENTRE, with CSS background-size
-// and background-position, so no cropping happens anywhere.
+// Fractions [x, y, w, h] of the sheet's side, measured on assets/characters.webp.
+// Scaled so the longer side is BOX px, centred at CENTRE; nothing is cropped.
 export const CHARACTER_RECTS: Record<Character, [number, number, number, number]> = {
   conductor: [0.02, 0.01, 0.53, 0.543],
   supervisor: [0.55, 0.07, 0.38, 0.505],
@@ -23,7 +20,7 @@ export const CHARACTER_RECTS: Record<Character, [number, number, number, number]
 const BOX = 360;
 const CENTRE = { x: 195, y: 300 };
 
-// Streak accent, its rgb for alpha gradients, and the light shade for the repo link.
+// main, its rgb for alpha gradients, and the light shade for the repo link.
 const ACCENT: Record<Character, { main: string; rgb: string; light: string }> = {
   conductor: { main: "#8b5cf6", rgb: "139,92,246", light: "#c4b5fd" },
   supervisor: { main: "#22d3ee", rgb: "34,211,238", light: "#a5f3fc" },

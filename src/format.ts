@@ -1,8 +1,5 @@
-// Compact number formats shared by the card and the week footer. Pure: no
-// imports from node:/Bun, no clock, no file system.
-
-// Compact formats with a fixed longest form of five characters, so the layout
-// is sized once. Decimals are truncated, not rounded: 9.96M stays "9.9M".
+// Longest form is five characters, so the layout is sized once. Decimals are
+// truncated, not rounded: 9.96M stays "9.9M".
 function ladder(n: number): string {
   if (n >= 1e12) return "999B+";
   for (const [unit, size] of [["B", 1e9], ["M", 1e6], ["k", 1e3]] as const) {
@@ -16,5 +13,4 @@ function ladder(n: number): string {
 export const formatCount = (n: number): string => (n < 10_000 ? String(n) : ladder(n));
 export const formatTokens = (n: number): string => (n < 1000 ? String(n) : ladder(n));
 
-// "1 session", "5 sessions": a count with its noun, singular only for exactly one.
 export const plural = (n: number, one: string, many = `${one}s`, count = formatCount): string => `${count(n)} ${n === 1 ? one : many}`;

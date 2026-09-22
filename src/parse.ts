@@ -5,9 +5,8 @@ const INTERRUPT_PREFIX = "[Request interrupted by user";
 const REJECT_PREFIX = "The user doesn't want to proceed with this tool use";
 const QUESTION_TOOL = "AskUserQuestion";
 const PLAN_TOOL = "ExitPlanMode";
-// Inbound messages from subagents, other sessions and background tasks: the human
-// has to read and react to these, but did not type them, so they are `report`
-// events, never `prompt`. An interrupt marker is checked first and always wins.
+// Inbound agent messages: read and reacted to, but not typed, so `report`, never
+// `prompt`. An interrupt marker is checked first and wins.
 const AGENT_MARKERS = [
   "Another Claude session sent a message:",
   "<teammate-message",
@@ -20,10 +19,8 @@ type Rec = Record<string, unknown>;
 const isObj = (v: unknown): v is Rec => typeof v === "object" && v !== null;
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
-// The text a marker is compared against: the content itself when it is a string,
-// otherwise the first `{type:"text"}` block anywhere in the array. A pasted
-// screenshot puts an `image` block in front of what the person typed, so the
-// text is not always the first block.
+// A pasted screenshot puts an `image` block before the typed text, so the text
+// block is searched for, not taken from content[0].
 const firstText = (content: unknown): string | null => {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return null;
@@ -35,16 +32,12 @@ export function parseTranscript(text: string): Event[] {
   const events: Event[] = [];
   let lastTs: number | null = null;
   let lastMode: string | null = null;
-  // Mode switches seen before this file's first timestamped record, waiting for
-  // a time to belong to.
   let pendingModeChanges = 0;
-  // Dedupes `output` events by requestId within this one file: Claude Code
-  // writes one record per content block of a response, repeating the same
-  // requestId and usage, so only the first qualifying record counts.
+  // Claude Code writes one record per content block of a response, repeating
+  // the requestId and usage; only the first qualifying record counts.
   const seenRequestIds = new Set<string>();
-  // `tool_use` ids of the two tools whose result the human writes: the option
-  // they picked, or their verdict on a plan. Every other `tool_result` is the
-  // machine reporting back, so the pairing is what tells the two apart.
+  // Ids of the two tools whose result the human writes; every other
+  // `tool_result` is the machine reporting back.
   const askedIds = new Set<string>();
 
   for (const line of text.split("\n")) {
@@ -60,11 +53,8 @@ export function parseTranscript(text: string): Event[] {
     if (type === "permission-mode") {
       const m = str(rec.permissionMode);
       if (m === null) continue;
-      // The baseline mode is tracked as soon as it is seen, even before any
-      // timestamp exists, so a later switch away from it can be detected. A
-      // switch before any timestamp waits: switching the mode before typing
-      // anything is how a session often starts, and it is attributed to the
-      // first timestamped record that follows. A file with none drops them.
+      // A switch before the first timestamped record is how a session often
+      // starts; it waits and is attributed to that record.
       if (lastMode !== null && m !== lastMode) {
         if (lastTs === null) pendingModeChanges++;
         else events.push({ ts: lastTs, sessionId, kind: "mode_change" });
@@ -106,14 +96,9 @@ export function parseTranscript(text: string): Event[] {
         const id = str(b.id);
         if (id !== null) askedIds.add(id);
       }
-      // `output`: one event per distinct requestId per file, the first record seen
-      // that has a string requestId, numeric usage.output_tokens and at least one
-      // text block. A response holding only tool_use blocks is not text the human
-      // reads, so it never triggers this, even on its first (and only) record.
-      // A count only counts when it is one a token count can be: a finite
-      // non-negative integer. `1e309` parses to Infinity and a negative count
-      // to -Infinity, and a day holding both summed to NaN; such a record is
-      // still `activity`, it just carries no tokens.
+      // A response of only tool_use blocks is not text the human reads and carries
+      // no output tokens. A count must be a finite non-negative integer: `1e309`
+      // parses to Infinity, and a day once summed to NaN.
       const requestId = str(rec.requestId);
       const usage = isObj(rec.message) ? rec.message.usage : undefined;
       const outputTokens = isObj(usage) ? usage.output_tokens : undefined;

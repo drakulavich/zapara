@@ -2,12 +2,9 @@ import type { Dirent } from "node:fs";
 import { open, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-// Lists transcript files worth reading. Subagent transcripts live under a `subagents`
-// directory and are the parent agent's conversation, not the human's; mtime is checked
-// first, and for a file mtime would drop, the last timestamp in its tail decides.
+// A `subagents` directory holds the parent agent's conversation, not the human's.
 export async function scan(projects: string, cutoffMs: number): Promise<string[]> {
-  // No path in either message: it may be a value the user typed, or the
-  // homedir-derived default, and the CLI must never print a filesystem path.
+  // No path in either message: the CLI never prints one.
   let root;
   try {
     if (!(await stat(projects)).isDirectory()) throw new Error("not a directory");
@@ -22,9 +19,8 @@ export async function scan(projects: string, cutoffMs: number): Promise<string[]
   return out.sort();
 }
 
-// One directory at a time, so one unreadable directory or a symlink loop below the
-// root costs only that directory. A symlink is not followed into: Claude Code never
-// writes one, and following it is how a loop or a stray link to $HOME would get in.
+// One unreadable directory costs only itself. Symlinks are not followed: Claude
+// Code never writes one, and following one is how a loop or $HOME would get in.
 async function collect(dir: string, entries: Dirent[], cutoffMs: number, out: string[]): Promise<void> {
   for (const entry of entries) {
     const full = join(dir, entry.name);
@@ -41,12 +37,9 @@ async function collect(dir: string, entries: Dirent[], cutoffMs: number, out: st
   }
 }
 
-// mtime is a hint, not the truth: a transcript synced from another machine, restored by a
-// tool that rewrites times, or written under clock skew can be older by mtime than the
-// records inside it. For a file mtime would drop, the last "timestamp" in its final 64 KB
-// decides. 64 KB, not a few, because the last record of a conversation is often a big tool
-// result (a file read, grep output) and its own timestamp field sits in front of all that
-// text. The tail is matched for that one field and discarded; nothing else is read.
+// mtime can be older than the records inside (sync, restore, clock skew), so for
+// a file mtime would drop, the last "timestamp" in its final 64 KB decides. 64 KB
+// because the last record is often a big tool result with its timestamp in front.
 const TAIL_BYTES = 65_536;
 async function lastTimestampMs(path: string): Promise<number> {
   const fh = await open(path, "r");
