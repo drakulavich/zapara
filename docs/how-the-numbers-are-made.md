@@ -17,7 +17,7 @@ flowchart LR
   X --> D["Day<br/>24 buckets, peak, mean, active minutes"]
   D --> G["grid, day table, JSON"]
   D --> C["card<br/>character, highlights, picture"]
-  D --> ST["status.json<br/>this hour, for a status line"]
+  D --> ST["status.json<br/>the last hour, for a status line"]
   ST --> PU["pult --zapara<br/>load 36 · streak 2h46 · day 9h15"]
 ```
 
@@ -179,7 +179,9 @@ own, so a run just after midnight still knows you are there. Both appear in
 A day that includes now is a snapshot: the run fixes `now` when it starts,
 records it as `asOf`, and counts nothing timestamped after it, even if Claude
 Code appends records while the run reads. The next run makes the next
-snapshot. The tables end with `as of HH:MM, this hour is still running`.
+snapshot. That day also carries `live`, the bucket of the sixty minutes ending at
+`asOf`, built by the same rule as an hour bucket; it is what the status file's
+`index` scores. The tables end with `as of HH:MM, this hour is still running`.
 
 ## 7. Where the numbers go
 
@@ -205,11 +207,17 @@ the index. The card spec has the rest.
 {"schema":1,"asOf":"2026-09-19T12:30:38.300Z","date":"2026-09-19","hour":15,"index":36,"level":"Warming","peak":41,"activeMin":555,"streakMin":166}
 ```
 
-`hour`, `index` and `level` are the current hour's; `peak` and `activeMin` are
-the day's; `streakMin` is live, measured from the first action of the streak
-you are in to `asOf`, and it is `0` once you have been away more than ten
-minutes. It does not reset at an hour boundary and it grows while you sit
-there, which is what a status line needs and what a bucket cannot give.
+`hour` is the clock; `index` and `level` are the sixty minutes ending at
+`asOf`, `(asOf − 60 min, asOf]`, measured by the same rule as an hour bucket
+(same counts, same presence slots, the longest streak the window saw, late
+night by the hour of `asOf`) and scored by the same formula. A calendar hour
+would not do: thirty seconds past the hour its bucket holds thirty seconds,
+and its counts climb until the hour ends, so a status line drawn from it
+would saw from nothing to the hour's number and back every hour. `peak` and
+`activeMin` are the day's; `streakMin` is live, measured from the first action
+of the streak you are in to `asOf`, and it is `0` once you have been away more
+than ten minutes. It does not reset at an hour boundary and it grows while you
+sit there, which is what a status line needs and what a bucket cannot give.
 A status line such as [pult](https://github.com/drakulavich/pult)
 reads that file on every render and shows `load 36 · streak 2h46 · day 9h15`:
 the index in the colour of its level, the time since your last ten-minute
