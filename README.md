@@ -96,7 +96,7 @@ The grid is a fixed 98 columns wide, 100 with its hour header, and does not refl
 `zapara card` turns your last two weeks into one picture: a character named after the kind of load that dominates your hours, the sentence behind it, the peak hour, the share of calm, warming, heating and fried hours, and three highlights. It carries no dates and no hour totals, so it does not read as a timesheet.
 
 ```bash
-zapara card                    # writes zapara-card.png in the current directory
+zapara card                    # writes zapara-card.png to ~/Downloads
 zapara card --out card.webp    # WebP instead; --out card.html writes the page itself
 ```
 
@@ -108,7 +108,7 @@ zapara card && osascript -e 'set the clipboard to (read (POSIX file "zapara-card
 
 ```
 The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.
-wrote zapara-card.png
+wrote zapara-card.png to Downloads
 ```
 
 <p align="center"><img src="https://raw.githubusercontent.com/drakulavich/zapara/main/assets/card.webp" alt="zapara card: The Marathoner, longest streak 7h53m, 68% of hours calm" width="800"></p>
@@ -124,7 +124,7 @@ This one comes from the same `busy-week` fixture as the pictures above. A headle
 | `zapara --from 2026-09-01 --to 2026-09-14` | Any window, both days inclusive, at most 90 days. `--to` alone is 7 days ending there, `--days 30 --to 2026-09-14` is 30 days ending there. |
 | `zapara today` | Today, one row per hour that had activity. `yesterday` likewise. |
 | `zapara 2026-09-14 --explain` | One day, with the six weighted components behind each index. |
-| `zapara card` | The last 14 days as one shareable picture, `zapara-card.png` in the current directory. |
+| `zapara card` | The last 14 days as one shareable picture, `zapara-card.png` in `~/Downloads`. |
 | `zapara card --days 30 --out me.webp` | Any window from 1 to 90 days; `.png`, `.webp` or `.html` by extension. `--json` prints the card's data instead. |
 | `zapara status` | Writes today's load to `~/.claude/zapara/status.json` for a status line to read, and prints the same line. See [Status line](#status-line). |
 
@@ -134,7 +134,7 @@ This one comes from the same `busy-week` fixture as the pictures above. A headle
 | `--explain` | With a day: the six weighted parts behind each index. |
 | `--json` | Print the whole window as one JSON document instead of a table. |
 | `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
-| `--out <path>` | Where `card` writes; the extension picks the format. |
+| `--out <path>` | Where `card` writes instead of `~/Downloads`; the extension picks the format. |
 | `--no-color` | Plain glyphs and peaks with no ANSI codes. `NO_COLOR` in the environment does the same. |
 | `-h`, `--help` | Usage, exit 0. |
 | `-V`, `--version` | The version from `package.json`, exit 0. |
@@ -143,7 +143,7 @@ Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
 The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` write their file and print their lines whether piped or not. `card --json` is the exception: it prints the card's data and writes no file. `--json` changes nothing for `status`, whose line is already JSON and whose file is written either way.
 
-A run that works exits 0, and so does a window with no data, which prints an empty grid. Exit 1 is a failure zapara can name, printed as one line to stderr that never contains a path: the projects directory missing or unreadable, `status` unable to write its file, `card` unable to write its picture or to find a browser engine, and whatever else goes wrong below the command line. Exit 2 is a usage error, such as a bad date, an unknown flag or a value flag given twice; it prints one line and a hint to `--help`.
+A run that works exits 0, and so does a window with no data, which prints an empty grid. Exit 1 is a failure zapara can name, printed as one line to stderr that never contains a path: the projects directory missing or unreadable, `status` unable to write its file, `card` unable to write its picture or to find a browser engine, `card` without `--out` on a machine with no `~/Downloads` folder, and whatever else goes wrong below the command line. Exit 2 is a usage error, such as a bad date, an unknown flag or a value flag given twice; it prints one line and a hint to `--help`.
 
 ## Status line
 

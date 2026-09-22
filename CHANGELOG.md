@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `zapara card` writes to `~/Downloads/zapara-card.png` instead of the current
+  directory, and says `wrote zapara-card.png to Downloads`. Without that
+  folder it asks for `--out`.
+
 ## [0.6.0] - 2026-09-22
 
 ### Changed

@@ -11,15 +11,24 @@ import { WEBVIEW_TEST_TIMEOUT, webviewMissing } from "../helpers/webview.ts";
 const CLI = join(import.meta.dir, "../../src/index.ts");
 const projects = join(import.meta.dir, "../fixtures/busy-week/projects");
 let cwd: string;
-beforeEach(async () => { cwd = await mkdtemp(join(tmpdir(), "zapara-card-")); });
-afterEach(() => rm(cwd, { recursive: true, force: true }));
+let home: string;
+beforeEach(async () => {
+  cwd = await mkdtemp(join(tmpdir(), "zapara-card-"));
+  home = await mkdtemp(join(tmpdir(), "zapara-home-"));
+  await mkdir(join(home, "Downloads"));
+});
+afterEach(async () => {
+  await rm(cwd, { recursive: true, force: true });
+  await rm(home, { recursive: true, force: true });
+});
 
 async function run(...args: string[]): Promise<{ code: number; out: string; err: string }> {
-  const p = Bun.spawn(["bun", CLI, "--projects", projects, ...args], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+  const p = Bun.spawn(["bun", CLI, "--projects", projects, ...args], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   return { code, out, err };
 }
 const files = () => readdir(cwd);
+const downloads = () => readdir(join(home, "Downloads"));
 
 describe("zapara card", () => {
   test("--out x.html writes exactly the cardHtml string and prints the two lines", async () => {
@@ -71,17 +80,44 @@ describe("zapara card", () => {
     expect(await files()).toEqual(["p.html"]);
   });
 
-  test("the default output is zapara-card.png in the current directory", async () => {
-    // Only the argument handling is pinned here; rendering is the test below.
-    const r = await run("card", "--to", "2026-09-20", "--out", "zapara-card.html");
-    expect(r.out).toContain("wrote zapara-card.html");
-    if (webviewMissing === null) {
-      const p = await run("card", "--to", "2026-09-20");
-      expect(p.code).toBe(0);
-      expect(p.out).toContain("wrote zapara-card.png");
-      expect(await files()).toContain("zapara-card.png");
-    }
+  test.skipIf(webviewMissing !== null)("without --out the card goes to Downloads and the line names the folder, not its path", async () => {
+    const r = await run("card", "--to", "2026-09-20");
+    expect(r.code).toBe(0);
+    expect(r.out).toBe("The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.\nwrote zapara-card.png to Downloads\n");
+    expect(await downloads()).toEqual(["zapara-card.png"]);
+    expect(await files()).toEqual([]);
+    const bytes = await readFile(join(home, "Downloads", "zapara-card.png"));
+    expect(await new Bun.Image(bytes).metadata()).toMatchObject({ width: 2400, height: 1260, format: "png" });
   }, WEBVIEW_TEST_TIMEOUT);
+
+  test("without a Downloads folder the default exits 1 with one line that names no path, and writes nothing", async () => {
+    await rm(join(home, "Downloads"), { recursive: true });
+    const r = await run("card", "--to", "2026-09-20");
+    expect(r.code).toBe(1);
+    expect(r.out).toBe("");
+    expect(r.err).toBe("zapara: no Downloads folder: pass --out <path>\n");
+    expect(await files()).toEqual([]);
+    expect(await readdir(home)).not.toContain("Downloads"); // never created
+  });
+
+  test("a file named Downloads is not a Downloads folder", async () => {
+    await rm(join(home, "Downloads"), { recursive: true });
+    await Bun.write(join(home, "Downloads"), "");
+    const r = await run("card", "--to", "2026-09-20");
+    expect(r.code).toBe(1);
+    expect(r.err).toBe("zapara: no Downloads folder: pass --out <path>\n");
+  });
+
+  test("--out and --json need no Downloads folder", async () => {
+    await rm(join(home, "Downloads"), { recursive: true });
+    const o = await run("card", "--to", "2026-09-20", "--out", "c.html");
+    expect(o.code).toBe(0);
+    expect(o.out.endsWith("wrote c.html\n")).toBe(true);
+    expect(await files()).toEqual(["c.html"]);
+    const j = await run("card", "--to", "2026-09-20", "--json");
+    expect(j.code).toBe(0);
+    expect(JSON.parse(j.out).name).toBe("The Marathoner");
+  });
 
   test("an empty window exits 1 with one line and writes nothing", async () => {
     const r = await run("card", "--to", "2026-08-20", "--days", "3", "--out", "x.html");
