@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The week grid dims a day no hour scored in, so a weekend recedes behind the
+  working days around it.
+
 ## [0.5.0] - 2026-09-22
 
 ### Changed

@@ -28,7 +28,10 @@ export function renderWeek(days: Day[], color: boolean): string {
     const cells = d.buckets.map((b) => ` ${b.score ? paint(GLYPH[b.score.level], b.score.level, color) : "·"} `).join("");
     // Padding stays outside the paint so the escape codes add no width.
     const peak = d.peak === null ? "-".padStart(6) : " ".repeat(6 - String(d.peak).length) + paint(String(d.peak), levelOf(d.peak), color);
-    return `${label(d.date).padEnd(12)}${cells}${peak}${hm(d.activeMin).padStart(8)}`;
+    const row = `${label(d.date).padEnd(12)}${cells}${peak}${hm(d.activeMin).padStart(8)}`;
+    // A day no hour scored in is 24 dots and a dash: no escape of its own, so
+    // one dim wrapper is enough.
+    return d.peak === null ? dim(row, color) : row;
   });
   // A painted glyph's own \x1b[0m cancels the line's dim; re-emit it after.
   const dimGlyph = (level: Level) => paint(GLYPH[level], level, color) + (color ? "\x1b[2m" : "");

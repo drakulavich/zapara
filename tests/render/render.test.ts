@@ -78,6 +78,17 @@ describe("week grid", () => {
     expect(row.slice(84).trim().startsWith("-")).toBe(true);
   });
 
+  test("a day with nothing in it prints dim, and only in color mode", () => {
+    // Mutations this pins: dropping the conditional (Wednesday prints bright),
+    // widening it past `peak === null` (Monday prints dim), and dimming
+    // regardless of `color` (the plain grid grows an escape).
+    const coloredLines = renderWeek(days, true).split("\n");
+    expect(coloredLines[3]).toStartWith("\x1b[2mWed 16/09");
+    expect(coloredLines[3]).toEndWith("0h00\x1b[0m");
+    expect(coloredLines[1]).toStartWith("Mon 14/09");
+    expect(lines[3]).not.toContain("\x1b");
+  });
+
   test("color mode wraps glyphs in ANSI codes and nothing else changes", () => {
     const colored = renderWeek(days, true);
     expect(colored).toContain("\x1b[31m█\x1b[0m");
@@ -94,7 +105,8 @@ describe("week grid", () => {
     expect(coloredLines[1]).toEndWith("    \x1b[31m87\x1b[0m    8h50");
     expect(coloredLines[2]).toContain("\x1b[33m33\x1b[0m");
     expect(coloredLines[4]).toContain("\x1b[32m15\x1b[0m");
-    expect(coloredLines[3]).toEndWith("     -    0h00");
+    expect(coloredLines[3]).toEndWith("     -    0h00\x1b[0m");
+    expect(coloredLines[3]).not.toContain("\x1b[3");
   });
 
   test("color mode dims the legend and totals lines, without losing the painted glyph's dim", () => {
