@@ -35,16 +35,16 @@ describe("live: the sixty minutes ending at asOf", () => {
 
 describe("live: the rule's edges", () => {
   test("a window that coincides with a calendar hour is that hour's bucket, metric for metric", () => {
-    // Events on the hour exactly, so a window bound on the wrong side of it
-    // drops the 11:00:00 prompt or admits the 10:59:59.999 one. Mutation this
-    // pins: `t >= fromMs` (admits 10:59:59.999) or `t < nowMs` (drops nothing
-    // here, but `t <= nowMs` is what lets an event at exactly `now` count, as
-    // derive() promises).
+    // Events at both edges exactly, so a window bound on the wrong side of
+    // either admits the 10:59:59.999 prompt or drops the reply at `now`.
+    // Mutations this pins: `t >= fromMs` (prompts 4, not 3) and `t < nowMs`
+    // (the 11:59:59.999 reply's tokens go missing; derive() promises an event
+    // at exactly `now` counts).
     const onTheHour = transcript([
       prompt("2026-09-14T10:59:59.999Z", B),
       prompt("2026-09-14T11:00:00.000Z", A), assistant("2026-09-14T11:00:30.000Z", A),
       prompt("2026-09-14T11:30:00.000Z", B), assistant("2026-09-14T11:30:30.000Z", B),
-      prompt("2026-09-14T11:59:00.000Z", A), assistant("2026-09-14T11:59:30.000Z", A),
+      prompt("2026-09-14T11:59:00.000Z", A), assistant("2026-09-14T11:59:59.999Z", A),
       prompt("2026-09-14T12:00:00.000Z", A),
     ]);
     const [day] = analyze([onTheHour], { to: "2026-09-14", days: 1, now: new Date("2026-09-14T11:59:59.999Z") });
