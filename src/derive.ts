@@ -7,6 +7,8 @@ export const SLOT_MS = 5 * 60 * 1000;
 const LIVE_MS = 60 * 60 * 1000;
 const LATE_HOURS = new Set([23, 0, 1, 2, 3, 4, 5]);
 
+// Not localeCompare: a result must not depend on the locale.
+export const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 const pad2 = (n: number) => String(n).padStart(2, "0");
 export const localDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const parseDate = (s: string): Date => {
@@ -175,11 +177,10 @@ function buildDay(date: string, acc: Map<string, Acc>): Day {
 
 export function derive(events: Event[], w: Window): Day[] {
   const { startMs, endMs, cutoffMs, dates } = windowBounds(w);
+  // sort() is stable, so events equal on both keys keep their input order.
   const sorted = events
-    .map((e, i) => ({ e, i }))
-    .filter(({ e }) => e.ts >= cutoffMs && e.ts < endMs && (!w.now || e.ts <= w.now.getTime()))
-    .sort((a, b) => a.e.ts - b.e.ts || (a.e.sessionId < b.e.sessionId ? -1 : a.e.sessionId > b.e.sessionId ? 1 : 0) || a.i - b.i)
-    .map(({ e }) => e);
+    .filter((e) => e.ts >= cutoffMs && e.ts < endMs && (!w.now || e.ts <= w.now.getTime()))
+    .sort((a, b) => a.ts - b.ts || compareStrings(a.sessionId, b.sessionId));
   const { acc, carried } = foldEvents(sorted, startMs);
   const days = dates.map((date) => buildDay(date, acc));
   // Only a first day with no action of its own borrows the look-back's streak,
