@@ -79,6 +79,24 @@ async function runInTerminal(answer: string, ...args: string[]): Promise<{ code:
   return { code, out };
 }
 
+// Runs the CLI through `sh -c script` in a pseudo-terminal, so the script can
+// point one stream away from it, and types nothing. `$0` is the CLI and `$@` its
+// arguments. A run still going after 5 s (one waiting for an answer) is killed
+// and reported with code null.
+async function runHalfTerminal(script: string, ...args: string[]): Promise<{ code: number | null; out: string }> {
+  let out = "";
+  const decoder = new TextDecoder();
+  const p = Bun.spawn(["sh", "-c", script, CLI, "--projects", projects, ...args], {
+    cwd,
+    env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
+    terminal: { cols: 200, rows: 24, data(_t, d) { out += decoder.decode(d); } },
+  });
+  const code = await Promise.race([p.exited, Bun.sleep(5000).then(() => null)]);
+  if (code === null) { p.kill(); await p.exited; }
+  p.terminal!.close();
+  return { code, out };
+}
+
 describe("zapara card", () => {
   test("--out x.html writes exactly the cardHtml string and prints the two lines", async () => {
     const r = await run("card", "--to", "2026-09-20", "--out", "./x.html");
@@ -302,6 +320,25 @@ describe("zapara card", () => {
     expect(code).toBe(0);
     expect(out.endsWith("wrote c.html\n")).toBe(true);
     expect(out).not.toContain("open it?");
+    expect(await openedWithin(1000)).toEqual([]);
+  }, 10_000);
+
+  test("with stdin a terminal but stdout a file there is no question and no read", async () => {
+    // Nothing is typed: a run that asked would wait on the terminal until killed.
+    const r = await runHalfTerminal('exec bun "$0" "$@" > out.txt', "card", "--to", "2026-09-20", "--out", "c.html");
+    expect(r.code).toBe(0);
+    const out = await readFile(join(cwd, "out.txt"), "utf8");
+    expect(out.endsWith("wrote c.html\n")).toBe(true);
+    expect(out).not.toContain("open it?");
+    expect(await openedWithin(1000)).toEqual([]);
+  }, 10_000);
+
+  test("with stdout a terminal but stdin a pipe there is no question and no read", async () => {
+    // A "y" waits in the pipe: a run that asked would read it and open the card.
+    const r = await runHalfTerminal('printf "y\\n" | exec bun "$0" "$@"', "card", "--to", "2026-09-20", "--out", "c.html");
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("wrote c.html\r\n");
+    expect(r.out).not.toContain("open it?");
     expect(await openedWithin(1000)).toEqual([]);
   }, 10_000);
 });
