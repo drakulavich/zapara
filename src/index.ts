@@ -190,8 +190,7 @@ async function status(a: Args, now: Date): Promise<number> {
   return 0;
 }
 
-// Without --out the card goes to ~/Downloads, which zapara never creates, and
-// the line names the folder: the CLI never prints a path it derived.
+// The label names the folder, not the path: the CLI never prints a derived path.
 function cardTarget(out: string | null): { path: string; label: string } {
   if (out !== null) return { path: out, label: out };
   const dir = join(homedir(), "Downloads");
@@ -219,7 +218,6 @@ async function card(a: Args): Promise<number> {
   const target = cardTarget(a.out);
   await renderCard(cardHtml(data, await loadAssets()), target.path);
   console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${target.label}`);
-  // Only a person at a terminal is asked; a pipe, a script or Windows never is.
   if (process.stdin.isTTY && process.stdout.isTTY && process.platform !== "win32") {
     process.stdout.write("open it? [Y/n] ");
     let answer: string | null = null;

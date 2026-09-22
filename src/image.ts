@@ -74,13 +74,8 @@ async function write(out: string, data: string | Uint8Array): Promise<void> {
   }
 }
 
-// Hands the card to the platform's opener and does not wait. The path is made
-// absolute so a name like `-card.html` is never read as an option. Started
-// through `sh … &` because a Bun.spawn child with `detached` and `unref()` dies
-// when zapara exits first, and SIGHUP is ignored so the opener outlives a
-// terminal that zapara itself leads (`ssh -t host zapara card`). A missing or
-// failing opener is silent: the card is written, which is what the command
-// promised.
+// Absolute, so `-card.html` is never an option. `sh … &` with SIGHUP ignored:
+// a detached Bun.spawn child, or one in a terminal zapara leads, dies with zapara.
 export function openCard(path: string): void {
   const opener = process.platform === "darwin" ? "open" : "xdg-open";
   try {

@@ -30,9 +30,7 @@ async function run(...args: string[]): Promise<{ code: number; out: string; err:
 const files = () => readdir(cwd);
 const downloads = () => readdir(join(home, "Downloads"));
 
-// Fake `open` and `xdg-open`, first on PATH, append each argument to the log
-// as its own line. One pair for the whole file, run once up front: macOS
-// checks a freshly written executable for about 400 ms before it runs.
+// Warmed once: macOS checks a fresh executable for ~400 ms before running it.
 let bin: string;
 let log: string;
 beforeAll(async () => {
@@ -50,7 +48,6 @@ const opened = async (): Promise<string[]> => {
   const text = await Bun.file(log).text().catch(() => "");
   return text.split("\n").filter(Boolean);
 };
-// The opener runs in the background, so a line may land after zapara exits.
 async function openedWithin(ms: number): Promise<string[]> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
@@ -61,9 +58,7 @@ async function openedWithin(ms: number): Promise<string[]> {
   return opened();
 }
 
-// Runs the CLI in a pseudo-terminal, so stdin and stdout are both TTYs, and
-// types `answer` once the question appears. A run that exits without asking
-// returns at once, so a missing question fails the assertion, not the timeout.
+// A run that exits without asking returns at once: a missing question fails an assertion.
 async function runInTerminal(answer: string, ...args: string[]): Promise<{ code: number; out: string }> {
   let out = "";
   const decoder = new TextDecoder();
@@ -79,10 +74,7 @@ async function runInTerminal(answer: string, ...args: string[]): Promise<{ code:
   return { code, out };
 }
 
-// Runs the CLI through `sh -c script` in a pseudo-terminal, so the script can
-// point one stream away from it, and types nothing. `$0` is the CLI and `$@` its
-// arguments. A run still going after 5 s (one waiting for an answer) is killed
-// and reported with code null.
+// The script points one stream away from the terminal; a run still waiting after 5 s is killed (code null).
 async function runHalfTerminal(script: string, ...args: string[]): Promise<{ code: number | null; out: string }> {
   let out = "";
   const decoder = new TextDecoder();
@@ -306,12 +298,11 @@ describe("zapara card", () => {
       expect(r.out).toContain("open it? [Y/n] ");
       expect(await files()).toEqual(["c.html"]);
     }
-    // A wrongly started opener logs in the background; give it the time a real one gets.
     expect(await openedWithin(2000)).toEqual([]);
   }, 20_000);
 
   test("in a pipe there is no question and no read from stdin", async () => {
-    // stdin is a pipe held open: a run that waited for an answer would hang here.
+    // stdin stays open: a run that asked would hang.
     const p = Bun.spawn(["bun", CLI, "--projects", projects, "card", "--to", "2026-09-20", "--out", "c.html"], {
       cwd, stdin: "pipe", stdout: "pipe", stderr: "pipe",
       env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
@@ -324,7 +315,6 @@ describe("zapara card", () => {
   }, 10_000);
 
   test("with stdin a terminal but stdout a file there is no question and no read", async () => {
-    // Nothing is typed: a run that asked would wait on the terminal until killed.
     const r = await runHalfTerminal('exec bun "$0" "$@" > out.txt', "card", "--to", "2026-09-20", "--out", "c.html");
     expect(r.code).toBe(0);
     const out = await readFile(join(cwd, "out.txt"), "utf8");
@@ -334,7 +324,7 @@ describe("zapara card", () => {
   }, 10_000);
 
   test("with stdout a terminal but stdin a pipe there is no question and no read", async () => {
-    // A "y" waits in the pipe: a run that asked would read it and open the card.
+    // A run that asked would read this "y" and open the card.
     const r = await runHalfTerminal('printf "y\\n" | exec bun "$0" "$@"', "card", "--to", "2026-09-20", "--out", "c.html");
     expect(r.code).toBe(0);
     expect(r.out).toContain("wrote c.html\r\n");
