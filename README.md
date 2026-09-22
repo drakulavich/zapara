@@ -258,6 +258,6 @@ bun run check    # tsc --noEmit, then the test suite under TZ=UTC
 
 Tests are fixture-driven: they build or load transcripts in the real Claude Code format and assert the statistics that come out of the public seams, `analyze()`, `report()` and the CLI itself. No test imports the parser, the deriver or the scanner, so refactoring internals never touches a test. The rules every change follows are in [CLAUDE.md](CLAUDE.md), the design is in [docs/superpowers/specs/2026-09-17-zapara-design.md](docs/superpowers/specs/2026-09-17-zapara-design.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
 
-## License
+---
 
-MIT. See [LICENSE](LICENSE).
+<p align="center">Made with ❤️ and 🥤 energy under <a href="LICENSE">MIT License</a></p>
