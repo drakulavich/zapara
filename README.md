@@ -143,7 +143,7 @@ Levels: calm 0–29, warming 30–59, heating 60–84, fried 85–100.
 
 The grid and the day print a text table when stdout is a terminal and JSON otherwise, so `zapara | cat` prints JSON; no flag forces text in a pipe yet. `card` and `status` write their file and print their lines whether piped or not. `card --json` is the exception: it prints the card's data and writes no file. `--json` changes nothing for `status`, whose line is already JSON and whose file is written either way.
 
-Exit codes are 0 on success, 1 for a failure zapara can name, which prints one line to stderr and never a path: the projects directory missing or unreadable, `status` unable to write its file, `card` unable to write its picture or to find a browser engine, and whatever else goes wrong below the command line; and 2 for a usage error such as a bad date, an unknown flag or a value flag given twice, which prints one line and a hint to `--help`. A window with no data prints an empty grid and exits 0.
+A run that works exits 0, and so does a window with no data, which prints an empty grid. Exit 1 is a failure zapara can name, printed as one line to stderr that never contains a path: the projects directory missing or unreadable, `status` unable to write its file, `card` unable to write its picture or to find a browser engine, and whatever else goes wrong below the command line. Exit 2 is a usage error, such as a bad date, an unknown flag or a value flag given twice; it prints one line and a hint to `--help`.
 
 ## Status line
 
@@ -214,7 +214,7 @@ index = round(25*parallel + 15*pace + 30*supervision + 10*reading + 10*streak + 
 | Heating | 60–84 |
 | Fried | 85–100 |
 
-The norms are the p90 of two weeks of real transcripts on two machines, 116 and 114 active hours. Why each one is what it is, and what surprised us in that data, is in [How the numbers are made](docs/how-the-numbers-are-made.md#5-the-index).
+The norms are the p90 of two weeks of real transcripts on two machines, 116 and 114 active hours. Why each one is what it is, and what surprised me in that data, is in [How the numbers are made](docs/how-the-numbers-are-made.md#5-the-index).
 
 Weights and norms live in one exported constant in `src/score.ts`, so a recalibration is one diff there plus a line in `CHANGELOG.md`.
 
@@ -257,6 +257,16 @@ bun run check    # tsc --noEmit, then the test suite under TZ=UTC
 ```
 
 Tests are fixture-driven: they build or load transcripts in the real Claude Code format and assert the statistics that come out of the public seams, `analyze()`, `report()` and the CLI itself. No test imports the parser, the deriver or the scanner, so refactoring internals never touches a test. The rules every change follows are in [CLAUDE.md](CLAUDE.md), the design is in [docs/superpowers/specs/2026-09-17-zapara-design.md](docs/superpowers/specs/2026-09-17-zapara-design.md), and every change is recorded in [CHANGELOG.md](CHANGELOG.md).
+
+## Where it comes from
+
+The question comes from Addy Osmani's [Your parallel Agent limit](https://addyosmani.com/blog/cognitive-parallel-agents/). More agents running does not make more of you available, because "your cognitive bandwidth doesn't parallelize", and the cost of the ones you are not looking at is what he calls the ambient anxiety tax: "the part of your mind that can't fully relax because it knows something might be silently going sideways in a thread you haven't checked in twenty minutes." His own ceiling is "somewhere around three to four threads depending on complexity", and his advice is to start with one thread less than feels right.
+
+The index was calibrated before I read that, from the 90th percentile of two weeks on two machines, and it arrived at the same number: `NORMS.parallelSpan` in [src/score.ts](src/score.ts) is 4, so the fifth session running at once spends all 25 points for parallel work.
+
+The post and this tool disagree about what to watch. Osmani's signal is the quality of your own review: you have passed your ceiling when your confidence in what you are accepting starts dropping. A transcript cannot see that. It can see how much model output went past you, which is the `out-tok` column and ten of the hundred points, and it can see the shape of the hour around it. The index is a proxy with a known blind spot, and the number is worth something only next to your memory of the hour it scores.
+
+Most of the advice in this area stops at fewer threads, smaller scope and more breaks, with few numbers you can hold yourself to. An hour with a score on it is at least something you can disagree with.
 
 ---
 
