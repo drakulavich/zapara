@@ -16,7 +16,7 @@ copying it; the README carries an `osascript` one-liner for the last step.
 
 ```
 $ zapara card
-The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm
+The Marathoner: Longest streak 7h53m without a break, 68% of your hours calm.
 wrote zapara-card.png to Downloads
 open it? [Y/n]
 ```
