@@ -4,7 +4,7 @@ import type { Day, Event, EventKind, HourBucket, LiveBucket, Metrics, Totals, Wi
 export const LOOKBACK_MS = 3 * 60 * 60 * 1000;
 export const GAP_MS = 10 * 60 * 1000;
 export const SLOT_MS = 5 * 60 * 1000;
-export const LIVE_MS = 60 * 60 * 1000;
+const LIVE_MS = 60 * 60 * 1000;
 const LATE_HOURS = new Set([23, 0, 1, 2, 3, 4, 5]);
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -81,15 +81,13 @@ function accumulate(a: Acc, e: Event, streakStart: number): void {
 }
 
 // An accumulator's metrics, scored. `lateNight` is the caller's: an hour's own
-// label, or the hour of `now` for the live bucket. An absent accumulator is an
-// empty one, and score() returns null for it, since it has no session.
-function finish(a: Acc | undefined, lateNight: boolean): LiveBucket {
-  const m = a ? a.m : emptyMetrics();
-  if (a) {
-    m.sessions = a.sessions.size;
-    m.activeMin = a.slots.size * 5;
-    m.streakMin = Math.round(a.maxStreakMs / 60000);
-  }
+// label, or the hour of `now` for the live bucket. A fresh accumulator is an
+// empty hour, and score() returns null for it, since it has no session.
+function finish(a: Acc, lateNight: boolean): LiveBucket {
+  const m = a.m;
+  m.sessions = a.sessions.size;
+  m.activeMin = a.slots.size * 5;
+  m.streakMin = Math.round(a.maxStreakMs / 60000);
   m.decisions = m.interrupts + m.rejects + m.questions + m.plans + m.modeSwitches;
   m.lateNight = lateNight;
   return { ...m, score: score(m) };
@@ -179,7 +177,7 @@ function buildDay(date: string, acc: Map<string, Acc>): Day {
     // lateNight is a property of the hour label, so it is set on every bucket,
     // including empty ones; score() returns null for buckets without
     // sessions, so an empty late hour scores nothing.
-    buckets.push({ ...finish(a, LATE_HOURS.has(hour)), hour });
+    buckets.push({ ...finish(a ?? newAcc(), LATE_HOURS.has(hour)), hour });
   }
   const scored = buckets.filter((b) => b.score !== null);
   const totals: Totals = buckets.reduce((t, b) => ({
@@ -219,10 +217,10 @@ export function derive(events: Event[], w: Window): Day[] {
   }
   if (w.now) {
     const today = localDate(w.now);
-    for (const d of days) {
-      if (d.date !== today) continue;
-      d.asOf = w.now.toISOString();
-      d.live = finish(foldLive(sorted, w.now.getTime()), LATE_HOURS.has(w.now.getHours()));
+    const open = days.find((d) => d.date === today);
+    if (open) {
+      open.asOf = w.now.toISOString();
+      open.live = finish(foldLive(sorted, w.now.getTime()), LATE_HOURS.has(w.now.getHours()));
     }
   }
   return days;

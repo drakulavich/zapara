@@ -59,14 +59,15 @@ describe("live: the rule's edges", () => {
     // Prompts every two minutes from 11:20. Window from 11:30. Mutations this
     // pins: starting the streak at the window's edge (60 and 40); using the
     // live streak of the status file (70 and 0).
-    const every2 = (untilMin: number) => transcript(Array.from({ length: (untilMin - 80) / 2 + 1 }, (_, i) => {
-      const t = 80 + i * 2; // minutes after 10:00
-      return prompt(`2026-09-14T${mm(10 + Math.floor(t / 60))}:${mm(t % 60)}:00.000Z`, A);
-    }));
+    const start = Date.parse("2026-09-14T11:20:00.000Z");
+    const every2 = (until: string) => {
+      const count = (Date.parse(until) - start) / 120_000 + 1;
+      return transcript(Array.from({ length: count }, (_, i) => prompt(new Date(start + i * 120_000).toISOString(), A)));
+    };
     const now = new Date("2026-09-14T12:30:00.000Z");
-    const toTheEnd = analyze([every2(150)], { to: "2026-09-14", days: 1, now })[0]!;
+    const toTheEnd = analyze([every2("2026-09-14T12:30:00.000Z")], { to: "2026-09-14", days: 1, now })[0]!;
     expect(toTheEnd.live!.streakMin).toBe(70);
-    const stopped = analyze([every2(130)], { to: "2026-09-14", days: 1, now })[0]!;
+    const stopped = analyze([every2("2026-09-14T12:10:00.000Z")], { to: "2026-09-14", days: 1, now })[0]!;
     expect(stopped.live!.streakMin).toBe(50);
     expect(stopped.presence!.lastAt).toBe("2026-09-14T12:10:00.000Z"); // 20 minutes ago: the file's own streak is 0
   });
