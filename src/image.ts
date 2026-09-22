@@ -1,14 +1,12 @@
-// The card's shell: the only module that reads the card assets, opens a
-// Bun.WebView or a Bun.Image, and writes a file. Everything it writes is the one
-// file the person named; nothing here prints.
+// The only module that reads the card assets, opens a Bun.WebView or Bun.Image,
+// and writes the card.
 import { readFile, writeFile } from "node:fs/promises";
 import type { CardAssets } from "./cardhtml.ts";
 
 const ASSETS = new URL("../assets/", import.meta.url);
 const FILES = ["fonts/inter-400.woff2", "fonts/inter-700.woff2", "fonts/inter-800.woff2", "fonts/jetbrains-mono-500.woff2", "characters.webp"] as const;
 
-// Reads the five files next to the source. A missing, unreadable or empty one is
-// a broken install, reported without a path: the CLI never prints one.
+// A missing or empty asset is a broken install, reported without a path.
 export async function loadAssets(): Promise<CardAssets> {
   let parts: string[];
   try {
@@ -28,14 +26,9 @@ const WIDTH = 2400;
 const HEIGHT = 1260;
 const READY = 'document.fonts.ready.then(() => document.fonts.status === "loaded" && Array.from(document.images).every((i) => i.complete))';
 
-// Writes the page as is for `.html`; otherwise photographs it at 2400x1260 and
-// writes PNG or WebP. The 15s budget bounds the whole render (construct, navigate,
-// poll, screenshot, resize, encode), raced against a single timer; the view is
-// closed on every path. Any engine failure (constructor, navigate, evaluate,
-// screenshot) is mapped to one line that never quotes the engine's own text; the
-// timeout error passes through unchanged. A failed write (missing directory, no
-// permission, a directory in the way, a read-only file system) becomes one line
-// that names no path, because the node error quotes the whole path.
+// The budget bounds the whole render, raced against one timer; the view is
+// closed on every path. An engine failure becomes one line that never quotes
+// the engine's text; the timeout error passes through unchanged.
 export async function renderCard(html: string, out: string, timeoutMs = 15_000): Promise<void> {
   const lower = out.toLowerCase();
   if (lower.endsWith(".html")) {
@@ -71,8 +64,7 @@ export async function renderCard(html: string, out: string, timeoutMs = 15_000):
   await write(out, bytes);
 }
 
-// The only place the card is written. Every failure is the same one line: the
-// error node raises quotes the path in full, and the CLI never prints one.
+// One line for every failure: node's error quotes the path, and the CLI never prints one.
 async function write(out: string, data: string | Uint8Array): Promise<void> {
   try {
     await writeFile(out, data);

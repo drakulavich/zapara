@@ -31,35 +31,29 @@ const emptyMetrics = (): Metrics => ({
   decisions: 0, contextSwitches: 0, activeMin: 0, streakMin: 0, lateNight: false,
 });
 
-// Presence is every action the human takes: what they typed, and the three ways
-// they answer or stop the agent. Agent records (`activity`, `report`, `output`)
-// and the agent's own asks (`question`, `plan_review`) are never presence.
+// Presence is the human's own actions only: agent records and the agent's asks
+// are never presence, because presence answers "is it time to rest?".
 const PRESENCE: ReadonlySet<EventKind> = new Set<EventKind>(["prompt", "interrupt", "reject", "answer"]);
 
 type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; maxStreakMs: number; lastPresence: { ts: number; streakStart: number } | null };
 const newAcc = (): Acc => ({ m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, maxStreakMs: 0, lastPresence: null });
 
-// The slots one presence event covers: its own, and inside a streak every slot
-// back to the previous action, since the human sat through the gap too. An
-// event that starts a streak covers nothing behind it, and the streak starts at it.
+// Inside a streak the human sat through the gap, so a pair of actions covers
+// every slot between them; an action that starts a streak covers only its own.
 const coverage = (prevTs: number | null, streakStart: number, e: Event): { from: number; to: number; streakStart: number } => {
   const to = Math.floor(e.ts / SLOT_MS);
   if (prevTs !== null && e.ts - prevTs <= GAP_MS) return { from: Math.floor(prevTs / SLOT_MS), to, streakStart };
   return { from: to, to, streakStart: e.ts };
 };
 
-// One event into one accumulator: the counts an hour bucket and the live bucket
-// share, defined once. The streak an event belongs to is the caller's, because
-// it may have started before this accumulator's window.
-//
-// The streak kept is the longest the accumulator saw, not the one it happened
-// to end on: a single prompt after a break would otherwise erase a run of
-// hours. A streak is longest at its last event, and that event lies in some
-// window, so the maximum over windows is the run's true length.
+// The counts an hour bucket and the live bucket share. `streakStart` is the
+// caller's: a streak may have begun before this accumulator's window. The streak
+// kept is the longest seen, not the one the window ended on, or a single prompt
+// after a break would erase the run.
 function accumulate(a: Acc, e: Event, streakStart: number): void {
   if (PRESENCE.has(e.kind)) {
     a.maxStreakMs = Math.max(a.maxStreakMs, e.ts - streakStart);
-    a.lastPresence = { ts: e.ts, streakStart }; // the accumulator's last, for the day's live streak
+    a.lastPresence = { ts: e.ts, streakStart }; // for the day's live streak
   }
   switch (e.kind) {
     case "activity":
@@ -80,9 +74,8 @@ function accumulate(a: Acc, e: Event, streakStart: number): void {
   }
 }
 
-// An accumulator's metrics, scored. `lateNight` is the caller's: an hour's own
-// label, or the hour of `now` for the live bucket. A fresh accumulator is an
-// empty hour, and score() returns null for it, since it has no session.
+// `lateNight` is the caller's: an hour's own label, or the hour of `now` for the
+// live bucket. A fresh accumulator is an empty hour and scores null.
 function finish(a: Acc, lateNight: boolean): LiveBucket {
   const m = a.m;
   m.sessions = a.sessions.size;
@@ -93,18 +86,9 @@ function finish(a: Acc, lateNight: boolean): LiveBucket {
   return { ...m, score: score(m) };
 }
 
-// Walks the sorted, look-back-filtered events once, keyed by "date|hour",
-// tracking the running presence streak (which may start before startMs) and
-// accumulating each bucket's raw counts.
-//
-// Presence is the human's: both the streak and the covered slots are built from
-// the PRESENCE kinds alone, because both answer "is it time to rest?". Agents
-// that work on while the human is away must not keep a streak alive or fill the
-// day, so `activity` is left with session liveness and nothing else.
-//
-// Presence events before startMs update presence only: they are never counted in
-// a bucket, and neither are the slots they cover before startMs, but a span from
-// such an event into the window still covers the window's first slots.
+// The 24 hour buckets, keyed "date|hour". Events before startMs are look-back:
+// they move the streak but enter no bucket, though a span from one into the
+// window still covers the window's first slots.
 function foldEvents(sorted: Event[], startMs: number): { acc: Map<string, Acc>; carried: { ts: number; streakStart: number } | null } {
   const acc = new Map<string, Acc>(); // key "date|hour"
   const key = (ts: number): string => {
@@ -129,9 +113,8 @@ function foldEvents(sorted: Event[], startMs: number): { acc: Map<string, Acc>; 
         if (slotStart >= startMs) get(key(slotStart)).slots.add(s); // a slot belongs to the bucket of its start
       }
       prevPresenceTs = e.ts;
-      // The last human action before the window opens, kept for the first day:
-      // a person still at the keyboard at 23:58 is still in that streak at
-      // 00:03, and the day they are looking at holds nothing yet.
+      // A person at the keyboard at 23:58 is still in that streak at 00:03,
+      // and the day they are looking at holds nothing yet.
       if (e.ts < startMs) carried = { ts: e.ts, streakStart };
     }
     if (e.ts < startMs) continue; // look-back: presence bookkeeping only
@@ -140,12 +123,10 @@ function foldEvents(sorted: Event[], startMs: number): { acc: Map<string, Acc>; 
   return { acc, carried };
 }
 
-// The live bucket: the sixty minutes ending at `now`, `(now − 60 min, now]`,
-// accumulated by the rule an hour bucket uses. Presence runs from the first
-// event, as in foldEvents, so a streak that began before the window is measured
-// from where it began; an event or a slot start outside the window counts for
-// nothing. Events before the day's start count here, unlike in a bucket: the
-// window is a clock's hour, not a calendar's, and the look-back holds them.
+// The sixty minutes ending at `now`, by the rule an hour bucket uses. Presence
+// runs from the first event, so a streak older than the window is measured from
+// where it began. Events before the day's start count here, unlike in a bucket:
+// the window is a clock's hour, not a calendar's.
 function foldLive(sorted: Event[], nowMs: number): Acc {
   const a = newAcc();
   const fromMs = nowMs - LIVE_MS;
@@ -164,19 +145,13 @@ function foldLive(sorted: Event[], nowMs: number): Acc {
   return a;
 }
 
-// Builds one Day's 24 hour buckets from the accumulated counts, scores each,
-// and rolls up totals, peak and mean.
 function buildDay(date: string, acc: Map<string, Acc>): Day {
   const buckets: HourBucket[] = [];
-  // The day's last human action: the last one of the highest hour that saw any.
-  // Hours run in time order, so the last write wins.
+  // Hours run in time order, so the last write is the day's last action.
   let lastPresence: { ts: number; streakStart: number } | null = null;
   for (let hour = 0; hour < 24; hour++) {
     const a = acc.get(`${date}|${hour}`);
     if (a?.lastPresence) lastPresence = a.lastPresence;
-    // lateNight is a property of the hour label, so it is set on every bucket,
-    // including empty ones; score() returns null for buckets without
-    // sessions, so an empty late hour scores nothing.
     buckets.push({ ...finish(a ?? newAcc(), LATE_HOURS.has(hour)), hour });
   }
   const scored = buckets.filter((b) => b.score !== null);
@@ -207,10 +182,8 @@ export function derive(events: Event[], w: Window): Day[] {
     .map(({ e }) => e);
   const { acc, carried } = foldEvents(sorted, startMs);
   const days = dates.map((date) => buildDay(date, acc));
-  // Only the first day can be preceded by the look-back, and only a day with no
-  // action of its own needs it: the streak that was running when the window
-  // opened is still the one the person is in. It reaches `presence` and nothing
-  // else — no bucket, no total, no active minute belongs to a day before this one.
+  // Only a first day with no action of its own borrows the look-back's streak,
+  // and only into `presence`: no bucket, total or active minute crosses back.
   const first = days[0];
   if (first && first.presence === null && carried) {
     first.presence = { lastAt: new Date(carried.ts).toISOString(), streakStartAt: new Date(carried.streakStart).toISOString() };

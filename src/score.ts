@@ -1,8 +1,7 @@
 import type { Level, Metrics, Parts, Score } from "./types.ts";
 
-// Calibration lives here and nowhere else. A change is one diff plus a CHANGELOG line.
-// Points of 100, kept as integers so 0.5 sums stay exact in floating point.
-// Norms are the p90 of two weeks of real data on two machines (see CHANGELOG).
+// Calibration lives here and nowhere else. Integer points of 100, so 0.5 sums
+// stay exact; norms are the p90 of two weeks on two machines (see CHANGELOG).
 export const WEIGHTS = { parallel: 25, pace: 15, supervision: 30, reading: 10, streak: 10, late: 10 } as const;
 export const NORMS = { parallelSpan: 4, pacePerHour: 20, supervisionPerHour: 45, decisionWeight: 3, readingTokens: 80_000, streakMin: 40 } as const;
 export const LEVELS: readonly { max: number; level: Level }[] = [
@@ -23,8 +22,7 @@ export function score(m: Metrics): Score | null {
   if (m.sessions === 0) return null;
   const parallel = clamp01((m.sessions - 1) / NORMS.parallelSpan);
   const pace = clamp01(m.prompts / NORMS.pacePerHour);
-  // Supervision is one load: an explicit decision costs `decisionWeight` times what
-  // reacting to one agent report or one session hop costs, and the three share a norm.
+  // A decision costs `decisionWeight` reports or session hops; the three share a norm.
   const supervision = clamp01(
     (NORMS.decisionWeight * m.decisions + m.reports + m.contextSwitches) / NORMS.supervisionPerHour,
   );
@@ -40,7 +38,7 @@ export function score(m: Metrics): Score | null {
     streak: WEIGHTS.streak * streak,
     late: WEIGHTS.late * late,
   };
-  // parts are the same raw weighted points, rounded to one decimal for display only.
+  // Rounded for display only.
   const parts: Parts = {
     parallel: Math.round(raw.parallel * 10) / 10,
     pace: Math.round(raw.pace * 10) / 10,
@@ -49,8 +47,7 @@ export function score(m: Metrics): Score | null {
     streak: Math.round(raw.streak * 10) / 10,
     late: Math.round(raw.late * 10) / 10,
   };
-  // index is rounded once, from the unrounded raw points, so per-component
-  // rounding (parts, above) can never tip it across a boundary raw didn't.
+  // Rounded once from the raw points, so parts' rounding can never tip it across a boundary.
   const index = Math.round(
     raw.parallel + raw.pace + raw.supervision + raw.reading + raw.streak + raw.late,
   );

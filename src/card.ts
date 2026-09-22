@@ -1,7 +1,5 @@
-// Card data: which of four characters a window is, the sentence behind it, the
-// peak hour, the load spectrum and three highlights, every value already
-// formatted for the page. Pure: Day[] in, CardData out. Nothing here knows a
-// date, a path or a file, so nothing here can leak one.
+// Pure: Day[] in, CardData out, every value already formatted for the page.
+// Nothing here knows a date, a path or a file, so nothing here can leak one.
 import { formatCount, formatTokens, plural } from "./format.ts";
 import { NORMS, WEIGHTS } from "./score.ts";
 import type { Day, HourBucket, Level, Score } from "./types.ts";
@@ -34,9 +32,8 @@ const MOTTOS: Record<Character, string> = {
   marathoner: "You do not stop while it compiles.",
   nightOwl: "The best commits happen after midnight.",
 };
-// Ranking norms for the third highlight: a value over its norm says how remarkable
-// it is next to the others. Sums are per active hour. These rank a picture and
-// never touch the index; the index's own norms stay in score.ts.
+// Rank the third highlight, per active hour. They never touch the index, whose
+// norms stay in score.ts.
 const CARD_NORMS = { reportsPerHour: 12, tokensPerHour: 65_000, interruptsPerHour: 3, latePercent: 25 } as const;
 const OWNED: Record<Character, [HighlightKey, HighlightKey]> = {
   conductor: ["peakSessions", "contextSwitches"],
@@ -94,15 +91,15 @@ export function cardData(days: Day[], w: { days: number }): CardData | null {
   const max = (f: (b: Active) => number): number => active.reduce((a, b) => Math.max(a, f(b)), 0);
   const count = (level: Level): number => active.filter((b) => b.score.level === level).length;
 
-  // Each share is the fraction of that character's maximum possible points the
-  // window collected, so a 10-point component competes fairly with a 40-point one.
+  // A share is the fraction of the character's maximum points, so a 10-point
+  // component competes fairly with a 40-point one.
   const shares: Record<Character, number> = {
     conductor: sum((b) => b.score.parts.parallel + b.score.parts.pace) / ((WEIGHTS.parallel + WEIGHTS.pace) * n),
     supervisor: sum((b) => b.score.parts.supervision + b.score.parts.reading) / ((WEIGHTS.supervision + WEIGHTS.reading) * n),
     marathoner: sum((b) => b.score.parts.streak) / (WEIGHTS.streak * n),
     nightOwl: sum((b) => b.score.parts.late) / (WEIGHTS.late * n),
   };
-  // Strict > keeps the earlier of equal shares: CHARACTERS is the tie order.
+  // Strict >: CHARACTERS is the tie order.
   const character = CHARACTERS.reduce((best, c) => (shares[c] > shares[best] ? c : best));
 
   const maxSessions = max((b) => b.sessions);
@@ -143,7 +140,7 @@ export function cardData(days: Day[], w: { days: number }): CardData | null {
     lateShare: late / CARD_NORMS.latePercent,
   };
   const owned = OWNED[character];
-  // A late-night number on anyone but the Night Owl is the kind of thing they would hide.
+  // A late-night number belongs to the Night Owl alone.
   const rest = POOL.filter((k) => !owned.includes(k) && (k !== "lateShare" || character === "nightOwl"));
   const third = rest.reduce((best, k) => (norms[k] > norms[best] ? k : best));
   const highlights = [...owned, third].map((key) => ({ key, value: values[key], caption: CAPTIONS[key] }));

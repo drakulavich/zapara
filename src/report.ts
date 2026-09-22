@@ -6,7 +6,6 @@ import type { Day, Transcript } from "./types.ts";
 
 export type ReportOptions = { projects: string; to: string; days: number; now?: Date };
 
-// The shell's seam: lists and reads files, then hands the text to the pure core.
 export async function report(o: ReportOptions): Promise<Day[]> {
   const window = { to: o.to, days: o.days, now: o.now };
   const paths = await scan(o.projects, windowBounds(window).cutoffMs);
