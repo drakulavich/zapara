@@ -1,9 +1,10 @@
 import { score } from "./score.ts";
-import type { Day, Event, EventKind, HourBucket, Metrics, Totals, Window } from "./types.ts";
+import type { Day, Event, EventKind, HourBucket, LiveBucket, Metrics, Totals, Window } from "./types.ts";
 
 export const LOOKBACK_MS = 3 * 60 * 60 * 1000;
 export const GAP_MS = 10 * 60 * 1000;
 export const SLOT_MS = 5 * 60 * 1000;
+export const LIVE_MS = 60 * 60 * 1000;
 const LATE_HOURS = new Set([23, 0, 1, 2, 3, 4, 5]);
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -36,6 +37,63 @@ const emptyMetrics = (): Metrics => ({
 const PRESENCE: ReadonlySet<EventKind> = new Set<EventKind>(["prompt", "interrupt", "reject", "answer"]);
 
 type Acc = { m: Metrics; sessions: Set<string>; slots: Set<number>; lastPromptSession: string | null; maxStreakMs: number; lastPresence: { ts: number; streakStart: number } | null };
+const newAcc = (): Acc => ({ m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, maxStreakMs: 0, lastPresence: null });
+
+// The slots one presence event covers: its own, and inside a streak every slot
+// back to the previous action, since the human sat through the gap too. An
+// event that starts a streak covers nothing behind it, and the streak starts at it.
+const coverage = (prevTs: number | null, streakStart: number, e: Event): { from: number; to: number; streakStart: number } => {
+  const to = Math.floor(e.ts / SLOT_MS);
+  if (prevTs !== null && e.ts - prevTs <= GAP_MS) return { from: Math.floor(prevTs / SLOT_MS), to, streakStart };
+  return { from: to, to, streakStart: e.ts };
+};
+
+// One event into one accumulator: the counts an hour bucket and the live bucket
+// share, defined once. The streak an event belongs to is the caller's, because
+// it may have started before this accumulator's window.
+//
+// The streak kept is the longest the accumulator saw, not the one it happened
+// to end on: a single prompt after a break would otherwise erase a run of
+// hours. A streak is longest at its last event, and that event lies in some
+// window, so the maximum over windows is the run's true length.
+function accumulate(a: Acc, e: Event, streakStart: number): void {
+  if (PRESENCE.has(e.kind)) {
+    a.maxStreakMs = Math.max(a.maxStreakMs, e.ts - streakStart);
+    a.lastPresence = { ts: e.ts, streakStart }; // the accumulator's last, for the day's live streak
+  }
+  switch (e.kind) {
+    case "activity":
+      a.sessions.add(e.sessionId);
+      break;
+    case "prompt":
+      a.m.prompts++;
+      if (a.lastPromptSession !== null && a.lastPromptSession !== e.sessionId) a.m.contextSwitches++;
+      a.lastPromptSession = e.sessionId;
+      break;
+    case "report": a.m.reports++; break;
+    case "output": a.m.outputTokens += e.tokens ?? 0; break;
+    case "interrupt": a.m.interrupts++; break;
+    case "reject": a.m.rejects++; break;
+    case "question": a.m.questions++; break;
+    case "plan_review": a.m.plans++; break;
+    case "mode_change": a.m.modeSwitches++; break;
+  }
+}
+
+// An accumulator's metrics, scored. `lateNight` is the caller's: an hour's own
+// label, or the hour of `now` for the live bucket. An absent accumulator is an
+// empty one, and score() returns null for it, since it has no session.
+function finish(a: Acc | undefined, lateNight: boolean): LiveBucket {
+  const m = a ? a.m : emptyMetrics();
+  if (a) {
+    m.sessions = a.sessions.size;
+    m.activeMin = a.slots.size * 5;
+    m.streakMin = Math.round(a.maxStreakMs / 60000);
+  }
+  m.decisions = m.interrupts + m.rejects + m.questions + m.plans + m.modeSwitches;
+  m.lateNight = lateNight;
+  return { ...m, score: score(m) };
+}
 
 // Walks the sorted, look-back-filtered events once, keyed by "date|hour",
 // tracking the running presence streak (which may start before startMs) and
@@ -57,7 +115,7 @@ function foldEvents(sorted: Event[], startMs: number): { acc: Map<string, Acc>; 
   };
   const get = (k: string): Acc => {
     let a = acc.get(k);
-    if (!a) { a = { m: emptyMetrics(), sessions: new Set(), slots: new Set(), lastPromptSession: null, maxStreakMs: 0, lastPresence: null }; acc.set(k, a); }
+    if (!a) { a = newAcc(); acc.set(k, a); }
     return a;
   };
 
@@ -66,14 +124,9 @@ function foldEvents(sorted: Event[], startMs: number): { acc: Map<string, Acc>; 
   let carried: { ts: number; streakStart: number } | null = null;
   for (const e of sorted) {
     if (PRESENCE.has(e.kind)) {
-      const slot = Math.floor(e.ts / SLOT_MS);
-      // A presence event covers its own slot. Inside a streak the human sat
-      // through the gap too, so the pair also covers every slot between them; an
-      // event that starts a streak covers nothing behind it.
-      let from = slot;
-      if (prevPresenceTs !== null && e.ts - prevPresenceTs <= GAP_MS) from = Math.floor(prevPresenceTs / SLOT_MS);
-      else streakStart = e.ts;
-      for (let s = from; s <= slot; s++) {
+      const c = coverage(prevPresenceTs, streakStart, e);
+      streakStart = c.streakStart;
+      for (let s = c.from; s <= c.to; s++) {
         const slotStart = s * SLOT_MS;
         if (slotStart >= startMs) get(key(slotStart)).slots.add(s); // a slot belongs to the bucket of its start
       }
@@ -84,34 +137,33 @@ function foldEvents(sorted: Event[], startMs: number): { acc: Map<string, Acc>; 
       if (e.ts < startMs) carried = { ts: e.ts, streakStart };
     }
     if (e.ts < startMs) continue; // look-back: presence bookkeeping only
-    const a = get(key(e.ts));
-    // The hour's streak is the longest it saw, not the one it happened to end
-    // on: a single prompt after a break would otherwise erase a run of hours.
-    // A streak is longest at its last event, and that event lies in some hour,
-    // so the maximum over hours is the run's true length.
-    if (PRESENCE.has(e.kind)) {
-      a.maxStreakMs = Math.max(a.maxStreakMs, e.ts - streakStart);
-      a.lastPresence = { ts: e.ts, streakStart }; // the bucket's last, for the day's live streak
-    }
-    switch (e.kind) {
-      case "activity":
-        a.sessions.add(e.sessionId);
-        break;
-      case "prompt":
-        a.m.prompts++;
-        if (a.lastPromptSession !== null && a.lastPromptSession !== e.sessionId) a.m.contextSwitches++;
-        a.lastPromptSession = e.sessionId;
-        break;
-      case "report": a.m.reports++; break;
-      case "output": a.m.outputTokens += e.tokens ?? 0; break;
-      case "interrupt": a.m.interrupts++; break;
-      case "reject": a.m.rejects++; break;
-      case "question": a.m.questions++; break;
-      case "plan_review": a.m.plans++; break;
-      case "mode_change": a.m.modeSwitches++; break;
-    }
+    accumulate(get(key(e.ts)), e, streakStart);
   }
   return { acc, carried };
+}
+
+// The live bucket: the sixty minutes ending at `now`, `(now − 60 min, now]`,
+// accumulated by the rule an hour bucket uses. Presence runs from the first
+// event, as in foldEvents, so a streak that began before the window is measured
+// from where it began; an event or a slot start outside the window counts for
+// nothing. Events before the day's start count here, unlike in a bucket: the
+// window is a clock's hour, not a calendar's, and the look-back holds them.
+function foldLive(sorted: Event[], nowMs: number): Acc {
+  const a = newAcc();
+  const fromMs = nowMs - LIVE_MS;
+  const inWindow = (t: number): boolean => t > fromMs && t <= nowMs;
+  let prevPresenceTs: number | null = null;
+  let streakStart = 0;
+  for (const e of sorted) {
+    if (PRESENCE.has(e.kind)) {
+      const c = coverage(prevPresenceTs, streakStart, e);
+      streakStart = c.streakStart;
+      for (let s = c.from; s <= c.to; s++) if (inWindow(s * SLOT_MS)) a.slots.add(s);
+      prevPresenceTs = e.ts;
+    }
+    if (inWindow(e.ts)) accumulate(a, e, streakStart);
+  }
+  return a;
 }
 
 // Builds one Day's 24 hour buckets from the accumulated counts, scores each,
@@ -123,19 +175,11 @@ function buildDay(date: string, acc: Map<string, Acc>): Day {
   let lastPresence: { ts: number; streakStart: number } | null = null;
   for (let hour = 0; hour < 24; hour++) {
     const a = acc.get(`${date}|${hour}`);
-    const m = a ? a.m : emptyMetrics();
-    if (a) {
-      if (a.lastPresence) lastPresence = a.lastPresence;
-      m.sessions = a.sessions.size;
-      m.activeMin = a.slots.size * 5;
-      m.streakMin = Math.round(a.maxStreakMs / 60000);
-    }
-    m.decisions = m.interrupts + m.rejects + m.questions + m.plans + m.modeSwitches;
+    if (a?.lastPresence) lastPresence = a.lastPresence;
     // lateNight is a property of the hour label, so it is set on every bucket,
     // including empty ones; score() returns null for buckets without
     // sessions, so an empty late hour scores nothing.
-    m.lateNight = LATE_HOURS.has(hour);
-    buckets.push({ ...m, hour, score: score(m) });
+    buckets.push({ ...finish(a, LATE_HOURS.has(hour)), hour });
   }
   const scored = buckets.filter((b) => b.score !== null);
   const totals: Totals = buckets.reduce((t, b) => ({
@@ -175,7 +219,11 @@ export function derive(events: Event[], w: Window): Day[] {
   }
   if (w.now) {
     const today = localDate(w.now);
-    for (const d of days) if (d.date === today) d.asOf = w.now.toISOString();
+    for (const d of days) {
+      if (d.date !== today) continue;
+      d.asOf = w.now.toISOString();
+      d.live = finish(foldLive(sorted, w.now.getTime()), LATE_HOURS.has(w.now.getHours()));
+    }
   }
   return days;
 }
