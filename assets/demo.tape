@@ -15,9 +15,17 @@
 #      PATH="$DIR/bin:$PATH" TZ=UTC vhs assets/demo.tape
 #
 #    Use vhs 0.11.0. Version 0.12.0 exits 0 and writes no file
-#    (https://github.com/charmbracelet/vhs/issues/787). TZ=UTC is required: the fixture's
-#    timestamps are UTC and zapara buckets by local time, so any other zone shifts the
-#    hours away from the samples pasted in the README.
+#    (https://github.com/charmbracelet/vhs/issues/787). vhs drives a real terminal through
+#    ttyd, so `brew install ttyd` first; without it vhs prints one line and leaves the old
+#    file untouched. TZ=UTC is required: the fixture's timestamps are UTC and zapara
+#    buckets by local time, so any other zone shifts the hours away from the samples
+#    pasted in the README.
+#
+#    Record right after building the sandbox. The status step reads today: the sandbox
+#    carries a session whose last action is four minutes old at build time, which is what
+#    gives `zapara status` a live streak instead of a row of nulls, and it goes stale
+#    within the hour. The sandbox is also where `status` writes its file, since the
+#    wrapper sets HOME; the recording cannot touch the status line of whoever records it.
 #
 # 2. Build the animated WebP the README shows. This ffmpeg has no libwebp encoder, so
 #    the frames go through the libwebp tools; -d 83 is the frame delay in ms at 12 fps.
@@ -37,9 +45,9 @@
 # has room to spare. Do not add --explain to the day command: that table is 133 columns
 # and would wrap at this size. The README shows it as text instead. Never crop.
 #
-# Ctrl+L before the week and day commands starts each table at the top of the frame
-# rather than partway down a scrolling screen. The JSON step deliberately follows the
-# day table without clearing, so the seam is visible next to the table it replaces.
+# Every command is preceded by Ctrl+L, so each one starts at the top of an empty frame
+# instead of partway down a scrolling screen. It also keeps `head -c`, which cuts its
+# output without a newline, from leaving the next prompt inside the JSON.
 
 Output assets/demo.mp4
 
@@ -51,13 +59,7 @@ Set Width 1500
 Set Height 800
 Set FontSize 22
 
-# 1. orient the viewer
-Type "zapara --version"
-Sleep 300ms
-Enter
-Sleep 1s
-
-# 2. the hero: a week of hourly load as a heatmap
+# 1. the hero: a week of hourly load as a heatmap
 Ctrl+L
 Sleep 500ms
 Type "zapara --to 2026-09-20"
@@ -65,16 +67,26 @@ Sleep 300ms
 Enter
 Sleep 4s
 
-# 3. one day, hour by hour
+# 2. one day, hour by hour
 Ctrl+L
 Sleep 500ms
 Type "zapara 2026-09-14"
 Sleep 300ms
 Enter
-Sleep 5s
+Sleep 4s
 
-# 4. the same data as JSON, which is what a pipe gets
+# 3. the same data as JSON, which is what a pipe gets
+Ctrl+L
+Sleep 500ms
 Type "zapara 2026-09-14 --json | head -c 400"
+Sleep 300ms
+Enter
+Sleep 2500ms
+
+# 4. the line a status line reads, from the sandbox's own today
+Ctrl+L
+Sleep 500ms
+Type "zapara status"
 Sleep 300ms
 Enter
 Sleep 3s
