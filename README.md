@@ -112,6 +112,8 @@ open it? [Y/n]
 
 This one comes from the same `busy-week` fixture as the pictures above. A headless browser that Bun drives takes the picture: WebKit on macOS, an installed Google Chrome elsewhere. On Linux or Windows, install Chrome or write `--out card.html` and open the page in any browser.
 
+If your card told you something about your week, a ⭐ on [the repository](https://github.com/drakulavich/zapara) helps other people find zapara.
+
 ## Usage
 
 | Command | What it does |

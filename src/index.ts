@@ -42,7 +42,9 @@ options:
   --no-color        no ANSI colors; NO_COLOR does the same
   -h, --help  -V, --version
 
-levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100`;
+levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100
+
+bugs, ideas and a star: github.com/drakulavich/zapara`;
 const HINT = "run 'zapara --help' for usage";
 
 type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string | null; projects: string; color: boolean };

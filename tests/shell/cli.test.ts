@@ -151,6 +151,7 @@ describe("cli", () => {
     // Mutation this pins: dropping the levels line from USAGE (the ranges
     // moved out of the week footer and into --help).
     expect(help.out).toContain("levels: calm 0-29");
+    expect(help.out).toContain("bugs, ideas and a star: github.com/drakulavich/zapara");
     for (const line of ["zapara today|yesterday|<date>", "zapara card [window]", "zapara status", "--from <date>", "--days <N>"]) expect(help.out).toContain(line);
     expect(help.out.split("\n").every((l) => l.length <= 80)).toBe(true);
     expect((await run("--version")).out.trim()).toMatch(/^\d+\.\d+\.\d+$/);

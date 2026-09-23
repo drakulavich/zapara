@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `zapara --help` ends with where to report bugs, share ideas and star the
+  project.
+
 ## [0.7.0] - 2026-09-23
 
 ### Added
