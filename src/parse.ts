@@ -49,6 +49,7 @@ export function parseTranscript(text: string): Event[] {
     const sessionId = str(rec.sessionId);
     if (type === null || sessionId === null) continue;
     if (rec.isSidechain === true) continue;
+    if (str(rec.entrypoint)?.startsWith("sdk-")) continue; // a script ran `claude -p` or the Agent SDK
 
     if (type === "permission-mode") {
       const m = str(rec.permissionMode);

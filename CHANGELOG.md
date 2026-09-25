@@ -9,6 +9,11 @@ All notable changes to this project are documented here. The format follows
 - `zapara --help` ends with where to report bugs, share ideas and star the
   project.
 
+### Fixed
+- Sessions started by a script through `claude -p` or the Agent SDK no longer
+  count as yours. A batch of 200 of them showed up as "204 sessions at once"
+  and inflated that hour's prompts, context switches and index.
+
 ## [0.7.0] - 2026-09-23
 
 ### Added

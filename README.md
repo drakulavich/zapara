@@ -225,7 +225,7 @@ Weights and norms live in one exported constant in `src/score.ts`, so a recalibr
 | Column | What it counts |
 |---|---|
 | `sess` | Distinct session ids with at least one user or assistant record in the hour. |
-| `prompts` | Messages the human typed. A `user` record whose text is neither an interrupt marker nor an agent-message marker; `isMeta` and sidechain records are excluded. |
+| `prompts` | Messages the human typed. A `user` record whose text is neither an interrupt marker nor an agent-message marker; `isMeta`, sidechain, `claude -p` and Agent SDK records are excluded. |
 | `rep` | Inbound messages from subagents, other sessions and background tasks. A `user` record whose text starts with one of the agent-message markers, which is something to read and react to rather than something typed. |
 | `intr` | Interrupts. A `user` record whose text block starts with `[Request interrupted by user`, covering both the plain and the tool-use form. |
 | `rej` | Tool rejections. A `tool_result` block saying the user did not want to proceed with that tool use. |

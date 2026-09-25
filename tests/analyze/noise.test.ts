@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { analyze } from "../../src/analyze.ts";
-import { meta, prompt, sidechain, transcript } from "../helpers/transcript.ts";
+import { assistant, meta, prompt, sdk, sidechain, transcript } from "../helpers/transcript.ts";
 
 const S = "11111111-1111-4111-8111-111111111111";
 const W = { to: "2026-09-14", days: 1 };
@@ -53,5 +53,27 @@ describe("noise in transcripts", () => {
     expect(d.peak).toBeNull();
     expect(d.mean).toBeNull();
     expect(d.activeMin).toBe(0);
+  });
+});
+
+describe("headless runs", () => {
+  const T = "22222222-1111-4111-8111-111111111111";
+  const U = "33333333-1111-4111-8111-111111111111";
+
+  test("claude -p and Agent SDK sessions count nothing beside the human's session", () => {
+    const b = analyze([
+      transcript([prompt(at("00"), S), assistant(at("01"), S), prompt(at("30"), S)], "p/s.jsonl"),
+      transcript([sdk(prompt(at("10"), T)), sdk(assistant(at("11"), T))], "p/t.jsonl"),
+      transcript([sdk(prompt(at("12"), U), "sdk-ts"), sdk(assistant(at("13"), U), "sdk-ts")], "p/u.jsonl"),
+    ], W)[0]!.buckets[13]!;
+    expect(b.sessions).toBe(1);
+    expect(b.prompts).toBe(2);
+    expect(b.contextSwitches).toBe(0);
+  });
+
+  test("a session opened from the desktop app still counts", () => {
+    const b = analyze([transcript([sdk(prompt(at("00"), S), "claude-desktop")])], W)[0]!.buckets[13]!;
+    expect(b.sessions).toBe(1);
+    expect(b.prompts).toBe(1);
   });
 });
