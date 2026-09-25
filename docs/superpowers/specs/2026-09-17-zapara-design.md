@@ -57,7 +57,9 @@ Scan rules:
 The parser turns records into a flat list of events. Each event has `ts`
 (epoch ms from `timestamp`), `sessionId`, and a `kind`. Records without a
 `timestamp` are handled per kind below. Records with `isSidechain: true` are
-ignored for every kind (defensive; the scan already skips subagent files).
+ignored for every kind (defensive; the scan already skips subagent files). So
+are records whose `entrypoint` starts with `sdk-` (`sdk-cli`, `sdk-ts`): a
+script ran `claude -p` or the Agent SDK, and no human sat in that session.
 
 | kind | rule |
 |---|---|
@@ -386,7 +388,8 @@ Scenarios, one directory or builder script each:
   `tool_use` block contributes no tokens; day totals carry `reports` and
   `outputTokens`.
 - `noise`: `isMeta` messages, a `subagents/` tree with prompts that must not
-  count, `isSidechain` records in a main file, malformed JSON lines, lines
+  count, `isSidechain` records in a main file, `claude -p` and Agent SDK sessions,
+  malformed JSON lines, lines
   without `type` or `timestamp`, an empty file, an unreadable file.
 - `report`: through `report()`, not `analyze()` — a `subagents/` tree whose
   prompts don't count, a same-named file at the root that does, a file

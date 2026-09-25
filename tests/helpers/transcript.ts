@@ -103,6 +103,13 @@ export const taskNotification = (ts: string, sid: string) =>
 export const sidechain = (ts: string, sid: string) =>
   base(ts, sid, { type: "user", isSidechain: true, agentId: "aa395d63485bb2c77", message: { role: "user", content: "placeholder subagent prompt" } });
 
+// A `claude -p` or Agent SDK run: Claude Code stamps every record with the entrypoint.
+export const sdk = (line: string, entrypoint = "sdk-cli") => {
+  const r = JSON.parse(line);
+  if (r.type === "user" && typeof r.message?.content === "string") Object.assign(r, { promptSource: "sdk", turnOrigin: "sdk" });
+  return JSON.stringify({ ...r, entrypoint });
+};
+
 export const transcript = (lines: string[], path = "p/s.jsonl"): Transcript => ({ path, text: lines.join("\n") + "\n" });
 
 export async function writeTree(root: string, files: { path: string; lines: string[]; mtime: string }[]): Promise<void> {
