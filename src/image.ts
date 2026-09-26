@@ -45,20 +45,19 @@ export async function renderCard(html: string, out: string, timeoutMs = 15_000):
         // 4800-wide shot, 2.2 s of a 3 s render. The viewport and the page's zoom
         // (2 in cardHtml) shrink by the density, so the shot is 2400 wide already.
         // Headless Chrome (or Edge) shoots at 1x and cannot evaluate before a navigate.
-        let dpr = 1;
-        if (BACKEND === "webkit") {
-          const probe = new Bun.WebView({ width: 1, height: 1, backend: BACKEND });
-          try { dpr = await probe.evaluate<number>("devicePixelRatio"); } finally { probe.close(); }
-        }
-        const view = new Bun.WebView({ width: Math.round(WIDTH / dpr), height: Math.round(HEIGHT / dpr), backend: BACKEND });
+        const view = new Bun.WebView({ width: WIDTH, height: HEIGHT, backend: BACKEND });
         try {
+          const dpr = BACKEND === "webkit" ? await view.evaluate<number>("devicePixelRatio") : 1;
+          if (dpr !== 1) await view.resize(Math.round(WIDTH / dpr), Math.round(HEIGHT / dpr));
           await view.navigate("data:text/html;charset=utf-8," + encodeURIComponent(html));
           await view.evaluate(`document.documentElement.style.zoom = "${2 / dpr}"`);
           while (!(await view.evaluate<boolean>(READY))) await Bun.sleep(50);
           const shot = await view.screenshot({ encoding: "buffer", format: "png" });
           const image = new Bun.Image(shot);
           const meta = await image.metadata();
-          if (meta.width !== WIDTH || meta.height !== HEIGHT) image.resize(WIDTH, HEIGHT, { fit: "fill" });
+          const sized = meta.width === WIDTH && meta.height === HEIGHT;
+          if (sized && !lower.endsWith(".webp")) return shot;
+          if (!sized) image.resize(WIDTH, HEIGHT, { fit: "fill" });
           return lower.endsWith(".webp") ? await image.webp({ quality: 90 }).bytes() : await image.png().bytes();
         } finally {
           view.close();
