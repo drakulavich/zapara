@@ -2,7 +2,7 @@
 // the system of record: every doubt here resolves to a miss, and no error leaves.
 import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, readFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
 import type { ScanEntry } from "./scan.ts";
@@ -18,6 +18,7 @@ export type TranscriptCache = {
 const USER_VERSION = 1;
 const TAIL_BYTES = 4096;
 const READERS = 16;
+const KEEP_MS = 90 * 86_400_000;
 const KINDS: Record<EventKind, true> = { prompt: true, report: true, output: true, interrupt: true, reject: true, answer: true, question: true, plan_review: true, mode_change: true, activity: true };
 
 export function tailHash(bytes: Uint8Array): Uint8Array {
@@ -89,10 +90,38 @@ const equal = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length &
 
 type Row = { dev: number; ino: number; size: number; mtime_ms: number; tail: Uint8Array; from_ms: number; events: Uint8Array };
 
+class Foreign extends Error {}
+
+// Only a file that is not ours is replaced; a locked or unopenable one is left alone.
+const replaceable = (e: unknown): boolean =>
+  e instanceof Foreign || /^SQLITE_(NOTADB|CORRUPT)/.test(String((e as { code?: unknown } | null)?.code));
+
+function connect(path: string): Database {
+  const db = new Database(path, { create: true, strict: true });
+  try {
+    chmodSync(path, 0o600);
+    db.run("PRAGMA busy_timeout = 2000");
+    db.run("PRAGMA journal_mode = WAL");
+    db.run("PRAGMA synchronous = NORMAL");
+    db.transaction(() => {
+      const { user_version } = db.query<{ user_version: number }, []>("PRAGMA user_version").get()!;
+      if (user_version === USER_VERSION) return;
+      if (user_version !== 0) throw new Foreign();
+      db.run(`CREATE TABLE transcript (
+        dev INTEGER NOT NULL, ino INTEGER NOT NULL, parser BLOB NOT NULL, size INTEGER NOT NULL, mtime_ms REAL NOT NULL,
+        tail BLOB NOT NULL, from_ms REAL NOT NULL, used_at INTEGER NOT NULL, events BLOB NOT NULL, PRIMARY KEY (dev, ino))`);
+      db.run(`PRAGMA user_version = ${USER_VERSION}`);
+    }).immediate();
+    return db;
+  } catch (e) {
+    try { db.close(); } catch {}
+    throw e;
+  }
+}
+
 export function openCache(env: NodeJS.ProcessEnv): TranscriptCache | null {
   const home = env.HOME;
   if (!home) return null;
-  let db: Database | undefined;
   try {
     const parser = fingerprint();
     process.umask(0o077);
@@ -100,24 +129,14 @@ export function openCache(env: NodeJS.ProcessEnv): TranscriptCache | null {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
     const path = join(dir, "cache.db");
-    db = new Database(path, { create: true, strict: true });
-    chmodSync(path, 0o600);
-    db.run("PRAGMA busy_timeout = 2000");
-    db.run("PRAGMA journal_mode = WAL");
-    db.run("PRAGMA synchronous = NORMAL");
-    const d = db;
-    d.transaction(() => {
-      const { user_version } = d.query<{ user_version: number }, []>("PRAGMA user_version").get()!;
-      if (user_version === USER_VERSION) return;
-      if (user_version !== 0) throw new Error("another storage format");
-      d.run(`CREATE TABLE transcript (
-        dev INTEGER NOT NULL, ino INTEGER NOT NULL, parser BLOB NOT NULL, size INTEGER NOT NULL, mtime_ms REAL NOT NULL,
-        tail BLOB NOT NULL, from_ms REAL NOT NULL, used_at INTEGER NOT NULL, events BLOB NOT NULL, PRIMARY KEY (dev, ino))`);
-      d.run(`PRAGMA user_version = ${USER_VERSION}`);
-    }).immediate();
-    return cacheOn(d, parser);
+    try {
+      return cacheOn(connect(path), parser);
+    } catch (e) {
+      if (!replaceable(e)) return null;
+    }
+    for (const f of [path, `${path}-wal`, `${path}-shm`]) rmSync(f, { force: true });
+    return cacheOn(connect(path), parser);
   } catch {
-    try { db?.close(); } catch {}
     return null;
   }
 }
@@ -172,6 +191,7 @@ function cacheOn(db: Database, parser: Uint8Array): TranscriptCache {
             upsert.run({ dev: e.dev, ino: e.ino, parser, size: e.size, mtime: e.mtimeMs, tail, from: fromMs, now: nowMs, events: encode(events) });
           }
           for (const e of hit) if (e.ino !== 0) touch.run({ now: nowMs, dev: e.dev, ino: e.ino });
+          db.run("DELETE FROM transcript WHERE used_at < ?", [nowMs - KEEP_MS]);
         }).immediate();
       } catch {}
     },
