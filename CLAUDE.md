@@ -44,8 +44,8 @@ when a test or CI step comes to catch it.
   deterministic, fast, readable, specific. A failure must name the behavior
   that broke, not the function that changed. Fixed `--to` and `now`, `TZ=UTC`,
   explicit mtimes.
-- **A new test must fail under a one-line mutation** of the behavior it pins.
-  Reviews make the mutation to check.
+- **A test asserts what differs with and without the behavior it pins.** A test
+  that would still pass without that behavior is a bug.
 - **Never print a stack trace.** The CLI prints one line to stderr and exits 1,
   or one line plus a hint to --help and exits 2. A bad transcript line, an
   unreadable file or a broken directory is skipped, never fatal.
