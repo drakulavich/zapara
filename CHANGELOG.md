@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-09-26
+
 ### Changed
 - On a high-density screen, `zapara card` draws the picture at its final size
   instead of at double size and scaling it down. The PNG render on a Mac went
