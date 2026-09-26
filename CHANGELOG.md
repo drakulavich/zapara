@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-26
+
 ### Added
 - zapara caches each transcript's parsed events between runs, in
   `~/.claude/zapara/cache.db`, and reparses a file only when it has changed.
