@@ -43,12 +43,12 @@ describe("--verbose", () => {
     expect(plain.err).toBe("");
     const lines = r.err.trimEnd().split("\n");
     expect(lines[0]).toMatch(/^zapara \d+\.\d+\.\d+ · bun \d+\.\d+\.\d+ · \w+ \w+ · \d+ cpus$/);
-    expect(lines.slice(1).map((l) => l.split(" ")[0])).toEqual(["scan", "read", "analyze", "total"]);
-    for (const l of lines.slice(1)) expect(l).toMatch(new RegExp(MS));
+    expect(lines.slice(1).map((l) => l.split(" ")[0])).toEqual(["scan", "read", "cache", "analyze", "total"]);
+    for (const l of lines.slice(1)) if (!l.startsWith("cache ")) expect(l).toMatch(new RegExp(MS));
   });
 
   test("counts what was scanned and read, and names no path", async () => {
-    const r = await run("--to", "2026-09-14", "--days", "2", "--json", "--verbose");
+    const r = await run("--to", "2026-09-14", "--days", "2", "--json", "--verbose", "--no-cache");
     // a and b are in the window by mtime; old.jsonl is opened only for its tail; the subagent file is never counted.
     expect(lineOf(r.err, "scan")).toMatch(new RegExp(String.raw`^scan\s+3 files, 2 in window, 1 tail check` + MS));
     const bytes = (await stat(join(root, "-Users-me-proj/a.jsonl"))).size + (await stat(join(root, "-Users-me-proj/b.jsonl"))).size;
