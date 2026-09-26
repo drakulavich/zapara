@@ -212,6 +212,22 @@ describe("the transcript cache", () => {
     expect(hitsOf(run3.err)).toEqual({ hits: 3, misses: 0 });
   });
 
+  test("a transcript with a session id that is not a UUID is never cached", async () => {
+    const { home, projects } = await setup();
+    const marker = "zapara-private-marker";
+    await writeTree(projects, [{ path: `${DIR}/x.jsonl`, lines: [prompt("2026-09-13T08:00:00.000Z", marker), assistant("2026-09-13T08:05:00.000Z", marker)], mtime: "2026-09-13T08:05:00.000Z" }]);
+    await spawn(home, projects);
+    const run2 = await spawn(home, projects, "--verbose");
+    expect(run2.code).toBe(0);
+    expect(run2.out).toBe((await uncached(projects)).out);
+    expect(bucket(run2.out, "2026-09-13", 8).prompts).toBe(1);
+    expect(hitsOf(run2.err)).toEqual({ hits: 3, misses: 1 });
+    const zapara = join(home, ".claude", "zapara");
+    const files = (await Array.fromAsync(new Bun.Glob("cache.db*").scan(zapara))).map((f) => join(zapara, f));
+    const bytes = Buffer.concat(await Promise.all(files.map((f) => readFile(f))));
+    expect(bytes.includes(Buffer.from(marker))).toBe(false);
+  });
+
   test("a failed lookup writes nothing to the cache", async () => {
     const { home, projects } = await setup();
     await spawn(home, projects);

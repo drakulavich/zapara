@@ -223,7 +223,9 @@ The base contract forbids keeping a file path. The cache keys each row by
 the file's device and inode and stores nothing derived from the path. Events
 carry what they carry today: timestamps, session ids, kinds and token counts. No message text, prompt
 length or title is stored. The base spec's privacy paragraph gains one
-sentence saying so, in this change.
+sentence saying so, in this change. A transcript whose events carry a session
+id that is not a UUID is parsed and counted as usual but never cached, so a
+hand-made file cannot copy its own text into the cache.
 
 ## Project rules this changes
 

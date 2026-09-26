@@ -19,6 +19,7 @@ const USER_VERSION = 1;
 const TAIL_BYTES = 4096;
 const READERS = 16;
 const KEEP_MS = 90 * 86_400_000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KINDS: Record<EventKind, true> = { prompt: true, report: true, output: true, interrupt: true, reject: true, answer: true, question: true, plan_review: true, mode_change: true, activity: true };
 
 export function tailHash(bytes: Uint8Array): Uint8Array {
@@ -190,7 +191,7 @@ function cacheOn(db: Database, parser: Uint8Array): TranscriptCache {
         const touch = db.query("UPDATE transcript SET used_at = $now WHERE dev = $dev AND ino = $ino");
         db.transaction(() => {
           for (const { entry: e, tail, fromMs, events } of fresh) {
-            if (e.ino === 0) continue;
+            if (e.ino === 0 || !events.every((ev) => UUID.test(ev.sessionId))) continue;
             upsert.run({ dev: e.dev, ino: e.ino, parser, size: e.size, mtime: e.mtimeMs, tail, from: fromMs, now: nowMs, events: encode(events) });
           }
           for (const e of hit) if (e.ino !== 0) touch.run({ now: nowMs, dev: e.dev, ino: e.ino });
