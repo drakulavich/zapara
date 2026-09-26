@@ -5,13 +5,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-09-26
+
 ### Changed
 - Transcripts are read sixteen at a time instead of one by one. On a machine
   with 1.6 GB of transcripts in a 14-day window, reading took 0.9 s instead
   of 5.4 s.
-- Transcript lines older than the window's three-hour look-back are no longer
-  parsed. A long session's file holds its whole history, and on one machine
+- Transcript lines older than the window's three-hour look-back are skipped
+  before parsing, except assistant replies, whose request ids dedupe output
+  tokens. A long session's file holds its whole history, and on one machine
   59% of what a 14-day window read was such history. Results are unchanged.
+  Together with parallel reads, `zapara card --json` there went from 5.6 s to
+  about 2 s.
 
 ## [0.7.1] - 2026-09-25
 
