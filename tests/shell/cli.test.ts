@@ -8,9 +8,11 @@ const CLI = join(import.meta.dir, "../../src/index.ts");
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-1111-4111-8111-111111111111";
 let root: string;
+let home: string;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "zapara-cli-"));
+  home = await mkdtemp(join(tmpdir(), "zapara-cli-home-"));
   await writeTree(root, [
     { path: "-Users-me-proj/a.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A), assistant("2026-09-14T13:02:00.000Z", A), interrupt("2026-09-14T13:03:00.000Z", A)], mtime: "2026-09-14T13:03:00.000Z" },
     { path: "-Users-me-proj/b.jsonl", lines: [prompt("2026-09-14T13:05:00.000Z", B)], mtime: "2026-09-14T13:05:00.000Z" },
@@ -18,14 +20,17 @@ beforeAll(async () => {
     { path: "-Users-me-old/old.jsonl", lines: [prompt("2026-09-01T13:00:00.000Z", A)], mtime: "2026-09-01T13:00:00.000Z" },
   ]);
 });
-afterAll(() => rm(root, { recursive: true, force: true }));
+afterAll(async () => {
+  await rm(root, { recursive: true, force: true });
+  await rm(home, { recursive: true, force: true });
+});
 
 // The exit code and the first stderr line, so a failure names both.
 const first = async (...args: string[]): Promise<[number, string]> => { const r = await run(...args); return [r.code, r.err.split("\n")[0]!]; };
 const utcDay = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
 async function run(...args: string[]): Promise<{ code: number; out: string; err: string }> {
-  const p = Bun.spawn(["bun", CLI, "--projects", root, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+  const p = Bun.spawn(["bun", CLI, "--projects", root, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   return { code, out, err };
 }
@@ -136,7 +141,7 @@ describe("cli", () => {
 
   test("missing projects directory exits 1 with one line, no path and no stack trace", async () => {
     const missing = join(root, "nope");
-    const p = Bun.spawn(["bun", CLI, "--projects", missing, "--json"], { stdout: "pipe", stderr: "pipe" });
+    const p = Bun.spawn(["bun", CLI, "--projects", missing, "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, HOME: home } });
     const [err, code] = await Promise.all([new Response(p.stderr).text(), p.exited]);
     expect(code).toBe(1);
     expect(err.trim().split("\n")).toHaveLength(1);
@@ -176,7 +181,7 @@ describe("cli", () => {
         { path: "-Users-me-tangled/b.jsonl", lines: [prompt("2026-09-14T13:05:00.000Z", B)], mtime: "2026-09-14T13:05:00.000Z" },
       ]);
       await symlink(".", join(dir, "-Users-me-tangled/loop"));
-      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
       expect(err).toBe("");
       expect(code).toBe(0);
@@ -211,7 +216,7 @@ describe("cli", () => {
     const dir = await mkdtemp(join(tmpdir(), "zapara-cli-noread-"));
     try {
       await chmod(dir, 0o000);
-      const p = Bun.spawn(["bun", CLI, "--projects", dir, "--json"], { stdout: "pipe", stderr: "pipe" });
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, HOME: home } });
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
       expect(code).toBe(1);
       expect(out).toBe("");
@@ -235,7 +240,7 @@ describe("cli", () => {
         // Genuinely old: last record in August, mtime in August. Must stay out.
         { path: "-Users-me-old/old.jsonl", lines: [prompt("2026-08-01T13:00:00.000Z", B)], mtime: "2026-08-01T13:00:00.000Z" },
       ]);
-      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
       expect(err).toBe("");
       expect(code).toBe(0);
@@ -250,7 +255,7 @@ describe("cli", () => {
     const dir = await mkdtemp(join(tmpdir(), "zapara-today-"));
     try {
       await writeTree(dir, [{ path: "-Users-me-proj/t.jsonl", lines: [prompt(`${utcDay(0)}T00:00:00.000Z`, A)], mtime: `${utcDay(0)}T00:00:00.000Z` }]);
-      const spawn = (...args: string[]) => Bun.spawn(["bun", CLI, "--projects", dir, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const spawn = (...args: string[]) => Bun.spawn(["bun", CLI, "--projects", dir, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
       const p1 = spawn("today", "--json");
       const [out1, code1] = await Promise.all([new Response(p1.stdout).text(), p1.exited]);
       expect(code1).toBe(0);
@@ -276,7 +281,7 @@ describe("cli", () => {
         { path: "-Users-me-proj/secret.jsonl", lines: [prompt("2026-09-14T13:05:00.000Z", B), prompt("2026-09-14T13:06:00.000Z", B)], mtime: "2026-09-14T13:05:00.000Z" },
       ]);
       await chmod(secret, 0o000);
-      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+      const p = Bun.spawn(["bun", CLI, "--projects", dir, "2026-09-14", "--json"], { stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
       expect(code).toBe(0);
       expect(err).toBe("");

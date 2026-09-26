@@ -10,10 +10,12 @@ const CLI = join(import.meta.dir, "../../src/index.ts");
 const A = "aaaaaaaa-1111-4111-8111-111111111111";
 let root: string;
 let cwd: string;
+let home: string;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "zapara-verbose-"));
   cwd = await mkdtemp(join(tmpdir(), "zapara-verbose-cwd-"));
+  home = await mkdtemp(join(tmpdir(), "zapara-verbose-home-"));
   await writeTree(root, [
     { path: "-Users-me-proj/a.jsonl", lines: [prompt("2026-09-14T13:00:00.000Z", A), assistant("2026-09-14T13:02:00.000Z", A), bigToolResult("2026-09-14T13:03:00.000Z", A, 300_000)], mtime: "2026-09-14T13:03:00.000Z" },
     { path: "-Users-me-proj/b.jsonl", lines: [prompt("2026-09-14T15:00:00.000Z", A)], mtime: "2026-09-14T15:00:00.000Z" },
@@ -21,10 +23,10 @@ beforeAll(async () => {
     { path: "-Users-me-old/old.jsonl", lines: [prompt("2026-09-01T13:00:00.000Z", A)], mtime: "2026-09-01T13:00:00.000Z" },
   ]);
 });
-afterAll(async () => { await rm(root, { recursive: true, force: true }); await rm(cwd, { recursive: true, force: true }); });
+afterAll(async () => { await rm(root, { recursive: true, force: true }); await rm(cwd, { recursive: true, force: true }); await rm(home, { recursive: true, force: true }); });
 
 async function run(...args: string[]): Promise<{ code: number; out: string; err: string }> {
-  const p = Bun.spawn(["bun", CLI, "--projects", root, ...args], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1" } });
+  const p = Bun.spawn(["bun", CLI, "--projects", root, ...args], { cwd, stdout: "pipe", stderr: "pipe", env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home } });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   return { code, out, err };
 }
