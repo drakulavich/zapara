@@ -135,6 +135,7 @@ If your card told you something about your week, star [the repository](https://g
 | `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
 | `--out <path>` | Where `card` writes instead of `~/Downloads`; the extension picks the format. |
 | `--no-color` | Plain glyphs and peaks with no ANSI codes. `NO_COLOR` in the environment does the same. |
+| `--verbose` | After the output, prints to stderr where the time went: files scanned and read, megabytes, and milliseconds for scanning, reading, analysis and the card's render, plus the zapara and Bun versions, platform and CPU count. Numbers only, no path, so the lines are safe to paste into an issue when zapara is slow on your machine. |
 | `-h`, `--help` | Usage, exit 0. |
 | `-V`, `--version` | The version from `package.json`, exit 0. |
 

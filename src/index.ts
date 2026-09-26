@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 // Argument parsing, the clock, stdout and exit codes live here; everything else is pure.
 import { readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { cpus, homedir } from "node:os";
 import { join } from "node:path";
 import { cardData, sentenceText } from "./card.ts";
 import { cardHtml } from "./cardhtml.ts";
 import { localDate } from "./derive.ts";
 import { loadAssets, openCard, renderCard } from "./image.ts";
 import { renderDay, renderJson, renderWeek } from "./render.ts";
-import { report } from "./report.ts";
+import { READERS, report, type Timing } from "./report.ts";
 import { renderStatus, statusOf } from "./status.ts";
 import { writeStatus } from "./statusfile.ts";
 import type { Day } from "./types.ts";
@@ -40,6 +40,7 @@ options:
   --json            the same data as JSON; a pipe gets JSON without asking
   --projects <dir>  read this directory instead of ~/.claude/projects
   --no-color        no ANSI colors; NO_COLOR does the same
+  --verbose         timings and counts on stderr, for a slow run
   -h, --help  -V, --version
 
 levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100
@@ -47,7 +48,7 @@ levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100
 bugs, ideas and a star: github.com/drakulavich/zapara`;
 const HINT = "run 'zapara --help' for usage";
 
-type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string | null; projects: string; color: boolean };
+type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string | null; projects: string; color: boolean; verbose: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position, never for a token consumed as another flag's
@@ -98,7 +99,7 @@ function windowOf(days: string | null, from: string | null, to: string | null, d
 }
 
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: null, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR };
+  const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: null, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR, verbose: false };
   let days: string | null = null;
   let from: string | null = null;
   let to: string | null = null;
@@ -134,6 +135,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
       case "--json": bare(); jsonFlag = true; break;
       case "--explain": bare(); a.explain = true; break;
       case "--no-color": bare(); a.color = false; break;
+      case "--verbose": bare(); a.verbose = true; break;
       case "--projects": a.projects = value(); break;
       case "--from": from = value(); break;
       case "--to": to = value(); break;
@@ -173,9 +175,14 @@ async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const now = new Date();
   const a = parseArgs(argv, now, process.env, process.stdout.isTTY === true);
-  if (a.command === "card") return card(a);
-  if (a.command === "status") return status(a, now);
-  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now });
+  const timing = a.verbose ? ({} as Timing) : undefined;
+  const code = a.command === "card" ? await card(a, timing) : a.command === "status" ? await status(a, now, timing) : await table(a, now, timing);
+  if (timing) process.stderr.write(timingLines(timing));
+  return code;
+}
+
+async function table(a: Args, now: Date, timing?: Timing): Promise<number> {
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now }, timing);
   const data = a.command === "day" ? days[0] : days;
   if (a.json) console.log(renderJson(data!));
   else if (a.command === "day") console.log(renderDay(days[0]!, { explain: a.explain, color: a.color }));
@@ -184,8 +191,8 @@ async function main(): Promise<number> {
 }
 
 // The write comes first: a caller never reads a line that was not saved.
-async function status(a: Args, now: Date): Promise<number> {
-  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now });
+async function status(a: Args, now: Date, timing?: Timing): Promise<number> {
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now }, timing);
   const line = renderStatus(statusOf(days[0]!, now));
   await writeStatus(line, process.env);
   process.stdout.write(line);
@@ -202,8 +209,8 @@ function cardTarget(out: string | null): { path: string; label: string } {
   return { path: join(dir, "zapara-card.png"), label: "zapara-card.png to Downloads" };
 }
 
-async function card(a: Args): Promise<number> {
-  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days });
+async function card(a: Args, timing?: Timing): Promise<number> {
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days }, timing);
   const data = cardData(days, { days: a.days });
   if (data === null) throw new Error(`no activity in the last ${a.days} days`);
   if (a.json) {
@@ -221,11 +228,13 @@ async function card(a: Args): Promise<number> {
   // The browser engine takes seconds; a person at a terminal is told why it waits.
   const note = process.stderr.isTTY && !/\.html$/i.test(target.path);
   if (note) process.stderr.write("drawing the card…");
+  const t = performance.now();
   try {
     await renderCard(cardHtml(data, await loadAssets()), target.path);
   } finally {
     if (note) process.stderr.write("\r\x1b[K");
   }
+  if (timing) timing.render = { format: target.path.slice(target.path.lastIndexOf(".") + 1).toLowerCase(), ms: performance.now() - t };
   console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${target.label}`);
   if (process.stdin.isTTY && process.stdout.isTTY && process.platform !== "win32") {
     process.stdout.write("open it? [Y/n] ");
@@ -234,6 +243,20 @@ async function card(a: Args): Promise<number> {
     if (answer !== null && /^(y|yes)?$/i.test(answer.trim())) openCard(target.path);
   }
   return 0;
+}
+
+// Numbers only: someone pastes these from another machine, and no path may leave it.
+function timingLines(t: Timing): string {
+  let ver = "?";
+  try { ver = version(); } catch {}
+  const row = (label: string, what: string, ms: number) => `${label.padEnd(8)}${what.padEnd(44)}${String(Math.round(ms)).padStart(7)} ms\n`;
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  return `zapara ${ver} · bun ${Bun.version} · ${process.platform} ${process.arch} · ${cpus().length} cpus\n`
+    + row("scan", `${plural(t.files, "file")}, ${t.inWindow} in window, ${plural(t.tailChecks, "tail check")}`, t.scanMs)
+    + row("read", `${plural(t.read, "file")}, ${(t.bytes / 1e6).toFixed(1)} MB, ${READERS} at a time`, t.readMs)
+    + row("analyze", "", t.analyzeMs)
+    + (t.render ? row("render", t.render.format, t.render.ms) : "")
+    + row("total", "", performance.now());
 }
 
 if (import.meta.main) {
