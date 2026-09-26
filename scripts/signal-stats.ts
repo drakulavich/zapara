@@ -150,7 +150,7 @@ type Drift = {
 // parseable `timestamp` is not counted at all (there is no window to test it against).
 async function computeDrift(projects: string, to: string, days: number): Promise<Drift> {
   const { cutoffMs, endMs } = windowBounds({ to, days });
-  const paths = await scan(projects, cutoffMs);
+  const entries = await scan(projects, cutoffMs);
   let lines = 0;
   let recordsWithType = 0;
   const typeCounts = new Map<string, number>();
@@ -158,7 +158,7 @@ async function computeDrift(projects: string, to: string, days: number): Promise
   let events = 0;
   const inWindow = (ts: number): boolean => !Number.isNaN(ts) && ts >= cutoffMs && ts < endMs;
 
-  for (const path of paths) {
+  for (const { path } of entries) {
     let text: string;
     try { text = await Bun.file(path).text(); } catch { continue; } // vanished or unreadable: skip, like report()
 
@@ -189,7 +189,7 @@ async function computeDrift(projects: string, to: string, days: number): Promise
     .slice(0, 6)
     .map(([type, count]) => ({ type, count }));
 
-  return { files: paths.length, lines, recordsWithType, topTypes, events, eventsByKind, eventsPerRecordWithType: recordsWithType === 0 ? 0 : events / recordsWithType };
+  return { files: entries.length, lines, recordsWithType, topTypes, events, eventsByKind, eventsPerRecordWithType: recordsWithType === 0 ? 0 : events / recordsWithType };
 }
 
 function renderDrift(d: Drift): string {

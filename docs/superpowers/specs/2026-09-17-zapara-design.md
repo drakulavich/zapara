@@ -16,7 +16,8 @@ No message text, prompt length, file path from a tool call, or session title is
 kept in an event, written anywhere, or printed. The output contains only
 timestamps, session ids, counts and the derived numbers. The CLI never prints
 a filesystem path it derived or read, including the projects root; usage
-errors may echo the offending argv token.
+errors may echo the offending argv token. The parse cache (`2026-09-26-zapara-transcript-cache-design.md`)
+keys its rows by a transcript's device and inode and stores nothing derived from its path.
 
 Non-goals for the MVP: real-time alerts, break nudges, hooks, OpenTelemetry, a
 statusline segment, an HTML dashboard, a config file for weights. The statusline
@@ -282,20 +283,33 @@ empty day table) and exits 0.
 ## Architecture
 
 Functional core, imperative shell. The core is pure functions over plain data:
-no file system, no clock, no environment, no output. The shell is four small
+no file system, no clock, no environment, no output. The shell is six small
 files that do all the I/O and call the core.
 
 ```
 shell (I/O)
-  src/index.ts    argv → options; calls report(); prints; exit codes; the only try/catch
-  src/report.ts   report(options) → Day[]: lists files (scan), reads them, calls analyze()
-  src/scan.ts     projects dir + cutoff → sorted file paths (fs.stat for mtime)
-  src/image.ts    card assets → CardAssets; card HTML → PNG/WebP file through Bun.WebView and
-                  Bun.Image; the only module allowed to use those, read the assets or write a
-                  file (see 2026-09-18-zapara-card-design.md)
+  src/index.ts       argv → options; calls report(); prints; exit codes; the only try/catch
+  src/report.ts      report(options) → Day[]: lists files (scan), reads them, calls analyze()
+  src/scan.ts        projects dir + cutoff → sorted ScanEntry[] { path, dev, ino, size, mtimeMs }
+                      (fs.stat for mtime)
+  src/image.ts       card assets → CardAssets; card HTML → PNG/WebP file through Bun.WebView and
+                      Bun.Image; the only module allowed to use those or read the assets (see
+                      2026-09-18-zapara-card-design.md)
+  src/statusfile.ts  today's load → ~/.claude/zapara/status.json (see
+                      2026-09-19-zapara-status-file-design.md)
+  src/cache.ts       parsed events cached by a transcript's device and inode; the only module
+                      allowed to use bun:sqlite, or read src/parse.ts and src/types.ts for the
+                      parser fingerprint (see 2026-09-26-zapara-transcript-cache-design.md)
+```
 
+Three of the shell files write to disk: `src/image.ts` (the card),
+`src/statusfile.ts` (the status file) and `src/cache.ts` (the parse cache);
+the rest only read.
+
+```
 core (pure)
   src/analyze.ts  analyze(transcripts, window) → Day[]   transcripts = { path, text }[]
+                  analyzeEvents(events, window) → Day[] over events already parsed
   src/parse.ts    JSONL text → Event[]
   src/derive.ts   Event[] + window → Day[] with HourBucket metrics (sorts, applies look-back)
   src/score.ts    metrics → { index, level, parts }; exports WEIGHTS, NORMS, LEVELS
@@ -317,9 +331,9 @@ test cover the shell.
 
 Rules: the shell may import any core module; core modules never import the
 shell (`render` and `derive` import `score` and `types`; `analyze` imports
-`parse` and `derive`; `report` imports `scan`, `analyze` and `derive`
-(`windowBounds`); `index` imports `report`, `render` and `derive`
-(`localDate`); nothing imports `index`). Core modules import nothing from
+`parse` and `derive`; `report` imports `scan`, `cache`, `parse`, `analyze`
+(`analyzeEvents`) and `derive` (`windowBounds`); `index` imports `report`,
+`cache`, `render` and `derive` (`localDate`); nothing imports `index`). Core modules import nothing from
 `node:` or `Bun`. The current time is a parameter, never `Date.now()` inside
 the core. Named exports only. No runtime dependencies; `typescript` is the one
 devDependency, for `tsc --noEmit`.

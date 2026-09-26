@@ -1,13 +1,15 @@
 import type { Dirent } from "node:fs";
 import { open, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { compareStrings } from "./derive.ts";
 
 // What --verbose reports about the walk: transcripts seen, and how many of them
 // were opened only to read the tail of a file older than the window by mtime.
 export type ScanStats = { files: number; tailChecks: number };
+export type ScanEntry = { path: string; dev: number; ino: number; size: number; mtimeMs: number };
 
 // A `subagents` directory holds the parent agent's conversation, not the human's.
-export async function scan(projects: string, cutoffMs: number, stats: ScanStats = { files: 0, tailChecks: 0 }): Promise<string[]> {
+export async function scan(projects: string, cutoffMs: number, stats: ScanStats = { files: 0, tailChecks: 0 }): Promise<ScanEntry[]> {
   // No path in either message: the CLI never prints one.
   let root;
   try {
@@ -18,14 +20,14 @@ export async function scan(projects: string, cutoffMs: number, stats: ScanStats 
     if (code === "EACCES" || code === "EPERM") throw new Error("projects directory cannot be read (check its permissions)");
     throw new Error("projects directory not found (pass --projects <dir>)");
   }
-  const out: string[] = [];
+  const out: ScanEntry[] = [];
   await collect(projects, root, cutoffMs, out, stats);
-  return out.sort();
+  return out.sort((a, b) => compareStrings(a.path, b.path));
 }
 
 // One unreadable directory costs only itself. Symlinks are not followed: Claude
 // Code never writes one, and following one is how a loop or $HOME would get in.
-async function collect(dir: string, entries: Dirent[], cutoffMs: number, out: string[], stats: ScanStats): Promise<void> {
+async function collect(dir: string, entries: Dirent[], cutoffMs: number, out: ScanEntry[], stats: ScanStats): Promise<void> {
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
@@ -36,11 +38,12 @@ async function collect(dir: string, entries: Dirent[], cutoffMs: number, out: st
     } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
       stats.files++;
       try {
-        if ((await stat(full)).mtimeMs >= cutoffMs) out.push(full);
-        else {
+        const st = await stat(full);
+        if (st.mtimeMs < cutoffMs) {
           stats.tailChecks++;
-          if ((await lastTimestampMs(full)) >= cutoffMs) out.push(full);
+          if ((await lastTimestampMs(full)) < cutoffMs) continue;
         }
+        out.push({ path: full, dev: st.dev, ino: st.ino, size: st.size, mtimeMs: st.mtimeMs });
       } catch {}
     }
   }

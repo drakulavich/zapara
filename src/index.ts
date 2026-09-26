@@ -3,6 +3,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { cpus, homedir } from "node:os";
 import { join } from "node:path";
+import { openCache, type TranscriptCache } from "./cache.ts";
 import { cardData, sentenceText } from "./card.ts";
 import { cardHtml } from "./cardhtml.ts";
 import { localDate } from "./derive.ts";
@@ -40,6 +41,7 @@ options:
   --json            the same data as JSON; a pipe gets JSON without asking
   --projects <dir>  read this directory instead of ~/.claude/projects
   --no-color        no ANSI colors; NO_COLOR does the same
+  --no-cache        parse every transcript again
   --verbose         timings and counts on stderr, for a slow run
   -h, --help  -V, --version
 
@@ -48,7 +50,7 @@ levels: calm 0-29  warming 30-59  heating 60-84  fried 85-100
 bugs, ideas and a star: github.com/drakulavich/zapara`;
 const HINT = "run 'zapara --help' for usage";
 
-type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string | null; projects: string; color: boolean; verbose: boolean };
+type Args = { command: "grid" | "day" | "card" | "status"; to: string; days: number; explain: boolean; json: boolean; out: string | null; projects: string; color: boolean; verbose: boolean; cache: boolean };
 
 class UsageError extends Error {}
 // Thrown only at a flag position, never for a token consumed as another flag's
@@ -99,7 +101,7 @@ function windowOf(days: string | null, from: string | null, to: string | null, d
 }
 
 function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boolean): Args {
-  const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: null, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR, verbose: false };
+  const a: Args = { command: "grid", to: localDate(now), days: 7, explain: false, json: false, out: null, projects: join(homedir(), ".claude", "projects"), color: isTTY && !env.NO_COLOR, verbose: false, cache: true };
   let days: string | null = null;
   let from: string | null = null;
   let to: string | null = null;
@@ -136,6 +138,7 @@ function parseArgs(argv: string[], now: Date, env: NodeJS.ProcessEnv, isTTY: boo
       case "--explain": bare(); a.explain = true; break;
       case "--no-color": bare(); a.color = false; break;
       case "--verbose": bare(); a.verbose = true; break;
+      case "--no-cache": bare(); a.cache = false; break;
       case "--projects": a.projects = value(); break;
       case "--from": from = value(); break;
       case "--to": to = value(); break;
@@ -176,13 +179,18 @@ async function main(): Promise<number> {
   const now = new Date();
   const a = parseArgs(argv, now, process.env, process.stdout.isTTY === true);
   const timing = a.verbose ? ({} as Timing) : undefined;
-  const code = a.command === "card" ? await card(a, timing) : a.command === "status" ? await status(a, now, timing) : await table(a, now, timing);
-  if (timing) process.stderr.write(timingLines(timing));
-  return code;
+  const cache = a.cache ? openCache(process.env) : null;
+  try {
+    const code = a.command === "card" ? await card(a, cache, timing) : a.command === "status" ? await status(a, now, cache, timing) : await table(a, now, cache, timing);
+    if (timing) process.stderr.write(timingLines(timing));
+    return code;
+  } finally {
+    cache?.close();
+  }
 }
 
-async function table(a: Args, now: Date, timing?: Timing): Promise<number> {
-  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now }, timing);
+async function table(a: Args, now: Date, cache: TranscriptCache | null, timing?: Timing): Promise<number> {
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now }, timing, cache);
   const data = a.command === "day" ? days[0] : days;
   if (a.json) console.log(renderJson(data!));
   else if (a.command === "day") console.log(renderDay(days[0]!, { explain: a.explain, color: a.color }));
@@ -191,8 +199,8 @@ async function table(a: Args, now: Date, timing?: Timing): Promise<number> {
 }
 
 // The write comes first: a caller never reads a line that was not saved.
-async function status(a: Args, now: Date, timing?: Timing): Promise<number> {
-  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now }, timing);
+async function status(a: Args, now: Date, cache: TranscriptCache | null, timing?: Timing): Promise<number> {
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days, now }, timing, cache);
   const line = renderStatus(statusOf(days[0]!, now));
   await writeStatus(line, process.env);
   process.stdout.write(line);
@@ -209,8 +217,8 @@ function cardTarget(out: string | null): { path: string; label: string } {
   return { path: join(dir, "zapara-card.png"), label: "zapara-card.png to Downloads" };
 }
 
-async function card(a: Args, timing?: Timing): Promise<number> {
-  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days }, timing);
+async function card(a: Args, cache: TranscriptCache | null, timing?: Timing): Promise<number> {
+  const days: Day[] = await report({ projects: a.projects, to: a.to, days: a.days }, timing, cache);
   const data = cardData(days, { days: a.days });
   if (data === null) throw new Error(`no activity in the last ${a.days} days`);
   if (a.json) {
@@ -251,10 +259,11 @@ function timingLines(t: Timing): string {
   let ver = "?";
   try { ver = version(); } catch {}
   const row = (label: string, what: string, ms: number) => `${label.padEnd(8)}${what.padEnd(44)}${String(Math.round(ms)).padStart(7)} ms\n`;
-  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   return `zapara ${ver} · bun ${Bun.version} · ${process.platform} ${process.arch} · ${cpus().length} cpus\n`
     + row("scan", `${plural(t.files, "file")}, ${t.inWindow} in window, ${plural(t.tailChecks, "tail check")}`, t.scanMs)
     + row("read", `${plural(t.read, "file")}, ${(t.bytes / 1e6).toFixed(1)} MB, ${READERS} at a time`, t.readMs)
+    + `${"cache".padEnd(8)}${t.cache ? `${plural(t.cache.hits, "hit")}, ${plural(t.cache.misses, "miss", "misses")}` : "off"}\n`
     + row("analyze", "", t.analyzeMs)
     + (t.render ? row("render", t.render.format, t.render.ms) : "")
     + row("total", "", t.totalMs ?? performance.now());
