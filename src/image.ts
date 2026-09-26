@@ -44,7 +44,7 @@ export async function renderCard(html: string, out: string, timeoutMs = 15_000):
         // WebKit draws at the screen's density: at 2x, a 2400-wide viewport made a
         // 4800-wide shot, 2.2 s of a 3 s render. The viewport and the page's zoom
         // (2 in cardHtml) shrink by the density, so the shot is 2400 wide already.
-        // Headless Chrome shoots at 1x, and its backend failed the probe view on CI.
+        // Headless Chrome (or Edge) shoots at 1x and cannot evaluate before a navigate.
         let dpr = 1;
         if (BACKEND === "webkit") {
           const probe = new Bun.WebView({ width: 1, height: 1, backend: BACKEND });
