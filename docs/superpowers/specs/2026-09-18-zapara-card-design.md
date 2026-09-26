@@ -53,7 +53,7 @@ zapara card [--days N | --to <date> | --from <date> --to <date>] [--out PATH] [-
   (with the actual `--days`) to stderr, writes nothing, exits 1.
 - When the picture cannot be rendered because no browser engine is available
   (see Rendering), stderr gets one line, `card needs a browser engine:
-  install Google Chrome, or write --out card.html`, exit 1. A render that
+  install a Chromium browser such as Chrome or Edge, or write --out card.html`, exit 1. A render that
   does not finish within 15 seconds is `render timed out`, exit 1.
 - When the file cannot be written (the directory does not exist, is not
   writable, is not a directory, or the file system is read-only), stderr
@@ -184,12 +184,15 @@ no date can reach the page.
 
 The card is an HTML page, 1200×630 CSS pixels, produced by a pure function
 from the card data, and photographed by a headless browser engine that Bun
-drives through `Bun.WebView` (WebKit on macOS, an installed Chrome
-elsewhere). The output picture is always 2400×1260 pixels: the page is
-loaded in a 2400×1260 viewport with `zoom: 2` on the root element, so the
-engine lays the card out at twice its size and text is rendered at that
-size rather than upscaled; the screenshot is then resized to exactly
-2400×1260 with `Bun.Image` when the device pixel ratio made it larger. PNG
+drives through `Bun.WebView` (WebKit on macOS, an installed Chromium browser
+such as Chrome, Chromium, Brave, or Edge elsewhere; `BUN_CHROME_PATH` can
+select its executable). The output picture is always 2400×1260 pixels: the page
+sets `zoom: 2` on the root element, so the engine lays the card out at twice
+its size and text is rendered at that size rather than upscaled. On WebKit the
+renderer reads the device pixel ratio first and divides both the viewport
+(2400×1260) and the zoom by it, so a 2x screen shoots 2400×1260 directly
+instead of 4800×2520; Chrome shoots at 1x. `Bun.Image` resizes the shot only
+when rounding leaves it off size. PNG
 is the screenshot's own format; WebP is re-encoded from it with `Bun.Image`
 at quality 90.
 
@@ -395,7 +398,7 @@ command, the two stdout lines, the card rendered from `busy-week`
 (`assets/card.webp`, 2400×1260, a plain file like `characters.webp` so clones do
 not spend the LFS bandwidth quota on it; `.gitattributes` tracks
 `docs/superpowers/specs/assets/*.webp` by LFS), and one line saying the picture
-needs macOS or an installed Google Chrome, while `--out card.html` works
+needs macOS or an installed Chromium browser (Chrome, Edge), while `--out card.html` works
 anywhere. CHANGELOG under Unreleased/Added. The demo screencast stays as it
 is.
 

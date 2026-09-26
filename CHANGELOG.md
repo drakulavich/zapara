@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- When `zapara card` finds no browser engine, the message suggests any
+  Chromium browser, such as Chrome or Edge, instead of only Google Chrome.
+
 ## [0.7.4] - 2026-09-26
 
 ### Changed
