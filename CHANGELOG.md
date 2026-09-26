@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Transcripts are read sixteen at a time instead of one by one. On a machine
+  with 1.6 GB of transcripts in a 14-day window, reading took 0.9 s instead
+  of 5.4 s.
+
 ## [0.7.1] - 2026-09-25
 
 ### Added
