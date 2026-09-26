@@ -17,7 +17,7 @@ kept in an event, written anywhere, or printed. The output contains only
 timestamps, session ids, counts and the derived numbers. The CLI never prints
 a filesystem path it derived or read, including the projects root; usage
 errors may echo the offending argv token. The parse cache (`2026-09-26-zapara-transcript-cache-design.md`)
-keys its rows by a salted HMAC of a transcript's path and never stores the path.
+keys its rows by a transcript's device and inode and stores nothing derived from its path.
 
 Non-goals for the MVP: real-time alerts, break nudges, hooks, OpenTelemetry, a
 statusline segment, an HTML dashboard, a config file for weights. The statusline

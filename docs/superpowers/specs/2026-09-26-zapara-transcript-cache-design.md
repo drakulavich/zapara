@@ -41,39 +41,40 @@ PRAGMA journal_mode = WAL;     -- leaves cache.db-wal and cache.db-shm beside it
 PRAGMA synchronous = NORMAL;   -- a lost last transaction is only a slower run
 PRAGMA busy_timeout = 2000;
 
-CREATE TABLE meta (
-  k TEXT PRIMARY KEY,          -- 'salt', 'parser'
-  v BLOB NOT NULL
-) WITHOUT ROWID;
-
 CREATE TABLE transcript (
-  key      BLOB PRIMARY KEY,   -- HMAC-SHA256(salt, absolute path)
+  dev      INTEGER NOT NULL,   -- device and inode of the file: the key
   ino      INTEGER NOT NULL,
+  parser   BLOB    NOT NULL,   -- fingerprint of the parser that wrote the row
   size     INTEGER NOT NULL,   -- bytes parsed: the log offset reached
   mtime_ms REAL    NOT NULL,
   tail     BLOB    NOT NULL,   -- SHA-256 of the last 4 KiB parsed, or all of it if shorter
   from_ms  REAL    NOT NULL,   -- the cutoff the bytes were parsed with
   used_at  INTEGER NOT NULL,   -- epoch ms of the last run that read or wrote the row
-  events   BLOB    NOT NULL    -- encoded events, below
+  events   BLOB    NOT NULL,   -- encoded events, below
+  PRIMARY KEY (dev, ino)
 );
 ```
 
-`transcript` keeps its rowid: SQLite advises against `WITHOUT ROWID` for rows
+The table keeps its rowid: SQLite advises against `WITHOUT ROWID` for rows
 holding large blobs, and one transcript's events reach about 1 MB. There is
 no index on `used_at`; at under a thousand rows a full scan costs nothing.
 
 ### Versions
 
 A database whose `user_version` is not the one this zapara
-writes is deleted with its WAL files and created again. `meta.parser` holds
-the parser fingerprint: the SHA-256 of `src/parse.ts` and `src/types.ts`
-(which defines `Event`) read from disk at start-up, plus the package version.
-`parse.ts` imports nothing else, and both files ship in the npm package, so
-the fingerprint is the same from a checkout or an install. When it differs
-from the stored one, every `transcript` row is deleted in the run's
-transaction and `meta.parser` is set to the new value. Any edit to the parser
-or the event shape, or a release, reprocesses everything, and nobody has to
-remember a version bump.
+writes is deleted with its WAL files and created again.
+
+`parser` is the parser fingerprint: the SHA-256 of `src/parse.ts` and
+`src/types.ts` (which defines `Event`) read from disk at start-up, plus the
+package version. `parse.ts` imports nothing else, and both files ship in the
+npm package, so the fingerprint is the same from a checkout or an install.
+Every row carries the fingerprint of the run that wrote it, and a row with
+another fingerprint is never a hit. The fingerprint lives in the row rather
+than once per database because two versions of zapara can run at the same
+time: an old run that started before an upgrade may still write its rows
+after a new run has cleaned up, and those rows must not pass for current.
+Any edit to the parser or the event shape, or a release, reprocesses
+everything, and nobody has to remember a version bump.
 
 ### Encoding
 
@@ -88,20 +89,27 @@ new `user_version` and the rows are rebuilt.
 
 ### Key
 
-A bare SHA-256 of the path could be reversed by guessing: the paths
+A row is keyed by the file's device and inode, not by anything derived from
+its path. A hash of the path would be reversible by guessing, since the paths
 follow a known pattern (`~/.claude/projects/<encoded project dir>/<session
-uuid>.jsonl`). The key is an HMAC-SHA256 of the path under `meta.salt`, 32
-random bytes created with the database, so a key means nothing outside it.
+uuid>.jsonl`), and a salt stored in the same database would not help once a
+copy of the file leaves the machine. With `(dev, ino)` the database holds
+nothing that points at a path. A renamed transcript keeps its inode and is
+still a hit, correctly, since its bytes are the same. An inode reused by a new
+file after a deletion fails the `size`, `mtime_ms` and `tail` checks. A file
+whose `stat` reports an inode of 0, as some file systems do, is parsed and
+never cached. The path order that the core needs comes from `scan`, never
+from the database.
 
 ## A run with the cache
 
-`scan` returns each file it kept as `{ path, ino, size, mtimeMs }` from the
+`scan` returns each file it kept as `{ path, dev, ino, size, mtimeMs }` from the
 `stat` it already does, instead of the bare path; a file that vanishes or
 fails `stat` is skipped, as today. For each file, in the sorted path order
 that `scan` returns and `analyze()` also uses, `report()`:
 
-1. looks the key up; the row is a candidate when `ino`, `size` and
-   `mtime_ms` match the scan's `stat` and `from_ms` is not later than this
+1. looks `(dev, ino)` up; the row is a candidate when `parser` is this
+   run's fingerprint, `size` and `mtime_ms` match the scan's `stat` and `from_ms` is not later than this
    run's cutoff, since events parsed from an earlier cutoff hold every event
    a later one needs;
 2. for a candidate, reads the file's last 4 KiB (or all of it, if shorter);
@@ -111,17 +119,23 @@ that `scan` returns and `analyze()` also uses, `report()`:
 3. on a hit, uses the stored events and reads nothing more;
 4. on a miss, opens the file, takes `fstat` on the handle, reads it, takes
    `fstat` again, and parses with `parseTranscript(text, cutoff)`. The row is
-   written only when both `fstat` calls agree on inode, size and mtime and
+   written only when both `fstat` calls agree on device, inode, size and mtime and
    the size equals the bytes read; it stores those values and the tail of
    the bytes read. Otherwise the events are used for this run and nothing
    is cached.
 
 The transcript is an append-only log, and `size` with `tail` is what a log
-consumer keeps: an offset, and a check that nothing before it was rewritten.
-Here the check makes a hit strict; it is also what reading only the appended
-part would need later (see Later), without a schema change.
+consumer keeps: an offset, and a check on the bytes just before it. The check
+catches a rewrite that reaches the end of the file, which is what a restore or
+a sync of a different copy does. It does not catch a rewrite of the same
+length that keeps the inode, the mtime and the last 4 KiB; proving that would
+mean hashing the whole file, which is the read the cache exists to avoid.
+That case is accepted: Claude Code only appends to a transcript, and a run
+with `--no-cache` is the way to rule the cache out. The same offset and check
+are what reading only the appended part would need later (see Later),
+without a schema change.
 
-All lookups are one `SELECT … WHERE key IN (…)`. All writes, the `used_at`
+All lookups are one `SELECT` over the `(dev, ino)` pairs of the run. All writes, the `used_at`
 updates and housekeeping go in one `BEGIN IMMEDIATE` transaction at the end
 of the run. The events from hits and misses are concatenated in that sorted
 path order, the order `analyze()` builds, so equal events keep their order
@@ -130,22 +144,23 @@ and the result cannot depend on which files hit.
 ### Concurrent runs
 
 A status line runs `zapara status` over one day while a
-`card` may run over fourteen. Two runs can write the same key, and a plain
+`card` may run over fourteen. Two runs can write the same row, and a plain
 upsert would let the narrow run replace the wide row: every `card` after it
 misses, the status line narrows the row again, and the cache stops helping
 the run it was built for. The write is therefore conditional:
 
 ```sql
 INSERT INTO transcript (…) VALUES (…)
-ON CONFLICT(key) DO UPDATE SET …
-WHERE NOT (transcript.ino = excluded.ino AND transcript.size = excluded.size
+ON CONFLICT(dev, ino) DO UPDATE SET …
+WHERE NOT (transcript.parser = excluded.parser AND transcript.size = excluded.size
            AND transcript.mtime_ms = excluded.mtime_ms
            AND transcript.tail = excluded.tail
            AND transcript.from_ms <= excluded.from_ms);
 ```
 
-A row for a newer version of the file always replaces the old one; a row for
-the same version replaces it only when it covers more. Parsing is
+A row for another version of the file, or from another parser, always
+replaces the old one; a row for the same file and parser replaces it only when
+it covers more. Parsing is
 deterministic, so two runs writing the same version write the same events,
 and whichever commits last leaves the wider coverage in place.
 
@@ -197,11 +212,9 @@ The cache is never a reason for a run to fail or to change its answer.
 
 ## Privacy
 
-The base contract forbids keeping a file path. The cache keeps an
-HMAC-SHA256 of the path under a per-database random salt as a lookup key,
-never the path, so the key cannot be matched against a guessed path without
-the database's own salt. Events carry what they carry today:
-timestamps, session ids, kinds and token counts. No message text, prompt
+The base contract forbids keeping a file path. The cache keys each row by
+the file's device and inode and stores nothing derived from the path. Events
+carry what they carry today: timestamps, session ids, kinds and token counts. No message text, prompt
 length or title is stored. The base spec's privacy paragraph gains one
 sentence saying so, in this change.
 
@@ -243,13 +256,17 @@ lines on stderr differ by design and are asserted on their own.
   each give the `--no-cache` output and exit 0.
 - An unwritable `~/.claude/zapara` gives the `--no-cache` output and exit 0.
 - The cache files contain neither the fixture's paths nor any of its message
-  text, nor the plain SHA-256 of any fixture path.
+  text, nor the SHA-256 of any fixture path.
+- A transcript renamed within the tree is a hit on the next run, and its
+  output matches `--no-cache`.
+- An old-parser row for an unchanged file (written by a test with another
+  fingerprint in `parser`) is a miss.
 
 Mutations to check the tests, one line each: a hit that ignores `size` must
 fail the appended-prompt test; a hit that ignores `from_ms` must fail the
 one-day-then-seven-days test; dropping the upsert's `WHERE` must fail the
 seven-one-seven test; a hit that ignores `tail` must fail the rewritten-file
-test.
+test; a hit that ignores `parser` must fail the old-parser test.
 
 Performance target: a warm `zapara card --json` on this machine, with no
 transcript changed since the last run, under 1 second.
@@ -257,7 +274,7 @@ transcript changed since the last run, under 1 second.
 ## Later
 
 A transcript that only grew could be read from where the last run stopped,
-at `size`, once `tail` confirms nothing before it changed, with the parser's
+at `size`, once `tail` matches, with the parser's
 state (`lastTs`, `lastMode`, the request and question ids)
 saved beside the row. That would make the open sessions free as well. It waits
 until the whole-file cache shows how much time is left in those files.
