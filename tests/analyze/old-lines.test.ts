@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { analyze } from "../../src/analyze.ts";
-import { assistant, mode, prompt, question, reject, toolResult, transcript, withNestedTimestamp } from "../helpers/transcript.ts";
+import { assistant, assistantText, mode, prompt, question, reject, toolResult, transcript, withNestedTimestamp } from "../helpers/transcript.ts";
 
 // A long session's file holds its whole history, most of it older than the
 // window's three-hour look-back. With `to` 2026-09-14 and TZ=UTC the window
@@ -65,6 +65,15 @@ describe("history older than the look-back", () => {
       prompt(at("01:05"), S),
     ])], W)[0]!;
     expect(day.totals.modeSwitches).toBe(0);
+  });
+
+  test("an old response still reserves its requestId for token deduplication", () => {
+    const day = analyze([transcript([
+      prompt(old("07:59"), S),
+      assistantText(old("08:00"), S, 100, "req_repeated"),
+      assistantText(at("01:00"), S, 100, "req_repeated"),
+    ])], W)[0]!;
+    expect(day.buckets[1]!.outputTokens).toBe(0);
   });
 
   test("a record inside the window is read even when it carries an older time inside it", () => {

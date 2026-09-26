@@ -36,6 +36,9 @@ const firstText = (content: unknown): string | null => {
 // One pass over the line: it costs a fifth of JSON.parse.
 const SKIP_SCAN = new RegExp(`"timestamp":"([^"]{20,40})"|${QUESTION_TOOL}|${PLAN_TOOL}`, "g");
 function olderThan(line: string, cutoffMs: number): boolean {
+  // Parsing an assistant record can update seenRequestIds even when its events
+  // are outside the window. Preserve that deduplication state across the skip.
+  if (line.includes('"requestId"')) return false;
   let any = false;
   for (const m of line.matchAll(SKIP_SCAN)) {
     if (m[1] === undefined || !(Date.parse(m[1]) < cutoffMs)) return false;
