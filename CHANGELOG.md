@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-09-26
+
 ### Added
 - `--verbose` prints timings and counts to stderr after the output, with no
   path in them: files scanned and read, megabytes, milliseconds per stage,
