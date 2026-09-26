@@ -283,23 +283,30 @@ empty day table) and exits 0.
 ## Architecture
 
 Functional core, imperative shell. The core is pure functions over plain data:
-no file system, no clock, no environment, no output. The shell is four small
+no file system, no clock, no environment, no output. The shell is six small
 files that do all the I/O and call the core.
 
 ```
 shell (I/O)
-  src/index.ts    argv → options; calls report(); prints; exit codes; the only try/catch
-  src/report.ts   report(options) → Day[]: lists files (scan), reads them, calls analyze()
-  src/scan.ts     projects dir + cutoff → sorted ScanEntry[] { path, dev, ino, size, mtimeMs }
-                  (fs.stat for mtime)
-  src/image.ts    card assets → CardAssets; card HTML → PNG/WebP file through Bun.WebView and
-                  Bun.Image; the only module allowed to use those, read the assets or write a
-                  file (see 2026-09-18-zapara-card-design.md)
-  src/cache.ts    parsed events cached by a transcript's device and inode; the only module
-                  allowed to use bun:sqlite, read src/parse.ts and src/types.ts for the
-                  parser fingerprint, or write cache.db (see
-                  2026-09-26-zapara-transcript-cache-design.md)
+  src/index.ts       argv → options; calls report(); prints; exit codes; the only try/catch
+  src/report.ts      report(options) → Day[]: lists files (scan), reads them, calls analyze()
+  src/scan.ts        projects dir + cutoff → sorted ScanEntry[] { path, dev, ino, size, mtimeMs }
+                      (fs.stat for mtime)
+  src/image.ts       card assets → CardAssets; card HTML → PNG/WebP file through Bun.WebView and
+                      Bun.Image; the only module allowed to use those or read the assets (see
+                      2026-09-18-zapara-card-design.md)
+  src/statusfile.ts  today's load → ~/.claude/zapara/status.json (see
+                      2026-09-19-zapara-status-file-design.md)
+  src/cache.ts       parsed events cached by a transcript's device and inode; the only module
+                      allowed to use bun:sqlite, or read src/parse.ts and src/types.ts for the
+                      parser fingerprint (see 2026-09-26-zapara-transcript-cache-design.md)
+```
 
+Three of the shell files write to disk: `src/image.ts` (the card),
+`src/statusfile.ts` (the status file) and `src/cache.ts` (the parse cache);
+the rest only read.
+
+```
 core (pure)
   src/analyze.ts  analyze(transcripts, window) → Day[]   transcripts = { path, text }[]
                   analyzeEvents(events, window) → Day[] over events already parsed

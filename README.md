@@ -136,7 +136,7 @@ If your card told you something about your week, star [the repository](https://g
 | `--out <path>` | Where `card` writes instead of `~/Downloads`; the extension picks the format. |
 | `--no-color` | Plain glyphs and peaks with no ANSI codes. `NO_COLOR` in the environment does the same. |
 | `--no-cache` | Read and parse every transcript again instead of using `~/.claude/zapara/cache.db`. |
-| `--verbose` | After the output, prints to stderr where the time went: files scanned and read, megabytes, cache hits and misses (or `off` with `--no-cache`), and milliseconds for scanning, reading, analysis and the card's render, plus the zapara and Bun versions, platform and CPU count. Numbers only, no path, so the lines are safe to paste into an issue when zapara is slow on your machine. |
+| `--verbose` | After the output, prints to stderr where the time went: files scanned and read, megabytes, cache hits and misses (or `off` with `--no-cache`, or when the cache could not be opened, including an empty `HOME`), and milliseconds for scanning, reading, analysis and the card's render, plus the zapara and Bun versions, platform and CPU count. Numbers only, no path, so the lines are safe to paste into an issue when zapara is slow on your machine. |
 | `-h`, `--help` | Usage, exit 0. |
 | `-V`, `--version` | The version from `package.json`, exit 0. |
 
@@ -174,7 +174,7 @@ zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts unde
 
 zapara keeps, writes and prints no message text, prompt length, file path or session title. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. It sends nothing anywhere, writes no file except the card, the status file and the cache below, and installs nothing into Claude Code.
 
-Between runs, zapara caches each transcript's parsed events in `~/.claude/zapara/cache.db`, so a file it has already parsed and that has not changed is not read or parsed again. A row is keyed by the transcript's device and inode, never by its path or a hash of it, and holds the same timestamps, session ids, event kinds and token counts that a report already shows; nothing else is stored. `--no-cache` runs without reading or writing it.
+Between runs, zapara caches each transcript's parsed events in `~/.claude/zapara/cache.db`. A hit still reads the last 4 KiB of the file to confirm it matches the cached row, then skips reading and parsing the rest. A row is keyed by the transcript's device and inode, never by its path or a hash of it. It holds the parsed events, plus the file's size, modification time, a hash of its last 4 KiB and when the row was last used, the bookkeeping needed to tell a hit from a miss; no message text, prompt length, path or title is stored. `--no-cache` runs without reading or writing it.
 
 ## Limits
 
