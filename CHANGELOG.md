@@ -16,6 +16,13 @@ All notable changes to this project are documented here. The format follows
   `--no-cache` runs without reading or writing the cache, and `--verbose`
   gains a `cache` line with the hit and miss counts, or `off`.
 
+### Changed
+- A PNG card renders in about 0.7 s instead of 1.1 s on macOS. zapara opens
+  one browser view instead of two, and writes WebKit's screenshot as it is
+  when it already has the card's size, instead of encoding the same PNG a
+  second time. The file is about 2.6 MB instead of 2.1 MB: WebKit's PNG
+  encoder compresses less, and the pixels are the same.
+
 ## [0.7.4] - 2026-09-26
 
 ### Changed
