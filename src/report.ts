@@ -6,7 +6,7 @@ import type { Day, Transcript } from "./types.ts";
 
 export type ReportOptions = { projects: string; to: string; days: number; now?: Date };
 // What --verbose prints about a run: counts and milliseconds, never a path.
-export type Timing = ScanStats & { inWindow: number; read: number; bytes: number; scanMs: number; readMs: number; analyzeMs: number; render?: { format: string; ms: number } };
+export type Timing = ScanStats & { inWindow: number; read: number; bytes: number; scanMs: number; readMs: number; analyzeMs: number; render?: { format: string; ms: number }; totalMs?: number };
 
 // Reading one file at a time left the disk idle between files: 1.6 GB took 5.4 s
 // sequentially and 0.9 s in parallel. The cap keeps open files well under the limit.

@@ -236,6 +236,7 @@ async function card(a: Args, timing?: Timing): Promise<number> {
   }
   if (timing) timing.render = { format: target.path.slice(target.path.lastIndexOf(".") + 1).toLowerCase(), ms: performance.now() - t };
   console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${target.label}`);
+  if (timing) timing.totalMs = performance.now(); // the wait for an answer is not zapara's time
   if (process.stdin.isTTY && process.stdout.isTTY && process.platform !== "win32") {
     process.stdout.write("open it? [Y/n] ");
     let answer: string | null = null;
@@ -256,7 +257,7 @@ function timingLines(t: Timing): string {
     + row("read", `${plural(t.read, "file")}, ${(t.bytes / 1e6).toFixed(1)} MB, ${READERS} at a time`, t.readMs)
     + row("analyze", "", t.analyzeMs)
     + (t.render ? row("render", t.render.format, t.render.ms) : "")
-    + row("total", "", performance.now());
+    + row("total", "", t.totalMs ?? performance.now());
 }
 
 if (import.meta.main) {

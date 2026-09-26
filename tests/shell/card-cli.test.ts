@@ -59,7 +59,7 @@ async function openedWithin(ms: number): Promise<string[]> {
 }
 
 // A run that exits without asking returns at once: a missing question fails an assertion.
-async function runInTerminal(answer: string, ...args: string[]): Promise<{ code: number; out: string }> {
+async function runInTerminal(answer: string, args: string[], answerAfterMs = 0): Promise<{ code: number; out: string }> {
   let out = "";
   const decoder = new TextDecoder();
   const p = Bun.spawn(["bun", CLI, "--projects", projects, ...args], {
@@ -68,6 +68,7 @@ async function runInTerminal(answer: string, ...args: string[]): Promise<{ code:
     terminal: { cols: 200, rows: 24, data(_t, d) { out += decoder.decode(d); } },
   });
   while (!out.includes("open it? [Y/n] ") && p.exitCode === null) await Bun.sleep(20);
+  await Bun.sleep(answerAfterMs);
   if (p.exitCode === null) p.terminal!.write(answer);
   const code = await p.exited;
   p.terminal!.close();
@@ -280,7 +281,7 @@ describe("zapara card", () => {
   test("in a terminal, Enter and y open the card by its absolute path", async () => {
     for (const answer of ["\r", "y\r", " YES \r"]) {
       await rm(log, { force: true });
-      const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
+      const r = await runInTerminal(answer, ["card", "--to", "2026-09-20", "--out", "c.html"]);
       expect(r.code).toBe(0);
       expect(r.out).toContain("wrote c.html\r\nopen it? [Y/n] ");
       const lines = await openedWithin(2000);
@@ -291,7 +292,7 @@ describe("zapara card", () => {
   }, 20_000);
 
   test("an --out that starts with a dash reaches the opener as a file, not an option", async () => {
-    const r = await runInTerminal("y\r", "card", "--to", "2026-09-20", "--out=-card.html");
+    const r = await runInTerminal("y\r", ["card", "--to", "2026-09-20", "--out=-card.html"]);
     expect(r.code).toBe(0);
     const lines = await openedWithin(2000);
     expect(lines).toHaveLength(1);
@@ -301,13 +302,21 @@ describe("zapara card", () => {
 
   test("in a terminal, n and end of input exit 0 and open nothing", async () => {
     for (const answer of ["n\r", "\x04"]) {
-      const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
+      const r = await runInTerminal(answer, ["card", "--to", "2026-09-20", "--out", "c.html"]);
       expect(r.code).toBe(0);
       expect(r.out).toContain("open it? [Y/n] ");
       expect(r.out).not.toContain("drawing"); // a page is written, not drawn
       expect(await files()).toEqual(["c.html"]);
     }
     expect(await openedWithin(2000)).toEqual([]);
+  }, 20_000);
+
+  test("--verbose leaves the wait for an answer out of the total", async () => {
+    const r = await runInTerminal("n\r", ["card", "--to", "2026-09-20", "--out", "c.html", "--verbose"], 3000);
+    expect(r.code).toBe(0);
+    const total = Number(/^total\s+(\d+) ms/m.exec(r.out)?.[1]);
+    expect(total).toBeGreaterThan(0);
+    expect(total).toBeLessThan(3000);
   }, 20_000);
 
   test("in a pipe there is no question and no read from stdin", async () => {
