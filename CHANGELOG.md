@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- zapara caches each transcript's parsed events between runs, in
+  `~/.claude/zapara/cache.db`, and reparses a file only when it has changed.
+  A row is a hit when its size, modification time and the SHA-256 of its
+  last 4 KiB all match the cached one; the row is keyed by the transcript's
+  device and inode, never by its path. On one machine, with nothing changed
+  since the run before, `zapara card --json --verbose` went from 4362 ms
+  (816 files read, 0 cache hits) to 246 ms (0 files read, 816 hits).
+  `--no-cache` runs without reading or writing the cache, and `--verbose`
+  gains a `cache` line with the hit and miss counts, or `off`.
+
 ## [0.7.4] - 2026-09-26
 
 ### Changed

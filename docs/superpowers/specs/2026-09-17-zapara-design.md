@@ -290,13 +290,19 @@ files that do all the I/O and call the core.
 shell (I/O)
   src/index.ts    argv → options; calls report(); prints; exit codes; the only try/catch
   src/report.ts   report(options) → Day[]: lists files (scan), reads them, calls analyze()
-  src/scan.ts     projects dir + cutoff → sorted file paths (fs.stat for mtime)
+  src/scan.ts     projects dir + cutoff → sorted ScanEntry[] { path, dev, ino, size, mtimeMs }
+                  (fs.stat for mtime)
   src/image.ts    card assets → CardAssets; card HTML → PNG/WebP file through Bun.WebView and
                   Bun.Image; the only module allowed to use those, read the assets or write a
                   file (see 2026-09-18-zapara-card-design.md)
+  src/cache.ts    parsed events cached by a transcript's device and inode; the only module
+                  allowed to use bun:sqlite, read src/parse.ts and src/types.ts for the
+                  parser fingerprint, or write cache.db (see
+                  2026-09-26-zapara-transcript-cache-design.md)
 
 core (pure)
   src/analyze.ts  analyze(transcripts, window) → Day[]   transcripts = { path, text }[]
+                  analyzeEvents(events, window) → Day[] over events already parsed
   src/parse.ts    JSONL text → Event[]
   src/derive.ts   Event[] + window → Day[] with HourBucket metrics (sorts, applies look-back)
   src/score.ts    metrics → { index, level, parts }; exports WEIGHTS, NORMS, LEVELS
@@ -318,9 +324,9 @@ test cover the shell.
 
 Rules: the shell may import any core module; core modules never import the
 shell (`render` and `derive` import `score` and `types`; `analyze` imports
-`parse` and `derive`; `report` imports `scan`, `analyze` and `derive`
-(`windowBounds`); `index` imports `report`, `render` and `derive`
-(`localDate`); nothing imports `index`). Core modules import nothing from
+`parse` and `derive`; `report` imports `scan`, `cache`, `parse`, `analyze`
+(`analyzeEvents`) and `derive` (`windowBounds`); `index` imports `report`,
+`cache`, `render` and `derive` (`localDate`); nothing imports `index`). Core modules import nothing from
 `node:` or `Bun`. The current time is a parameter, never `Date.now()` inside
 the core. Named exports only. No runtime dependencies; `typescript` is the one
 devDependency, for `tsc --noEmit`.

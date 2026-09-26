@@ -135,7 +135,8 @@ If your card told you something about your week, star [the repository](https://g
 | `--projects <dir>` | Read this directory instead of `~/.claude/projects`. |
 | `--out <path>` | Where `card` writes instead of `~/Downloads`; the extension picks the format. |
 | `--no-color` | Plain glyphs and peaks with no ANSI codes. `NO_COLOR` in the environment does the same. |
-| `--verbose` | After the output, prints to stderr where the time went: files scanned and read, megabytes, and milliseconds for scanning, reading, analysis and the card's render, plus the zapara and Bun versions, platform and CPU count. Numbers only, no path, so the lines are safe to paste into an issue when zapara is slow on your machine. |
+| `--no-cache` | Read and parse every transcript again instead of using `~/.claude/zapara/cache.db`. |
+| `--verbose` | After the output, prints to stderr where the time went: files scanned and read, megabytes, cache hits and misses (or `off` with `--no-cache`), and milliseconds for scanning, reading, analysis and the card's render, plus the zapara and Bun versions, platform and CPU count. Numbers only, no path, so the lines are safe to paste into an issue when zapara is slow on your machine. |
 | `-h`, `--help` | Usage, exit 0. |
 | `-V`, `--version` | The version from `package.json`, exit 0. |
 
@@ -171,7 +172,9 @@ Refreshing is the reader's job, and zapara adds no hook, no timer and no daemon.
 
 zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts under `subagents/`. It picks files by modification time first, and opens one whose modification time is older than the window only to read the last timestamp in its final 64 KB; nothing from that tail is kept or printed. It compares message text against a few fixed markers, for interrupts, tool rejections and inbound agent messages, then discards it. What survives into an event is a timestamp, a session id, an event kind and a token count.
 
-zapara keeps, writes and prints no message text, prompt length, file path or session title. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. It sends nothing anywhere, writes no file except the card or the status file you ask for, and installs nothing into Claude Code.
+zapara keeps, writes and prints no message text, prompt length, file path or session title. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. It sends nothing anywhere, writes no file except the card, the status file and the cache below, and installs nothing into Claude Code.
+
+Between runs, zapara caches each transcript's parsed events in `~/.claude/zapara/cache.db`, so a file it has already parsed and that has not changed is not read or parsed again. A row is keyed by the transcript's device and inode, never by its path or a hash of it, and holds the same timestamps, session ids, event kinds and token counts that a report already shows; nothing else is stored. `--no-cache` runs without reading or writing it.
 
 ## Limits
 
