@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { appendFile, cp, mkdtemp, rename, rm, stat, utimes } from "node:fs/promises";
+import { appendFile, cp, mkdtemp, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assistant, prompt, writeTree } from "../helpers/transcript.ts";
@@ -119,6 +119,35 @@ describe("the transcript cache", () => {
     expect(run2.out).not.toBe(run1.out);
     expect(run2.out).toBe((await uncached(projects)).out);
     expect(hitsOf(run2.err)).toEqual({ hits: 2, misses: 0 });
+  });
+
+  test("a same-length rewrite with its mtime set back is a miss", async () => {
+    const { home, projects } = await setup();
+    const b = join(projects, DIR, "b.jsonl");
+    await spawn(home, projects);
+    const { mtime } = await stat(b);
+    const original = await readFile(b, "utf8");
+    // Same length: the prompt's hour moves from 14 to 15, one hour later.
+    const rewritten = original.replace("2026-09-13T14:00:00.000Z", "2026-09-13T15:00:00.000Z");
+    expect(rewritten.length).toBe(original.length);
+    await writeFile(b, rewritten);
+    await utimes(b, mtime, mtime);
+    const run2 = await spawn(home, projects, "--verbose");
+    expect(run2.out).toBe((await uncached(projects)).out);
+    expect(hitsOf(run2.err)).toEqual({ hits: 2, misses: 1 });
+  });
+
+  test("a transcript cut shorter is a miss", async () => {
+    const { home, projects } = await setup();
+    const c = join(projects, DIR, "c.jsonl");
+    await spawn(home, projects);
+    const { mtime } = await stat(c);
+    const firstLine = (await readFile(c, "utf8")).split("\n")[0] + "\n";
+    await writeFile(c, firstLine);
+    await utimes(c, mtime, mtime);
+    const run2 = await spawn(home, projects, "--verbose");
+    expect(run2.out).toBe((await uncached(projects)).out);
+    expect(hitsOf(run2.err)).toEqual({ hits: 2, misses: 1 });
   });
 
   test("two runs at once both print what --no-cache prints", async () => {
