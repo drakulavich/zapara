@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- On a high-density screen, `zapara card` draws the picture at its final size
+  instead of at double size and scaling it down. The PNG render on a Mac went
+  from about 3.4 s to 1.6 s. The picture is the same.
+
 ### Fixed
 - `--verbose` no longer counts the wait at `open it? [Y/n]` in the `total` row.
 

@@ -105,6 +105,28 @@ describe("renderCard", () => {
     } finally { await rm(dir, { recursive: true, force: true }); }
   }, WEBVIEW_TEST_TIMEOUT);
 
+  // A page laid out at 1200x630 with zoom 2, as cardHtml is, fills the whole picture
+  // at any screen density: each quadrant's colour lands in its own quarter.
+  test.skipIf(webviewMissing !== null)("the whole 1200x630 page fills the 2400x1260 picture", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "zapara-render-"));
+    const quad = (left: number, top: number, color: string) => `<div style="position:absolute;left:${left}px;top:${top}px;width:600px;height:315px;background:${color}"></div>`;
+    const html = `<!doctype html><html><head><style>html{zoom:2}html,body{margin:0}</style></head><body>${quad(0, 0, "#f00")}${quad(600, 0, "#0f0")}${quad(0, 315, "#00f")}${quad(600, 315, "#ff0")}</body></html>`;
+    try {
+      await renderCard(html, join(dir, "q.png"));
+      const png = (await readFile(join(dir, "q.png"))).toString("base64");
+      const view = await openPage(`<canvas width=2400 height=1260></canvas><img id=i src="data:image/png;base64,${png}">`, 100, 100);
+      try {
+        const colors = await view.evaluate<string[]>(`(() => {
+          const c = document.querySelector("canvas").getContext("2d");
+          c.drawImage(document.getElementById("i"), 0, 0);
+          return [[600, 315], [1800, 315], [600, 945], [1800, 945]].map(([x, y]) =>
+            Array.from(c.getImageData(x, y, 1, 1).data.slice(0, 3)).map((v) => (v > 127 ? "1" : "0")).join(""));
+        })()`);
+        expect(colors).toEqual(["100", "010", "001", "110"]);
+      } finally { view.close(); }
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }, WEBVIEW_TEST_TIMEOUT);
+
   // No test for the timeout path: on this machine's WebKit backend, both a broken
   // <img> (reports `complete` once it has errored) and a broken @font-face (settles
   // document.fonts.ready anyway) resolve instead of hanging, so there is no page

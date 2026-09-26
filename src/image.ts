@@ -41,9 +41,16 @@ export async function renderCard(html: string, out: string, timeoutMs = 15_000):
   try {
     bytes = await Promise.race([
       (async () => {
-        const view = new Bun.WebView({ width: WIDTH, height: HEIGHT, backend: BACKEND });
+        // WebKit draws at the screen's density: at 2x, a 2400-wide viewport made a
+        // 4800-wide shot, 2.2 s of a 3 s render. The viewport and the page's zoom
+        // (2 in cardHtml) shrink by the density, so the shot is 2400 wide already.
+        const probe = new Bun.WebView({ width: 1, height: 1, backend: BACKEND });
+        let dpr: number;
+        try { dpr = await probe.evaluate<number>("devicePixelRatio"); } finally { probe.close(); }
+        const view = new Bun.WebView({ width: Math.round(WIDTH / dpr), height: Math.round(HEIGHT / dpr), backend: BACKEND });
         try {
           await view.navigate("data:text/html;charset=utf-8," + encodeURIComponent(html));
+          await view.evaluate(`document.documentElement.style.zoom = "${2 / dpr}"`);
           while (!(await view.evaluate<boolean>(READY))) await Bun.sleep(50);
           const shot = await view.screenshot({ encoding: "buffer", format: "png" });
           const image = new Bun.Image(shot);
