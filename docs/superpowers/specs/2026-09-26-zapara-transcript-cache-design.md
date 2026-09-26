@@ -165,7 +165,11 @@ A row for another version of the file, or from another parser, always
 replaces the old one; a row for the same file and parser replaces it only when
 it covers more. Parsing is
 deterministic, so two runs writing the same version write the same events,
-and whichever commits last leaves the wider coverage in place.
+and whichever commits last leaves the wider coverage in place. Run one
+after the other, a narrow run never writes over a wide row, since the wide
+row is already a hit for it; only two runs that both miss and commit in the
+wrong order reach this condition. No deterministic test can stage that, so
+the `WHERE` is a guard the tests do not pin.
 
 ### Files that change during a run
 
@@ -267,8 +271,7 @@ lines on stderr differ by design and are asserted on their own.
 
 Mutations to check the tests, one line each: a hit that ignores `size` must
 fail the appended-prompt test; a hit that ignores `from_ms` must fail the
-one-day-then-seven-days test; dropping the upsert's `WHERE` must fail the
-seven-one-seven test; a hit that ignores `tail` must fail the rewritten-file
+one-day-then-seven-days test; a hit that ignores `tail` must fail the rewritten-file
 test; a hit that ignores `parser` must fail the old-parser test.
 
 Performance target: a warm `zapara card --json` on this machine, with no
