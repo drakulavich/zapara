@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--verbose` prints timings and counts to stderr after the output, with no
+  path in them: files scanned and read, megabytes, milliseconds per stage,
+  versions, platform and CPU count. It is meant for diagnosing a slow run on
+  someone else's machine.
 - `zapara card` says `drawing the card…` on a terminal's stderr while the
   browser engine renders the picture, which takes a few seconds.
 
