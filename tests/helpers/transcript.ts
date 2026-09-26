@@ -121,3 +121,8 @@ export async function writeTree(root: string, files: { path: string; lines: stri
     await utimes(full, t, t);
   }
 }
+
+// Some tool results carry a structured `toolUseResult` with a timestamp of its
+// own, older than the record's. The record's time is the top-level `timestamp`.
+export const withNestedTimestamp = (line: string, nestedTs: string) =>
+  JSON.stringify({ ...JSON.parse(line), toolUseResult: { durationMs: 12, timestamp: nestedTs } });

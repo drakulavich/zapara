@@ -28,7 +28,26 @@ const firstText = (content: unknown): string | null => {
   return null;
 };
 
-export function parseTranscript(text: string): Event[] {
+// A record older than the look-back yields only events derive() drops, so it is
+// not parsed at all. Every "timestamp" in the line must be old, since a nested
+// one can differ from the record's own. The skip waits for a first timestamped
+// record, which the mode switches before it attach to; lines naming the two
+// tools whose result the human writes are always parsed, for their ids.
+// One pass over the line: it costs a fifth of JSON.parse.
+const SKIP_SCAN = new RegExp(`"timestamp":"([^"]{20,40})"|${QUESTION_TOOL}|${PLAN_TOOL}`, "g");
+function olderThan(line: string, cutoffMs: number): boolean {
+  // Parsing an assistant record can update seenRequestIds even when its events
+  // are outside the window. Preserve that deduplication state across the skip.
+  if (line.includes('"requestId"')) return false;
+  let any = false;
+  for (const m of line.matchAll(SKIP_SCAN)) {
+    if (m[1] === undefined || !(Date.parse(m[1]) < cutoffMs)) return false;
+    any = true;
+  }
+  return any;
+}
+
+export function parseTranscript(text: string, cutoffMs = -Infinity): Event[] {
   const events: Event[] = [];
   let lastTs: number | null = null;
   let lastMode: string | null = null;
@@ -42,6 +61,7 @@ export function parseTranscript(text: string): Event[] {
 
   for (const line of text.split("\n")) {
     if (line.trim() === "") continue;
+    if (lastTs !== null && lastTs < cutoffMs && olderThan(line, cutoffMs)) continue;
     let rec: unknown;
     try { rec = JSON.parse(line); } catch { continue; }
     if (!isObj(rec)) continue;
