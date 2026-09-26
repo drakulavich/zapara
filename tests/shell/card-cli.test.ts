@@ -263,10 +263,17 @@ describe("zapara card", () => {
       const r = await run("card", "--to", "2026-09-20", "--out", name);
       expect(r.code).toBe(0);
       expect(r.out.endsWith(`wrote ${name}\n`)).toBe(true);
+      expect(r.err).toBe(""); // a pipe gets no progress line
       const bytes = await readFile(join(cwd, name));
       expect(bytes.length).toBeGreaterThan(20_000);
       expect(await new Bun.Image(bytes).metadata()).toMatchObject({ width: 2400, height: 1260, format });
     }
+  }, WEBVIEW_TEST_TIMEOUT);
+
+  test.skipIf(webviewMissing !== null)("in a terminal, a picture says it is being drawn and clears that line before the result", async () => {
+    const r = await runInTerminal("n\r", "card", "--to", "2026-09-20", "--out", "c.png");
+    expect(r.code).toBe(0);
+    expect(r.out.startsWith("drawing the card…\r\x1b[KThe Marathoner:")).toBe(true);
   }, WEBVIEW_TEST_TIMEOUT);
 
   test("in a terminal, Enter and y open the card by its absolute path", async () => {
@@ -296,6 +303,7 @@ describe("zapara card", () => {
       const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
       expect(r.code).toBe(0);
       expect(r.out).toContain("open it? [Y/n] ");
+      expect(r.out).not.toContain("drawing"); // a page is written, not drawn
       expect(await files()).toEqual(["c.html"]);
     }
     expect(await openedWithin(2000)).toEqual([]);

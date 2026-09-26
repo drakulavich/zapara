@@ -218,7 +218,14 @@ async function card(a: Args): Promise<number> {
     return 0;
   }
   const target = cardTarget(a.out);
-  await renderCard(cardHtml(data, await loadAssets()), target.path);
+  // The browser engine takes seconds; a person at a terminal is told why it waits.
+  const note = process.stderr.isTTY && !/\.html$/i.test(target.path);
+  if (note) process.stderr.write("drawing the card…");
+  try {
+    await renderCard(cardHtml(data, await loadAssets()), target.path);
+  } finally {
+    if (note) process.stderr.write("\r\x1b[K");
+  }
   console.log(`${data.name}: ${sentenceText(data.sentence)}\nwrote ${target.label}`);
   if (process.stdin.isTTY && process.stdout.isTTY && process.platform !== "win32") {
     process.stdout.write("open it? [Y/n] ");
