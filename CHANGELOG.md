@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `zapara card` says `drawing the card…` on a terminal's stderr while the
+  browser engine renders the picture, which takes a few seconds.
+
 ## [0.7.2] - 2026-09-26
 
 ### Changed

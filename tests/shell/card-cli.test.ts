@@ -74,8 +74,8 @@ async function runInTerminal(answer: string, ...args: string[]): Promise<{ code:
   return { code, out };
 }
 
-// The script points one stream away from the terminal; a run still waiting after 5 s is killed (code null).
-async function runHalfTerminal(script: string, ...args: string[]): Promise<{ code: number | null; out: string }> {
+// The script points one stream away from the terminal; a run still going after `limitMs` is killed (code null).
+async function runHalfTerminal(script: string, args: string[], limitMs = 5000): Promise<{ code: number | null; out: string }> {
   let out = "";
   const decoder = new TextDecoder();
   const p = Bun.spawn(["sh", "-c", script, CLI, "--projects", projects, ...args], {
@@ -83,7 +83,7 @@ async function runHalfTerminal(script: string, ...args: string[]): Promise<{ cod
     env: { ...process.env, TZ: "UTC", NO_COLOR: "1", HOME: home, PATH: `${bin}:${process.env.PATH}`, ZAPARA_TEST_LOG: log },
     terminal: { cols: 200, rows: 24, data(_t, d) { out += decoder.decode(d); } },
   });
-  const code = await Promise.race([p.exited, Bun.sleep(5000).then(() => null)]);
+  const code = await Promise.race([p.exited, Bun.sleep(limitMs).then(() => null)]);
   if (code === null) { p.kill(); await p.exited; }
   p.terminal!.close();
   return { code, out };
@@ -263,10 +263,18 @@ describe("zapara card", () => {
       const r = await run("card", "--to", "2026-09-20", "--out", name);
       expect(r.code).toBe(0);
       expect(r.out.endsWith(`wrote ${name}\n`)).toBe(true);
+      expect(r.err).toBe(""); // a pipe gets no progress line
       const bytes = await readFile(join(cwd, name));
       expect(bytes.length).toBeGreaterThan(20_000);
       expect(await new Bun.Image(bytes).metadata()).toMatchObject({ width: 2400, height: 1260, format });
     }
+  }, WEBVIEW_TEST_TIMEOUT);
+
+  test.skipIf(webviewMissing !== null)("in a terminal, a picture says it is being drawn and clears that line before the result", async () => {
+    const r = await runHalfTerminal('exec bun "$0" "$@" > out.txt', ["card", "--to", "2026-09-20", "--out", "c.png"], WEBVIEW_TEST_TIMEOUT / 2);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe("drawing the card…\r\x1b[K");
+    expect(await readFile(join(cwd, "out.txt"), "utf8")).toMatch(/^The Marathoner:.*\nwrote c\.png\n$/);
   }, WEBVIEW_TEST_TIMEOUT);
 
   test("in a terminal, Enter and y open the card by its absolute path", async () => {
@@ -296,6 +304,7 @@ describe("zapara card", () => {
       const r = await runInTerminal(answer, "card", "--to", "2026-09-20", "--out", "c.html");
       expect(r.code).toBe(0);
       expect(r.out).toContain("open it? [Y/n] ");
+      expect(r.out).not.toContain("drawing"); // a page is written, not drawn
       expect(await files()).toEqual(["c.html"]);
     }
     expect(await openedWithin(2000)).toEqual([]);
@@ -315,7 +324,7 @@ describe("zapara card", () => {
   }, 10_000);
 
   test("with stdin a terminal but stdout a file there is no question and no read", async () => {
-    const r = await runHalfTerminal('exec bun "$0" "$@" > out.txt', "card", "--to", "2026-09-20", "--out", "c.html");
+    const r = await runHalfTerminal('exec bun "$0" "$@" > out.txt', ["card", "--to", "2026-09-20", "--out", "c.html"]);
     expect(r.code).toBe(0);
     const out = await readFile(join(cwd, "out.txt"), "utf8");
     expect(out.endsWith("wrote c.html\n")).toBe(true);
@@ -325,7 +334,7 @@ describe("zapara card", () => {
 
   test("with stdout a terminal but stdin a pipe there is no question and no read", async () => {
     // A run that asked would read this "y" and open the card.
-    const r = await runHalfTerminal('printf "y\\n" | exec bun "$0" "$@"', "card", "--to", "2026-09-20", "--out", "c.html");
+    const r = await runHalfTerminal('printf "y\\n" | exec bun "$0" "$@"', ["card", "--to", "2026-09-20", "--out", "c.html"]);
     expect(r.code).toBe(0);
     expect(r.out).toContain("wrote c.html\r\n");
     expect(r.out).not.toContain("open it?");
