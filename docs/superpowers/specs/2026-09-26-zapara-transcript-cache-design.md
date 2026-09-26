@@ -96,7 +96,10 @@ uuid>.jsonl`), and a salt stored in the same database would not help once a
 copy of the file leaves the machine. With `(dev, ino)` the database holds
 nothing that points at a path. A renamed transcript keeps its inode and is
 still a hit, correctly, since its bytes are the same. An inode reused by a new
-file after a deletion fails the `size`, `mtime_ms` and `tail` checks. A file
+file after a deletion is a hit only if the new file matches `size`,
+`mtime_ms` and `tail` all at once. If its bytes are the same, so are its
+events; otherwise it is the accepted case of a rewrite that keeps the last
+4 KiB, below. A file
 whose `stat` reports an inode of 0, as some file systems do, is parsed and
 never cached. The path order that the core needs comes from `scan`, never
 from the database.
