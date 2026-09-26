@@ -142,6 +142,7 @@ export function openCache(env: NodeJS.ProcessEnv): TranscriptCache | null {
 }
 
 function cacheOn(db: Database, parser: Uint8Array): TranscriptCache {
+  let failed = false;
   return {
     async hits(entries, cutoffMs) {
       const found = new Map<string, Event[]>();
@@ -168,12 +169,14 @@ function cacheOn(db: Database, parser: Uint8Array): TranscriptCache {
         };
         await Promise.all(Array.from({ length: Math.min(READERS, candidates.length) }, reader));
       } catch {
+        failed = true;
         found.clear();
       }
       return found;
     },
 
     save(hit, fresh, nowMs) {
+      if (failed) return;
       try {
         const upsert = db.query(
           `INSERT INTO transcript (dev, ino, parser, size, mtime_ms, tail, from_ms, used_at, events)

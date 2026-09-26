@@ -212,6 +212,17 @@ describe("the transcript cache", () => {
     expect(hitsOf(run3.err)).toEqual({ hits: 3, misses: 0 });
   });
 
+  test("a failed lookup writes nothing to the cache", async () => {
+    const { home, projects } = await setup();
+    await spawn(home, projects);
+    // A table named json_each shadows the function the lookup needs; the insert does not use it.
+    sql(home, "DELETE FROM transcript; CREATE TABLE json_each (x)");
+    const run2 = await spawn(home, projects, "--verbose");
+    expect(run2.code).toBe(0);
+    expect(run2.out).toBe((await uncached(projects)).out);
+    expect(rows(home)).toBe(0);
+  });
+
   test("an unwritable ~/.claude/zapara leaves the run as it was", async () => {
     const { home, projects } = await setup();
     const claude = join(home, ".claude");
