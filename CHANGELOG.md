@@ -5,6 +5,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- `--verbose` no longer counts the wait at `open it? [Y/n]` in the `total` row.
+
 ## [0.7.3] - 2026-09-26
 
 ### Added
