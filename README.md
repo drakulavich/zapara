@@ -174,7 +174,7 @@ zapara reads `~/.claude/projects/**/*.jsonl`, skipping subagent transcripts unde
 
 zapara keeps, writes and prints no message text, prompt length, file path or session title. The CLI never prints a path it derived or read, not even the projects root when it cannot open it. It sends nothing anywhere, writes no file except the card, the status file and the cache below, and installs nothing into Claude Code.
 
-Between runs, zapara caches each transcript's parsed events in `~/.claude/zapara/cache.db`. A hit still reads the last 4 KiB of the file to confirm it matches the cached row, then skips reading and parsing the rest. A row is keyed by the transcript's device and inode, never by its path or a hash of it. It holds the parsed events, plus the file's size, modification time, a hash of its last 4 KiB and when the row was last used, the bookkeeping needed to tell a hit from a miss; no message text, prompt length, path or title is stored. `--no-cache` runs without reading or writing it.
+Between runs, zapara caches each transcript's parsed events in `~/.claude/zapara/cache.db`. A hit still reads the last 4 KiB of the file to confirm it matches the cached row, then skips reading and parsing the rest. A row is keyed by the transcript's device and inode, never by its path or a hash of it. Besides the device and inode, a row stores a fingerprint of the parser that wrote it, the file's size and modification time, a hash of its last 4 KiB, the cutoff its events were parsed with, when the row was last used, and the parsed events themselves. No message text, prompt length, path or title is stored. `--no-cache` runs without reading or writing it.
 
 ## Limits
 
